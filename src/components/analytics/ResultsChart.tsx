@@ -51,7 +51,7 @@ export default function ResultsChart({ data, isLoading, hasData }: ResultsChartP
             label={({ name, value }) => `${name}: ${((value / totalValue) * 100).toFixed(1)}%`}
           >
             {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
             ))}
           </Pie>
           <Tooltip formatter={(value) => [`${value} llamadas`, 'Cantidad']} />

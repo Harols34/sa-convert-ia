@@ -2,29 +2,28 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
+/**
+ * RouteObserver component for tracking route changes
+ * This is used in App.tsx to monitor and react to route changes
+ */
 export default function RouteObserver() {
   const location = useLocation();
 
   useEffect(() => {
-    // Save current path to localStorage for possible redirection after login
-    const currentPath = location.pathname;
+    // Log navigation for tracking purposes
+    console.log(`Navigation to: ${location.pathname}`);
     
-    if (currentPath !== '/login' && 
-        currentPath !== '/register' && 
-        !currentPath.includes('reset-password') && 
-        currentPath !== '/'
-    ) {
-      console.log(`Route changed to: ${currentPath}, saving path`);
-    }
+    // Scroll to top on route change
+    window.scrollTo(0, 0);
     
-    // Send page view event for analytics (if implemented)
-    console.log(`Page viewed: ${currentPath}`);
-    
-    // Update the document title based on the route
-    const pageName = currentPath.split('/').pop()?.replace('-', ' ') || 'Home';
-    document.title = `ConvertIA | ${pageName.charAt(0).toUpperCase() + pageName.slice(1)}`;
-    
-  }, [location.pathname]);
+    // Send analytics event (can be extended later)
+    const sendPageView = () => {
+      // This can be integrated with an analytics service later
+      console.log(`Page view: ${location.pathname}`);
+    };
+
+    sendPageView();
+  }, [location]);
 
   // This component doesn't render anything
   return null;
