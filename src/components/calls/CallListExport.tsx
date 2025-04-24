@@ -16,9 +16,10 @@ import { downloadAudio } from "../calls/detail/audio/audioUtils";
 
 interface CallListExportProps {
   selectedCalls?: Call[];
+  filteredCalls: Call[];
 }
 
-export default function CallListExport({ selectedCalls }: CallListExportProps) {
+export default function CallListExport({ selectedCalls, filteredCalls }: CallListExportProps) {
   const prepareExportData = async () => {
     try {
       toast.loading("Preparando exportación...", { id: "export" });
@@ -28,88 +29,8 @@ export default function CallListExport({ selectedCalls }: CallListExportProps) {
       if (selectedCalls && selectedCalls.length > 0) {
         calls = selectedCalls;
       } else {
-        const { data, error } = await supabase
-          .from('calls')
-          .select(`
-            *,
-            feedback (*)
-          `)
-          .order('date', { ascending: false });
-          
-        if (error) throw error;
-        
-        calls = data.map(call => {
-          let feedback: Feedback | undefined = undefined;
-          
-          if (call.feedback && call.feedback.length > 0) {
-            const fbData = call.feedback[0];
-            
-            let behaviorsAnalysis: BehaviorAnalysis[] = [];
-            if (fbData.behaviors_analysis) {
-              if (typeof fbData.behaviors_analysis === 'string') {
-                try {
-                  behaviorsAnalysis = JSON.parse(fbData.behaviors_analysis);
-                } catch (e) {
-                  console.error("Error parsing behaviors_analysis:", e);
-                }
-              } else if (Array.isArray(fbData.behaviors_analysis)) {
-                behaviorsAnalysis = fbData.behaviors_analysis.map((item: any) => ({
-                  name: item.name || "",
-                  evaluation: (item.evaluation === "cumple" || item.evaluation === "no cumple") 
-                    ? item.evaluation : "no cumple",
-                  comments: item.comments || ""
-                }));
-              }
-            }
-            
-            feedback = {
-              id: fbData.id,
-              call_id: fbData.call_id,
-              score: fbData.score || 0,
-              positive: fbData.positive || [],
-              negative: fbData.negative || [],
-              opportunities: fbData.opportunities || [],
-              behaviors_analysis: behaviorsAnalysis,
-              created_at: fbData.created_at,
-              updated_at: fbData.updated_at,
-              sentiment: fbData.sentiment,
-              topics: fbData.topics || [],
-              entities: fbData.entities || []
-            };
-          }
-          
-          let result: "" | "venta" | "no venta" = "";
-          if (call.result === "venta" || call.result === "no venta") {
-            result = call.result;
-          }
-          
-          let product: "" | "fijo" | "móvil" = "";
-          if (call.product === "fijo" || call.product === "móvil") {
-            product = call.product;
-          }
-          
-          return {
-            id: call.id,
-            title: call.title,
-            filename: call.filename,
-            agentName: call.agent_name || "Sin asignar",
-            agentId: call.agent_id,
-            duration: call.duration || 0,
-            date: call.date,
-            status: validateCallStatus(call.status),
-            progress: call.progress || 0,
-            audio_url: call.audio_url,
-            audioUrl: call.audio_url,
-            transcription: null,
-            summary: call.summary || "",
-            result: result,
-            product: product,
-            reason: call.reason || "",
-            tipificacionId: call.tipificacion_id,
-            feedback: feedback,
-            statusSummary: call.status_summary || ""
-          };
-        });
+        // Use filtered calls instead of fetching all calls
+        calls = filteredCalls;
       }
       
       const { data: tipificacionesData } = await supabase

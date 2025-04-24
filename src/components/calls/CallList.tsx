@@ -466,9 +466,12 @@ export default function CallList() {
                 <RefreshCcw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Actualizar
               </Button>
-              <CallListExport selectedCalls={selectedCalls.length > 0 ? 
-                calls.filter(call => selectedCalls.includes(call.id)) : 
-                undefined} 
+              <CallListExport 
+                selectedCalls={selectedCalls.length > 0 ? 
+                  calls.filter(call => selectedCalls.includes(call.id)) : 
+                  undefined
+                } 
+                filteredCalls={calls}
               />
               <CallUploadButton />
             </>
