@@ -68,11 +68,20 @@ export default function ChatInterface() {
         
         setMessages((prevMessages) => [...prevMessages, aiMessage]);
         
-        // Save chat history
-        await supabase.from("chat_history").insert([{
+        // Save chat history to chat_messages table
+        await supabase.from("chat_messages").insert([{
           user_id: user?.id,
-          query: userMessage.content,
-          response: data.response,
+          content: userMessage.content,
+          role: userMessage.role,
+          timestamp: new Date().toISOString(),
+        }]);
+
+        // Save assistant response
+        await supabase.from("chat_messages").insert([{
+          user_id: user?.id,
+          content: data.response,
+          role: "assistant",
+          timestamp: new Date().toISOString(),
         }]);
       }
     } catch (error) {

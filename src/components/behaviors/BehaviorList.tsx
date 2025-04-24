@@ -15,15 +15,7 @@ import { Pencil, Trash2, Brain } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-
-interface Behavior {
-  id: string;
-  name: string;
-  description: string;
-  criteria: string[];
-  status: "active" | "inactive";
-  created_at: string;
-}
+import { Behavior } from "@/lib/types";
 
 export default function BehaviorList() {
   const [behaviors, setBehaviors] = useState<Behavior[]>([]);
@@ -46,7 +38,38 @@ export default function BehaviorList() {
         throw error;
       }
 
-      setBehaviors(data || []);
+      if (data) {
+        // Transform database behaviors to match our UI types
+        const transformedBehaviors: Behavior[] = data.map(behavior => {
+          let criteria: string[] = [];
+          
+          // Try to extract criteria from the prompt field if it's stored as JSON
+          try {
+            if (behavior.prompt) {
+              const parsedPrompt = JSON.parse(behavior.prompt);
+              if (parsedPrompt.criteria && Array.isArray(parsedPrompt.criteria)) {
+                criteria = parsedPrompt.criteria;
+              }
+            }
+          } catch (e) {
+            console.error("Error parsing behavior prompt:", e);
+          }
+          
+          return {
+            id: behavior.id,
+            name: behavior.name,
+            description: behavior.description,
+            prompt: behavior.prompt,
+            isActive: behavior.is_active,
+            criteria: criteria,
+            createdBy: behavior.created_by,
+            createdAt: behavior.created_at,
+            updatedAt: behavior.updated_at
+          };
+        });
+        
+        setBehaviors(transformedBehaviors);
+      }
     } catch (error) {
       console.error("Error fetching behaviors:", error);
       toast.error("Error al cargar los comportamientos");
@@ -131,9 +154,9 @@ export default function BehaviorList() {
               </TableCell>
               <TableCell>
                 <Badge
-                  variant={behavior.status === "active" ? "default" : "secondary"}
+                  variant={behavior.isActive ? "default" : "secondary"}
                 >
-                  {behavior.status === "active" ? "Activo" : "Inactivo"}
+                  {behavior.isActive ? "Activo" : "Inactivo"}
                 </Badge>
               </TableCell>
               <TableCell>
@@ -143,7 +166,7 @@ export default function BehaviorList() {
                       {criterion}
                     </Badge>
                   ))}
-                  {behavior.criteria?.length > 2 && (
+                  {behavior.criteria && behavior.criteria.length > 2 && (
                     <Badge variant="outline">+{behavior.criteria.length - 2}</Badge>
                   )}
                 </div>

@@ -66,6 +66,7 @@ export interface Behavior {
   description: string | null;
   prompt: string;
   isActive: boolean;
+  criteria?: string[];
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -102,4 +103,13 @@ export interface ChatMessage {
   timestamp?: string;
   call_id?: string;
   user_id?: string;
+}
+
+// Interface for ChatHistoryItem
+export interface ChatHistoryItem {
+  id: string;
+  query: string; 
+  response: string;
+  created_at: string;
+  user_id: string;
 }

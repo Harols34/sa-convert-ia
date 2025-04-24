@@ -1,120 +1,60 @@
 
-import { Call } from "@/lib/types";
-
-export interface CallVolumeData {
-  name: string;
-  calls: number;
-}
-
-export interface AgentPerformanceData {
-  name: string;
-  score: number;
-  calls: number;
-}
-
-export interface IssueTypeData {
-  name: string;
-  value: number;
-}
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 export interface ResultsData {
   name: string;
   value: number;
+  color: string;
 }
-
-export interface PerformanceMetric {
-  metric: string;
-  current: string | number;
-  previous: string | number;
-  change: number;
-}
-
-export const emptyCallVolumeData: CallVolumeData[] = [
-  { name: 'Lun', calls: 0 },
-  { name: 'Mar', calls: 0 },
-  { name: 'Mié', calls: 0 },
-  { name: 'Jue', calls: 0 },
-  { name: 'Vie', calls: 0 },
-  { name: 'Sáb', calls: 0 },
-  { name: 'Dom', calls: 0 },
-];
-
-export const emptyAgentPerformanceData: AgentPerformanceData[] = [
-  { name: 'Agente 1', score: 0, calls: 0 },
-  { name: 'Agente 2', score: 0, calls: 0 },
-  { name: 'Agente 3', score: 0, calls: 0 },
-];
-
-export const emptyIssueTypeData: IssueTypeData[] = [
-  { name: 'No hay datos', value: 1 },
-];
-
-export const emptyResultsData: ResultsData[] = [
-  { name: 'Venta', value: 0 },
-  { name: 'No Venta', value: 0 },
-];
 
 export const COLORS = [
-  '#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088FE', 
-  '#00C49F', '#FFBB28', '#FF8042', '#a4de6c', '#d0ed57'
+  "#2563eb", // Blue
+  "#dc2626", // Red
+  "#16a34a", // Green
+  "#ca8a04", // Yellow
+  "#9333ea", // Purple
+  "#0891b2", // Cyan
+  "#c2410c", // Orange
 ];
 
-export const categorizeIssue = (issue: string): string => {
-  const issueMap: Record<string, string[]> = {
-    "Precio": ["precio", "costo", "tarifa", "descuento", "oferta", "promoción"],
-    "Producto": ["producto", "servicio", "calidad", "características", "funcionalidad"],
-    "Atención": ["atención", "servicio", "agente", "asistencia", "ayuda", "soporte"],
-    "Tiempo": ["demora", "espera", "tardanza", "lento", "rápido", "tiempo"],
-    "Técnico": ["técnico", "error", "falla", "problema", "tecnología"]
-  };
+export const prepareResultsData = (calls: any[]) => {
+  const results = calls.reduce((acc: Record<string, number>, call) => {
+    const result = call.result || "Sin resultado";
+    acc[result] = (acc[result] || 0) + 1;
+    return acc;
+  }, {});
 
-  const lowerIssue = issue.toLowerCase();
-  for (const [category, keywords] of Object.entries(issueMap)) {
-    if (keywords.some(keyword => lowerIssue.includes(keyword))) {
-      return category;
-    }
-  }
-
-  return "Otros";
+  return Object.entries(results).map(([name, value], index) => ({
+    name,
+    value,
+    color: COLORS[index % COLORS.length],
+  }));
 };
 
-export const generatePerformanceMetrics = (
-  callsData: any[], 
-  feedbackData: any[]
-): PerformanceMetric[] => {
-  // Generate sample performance metrics
-  const metrics: PerformanceMetric[] = [
-    {
-      metric: "Satisfacción de Cliente",
-      current: "85%",
-      previous: "82%",
-      change: 3
-    },
-    {
-      metric: "Tiempo Promedio de Llamada",
-      current: "4m 30s",
-      previous: "4m 45s",
-      change: -5
-    },
-    {
-      metric: "Tasa de Conversión",
-      current: "32%",
-      previous: "30%",
-      change: 2
-    },
-    {
-      metric: "Retención de Clientes",
-      current: "78%",
-      previous: "75%",
-      change: 3
-    },
-    {
-      metric: "Resolución en Primera Llamada",
-      current: "65%",
-      previous: "62%",
-      change: 3
-    }
-  ];
+export const formatDate = (date: string | Date) => {
+  return new Date(date).toLocaleDateString("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};
 
-  return metrics;
+export const formatTime = (seconds: number) => {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+  return `${minutes}:${remainingSeconds < 10 ? "0" : ""}${remainingSeconds}`;
+};
+
+export const formatPercentChange = (current: number, previous: number) => {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  const percentChange = ((current - previous) / previous) * 100;
+  return Math.round(percentChange);
+};
+
+export const getChangeIcon = (change: number) => {
+  return change > 0 ? ChevronUp : change < 0 ? ChevronDown : null;
+};
+
+export const getChangeColor = (change: number) => {
+  return change > 0 ? "text-green-500" : change < 0 ? "text-red-500" : "text-gray-500";
 };

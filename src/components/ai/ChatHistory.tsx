@@ -15,14 +15,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-
-interface ChatHistoryItem {
-  id: string;
-  query: string;
-  response: string;
-  created_at: string;
-  user_id: string;
-}
+import { ChatHistoryItem } from "@/lib/types";
 
 export default function ChatHistory() {
   const [history, setHistory] = useState<ChatHistoryItem[]>([]);
@@ -51,18 +44,47 @@ export default function ChatHistory() {
   const fetchChatHistory = async () => {
     try {
       setIsLoading(true);
+      // Use the chat_messages table instead of chat_history
       const { data, error } = await supabase
-        .from("chat_history")
+        .from("chat_messages")
         .select("*")
         .eq("user_id", user?.id)
-        .order("created_at", { ascending: false });
+        .order("timestamp", { ascending: false });
 
       if (error) {
         throw error;
       }
 
-      setHistory(data || []);
-      setFilteredHistory(data || []);
+      // Transform the data to match ChatHistoryItem interface
+      if (data) {
+        // Group messages by conversation
+        const conversations: ChatHistoryItem[] = [];
+        
+        // Process the messages to create conversation items
+        data.forEach(message => {
+          if (message.role === "user") {
+            // For each user message, find the corresponding assistant response
+            const assistantResponse = data.find(
+              resp => resp.role === "assistant" && 
+                     resp.timestamp > message.timestamp &&
+                     (!resp.call_id || resp.call_id === message.call_id)
+            );
+            
+            if (assistantResponse) {
+              conversations.push({
+                id: message.id,
+                query: message.content,
+                response: assistantResponse.content,
+                created_at: message.timestamp,
+                user_id: message.user_id || ""
+              });
+            }
+          }
+        });
+        
+        setHistory(conversations);
+        setFilteredHistory(conversations);
+      }
     } catch (error) {
       console.error("Error fetching chat history:", error);
       toast.error("Error al cargar el historial de chat");
@@ -73,8 +95,9 @@ export default function ChatHistory() {
 
   const handleDelete = async (id: string) => {
     try {
+      // Delete from chat_messages instead of chat_history
       const { error } = await supabase
-        .from("chat_history")
+        .from("chat_messages")
         .delete()
         .eq("id", id);
 

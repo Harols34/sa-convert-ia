@@ -28,6 +28,7 @@ const behaviorSchema = z.object({
   description: z.string().min(1, "La descripción es obligatoria"),
   status: z.boolean().default(true),
   criteria: z.array(z.string()).default([]),
+  prompt: z.string().min(1, "El prompt es obligatorio"),
 });
 
 type BehaviorFormValues = z.infer<typeof behaviorSchema>;
@@ -47,6 +48,7 @@ export default function BehaviorForm() {
     defaultValues: {
       name: "",
       description: "",
+      prompt: "",
       status: true,
       criteria: [],
     },
@@ -72,13 +74,25 @@ export default function BehaviorForm() {
       if (error) throw error;
 
       if (data) {
+        // Map database fields to form fields
         form.reset({
           name: data.name,
-          description: data.description,
-          status: data.status === "active",
-          criteria: data.criteria || [],
+          description: data.description || "",
+          prompt: data.prompt || "",
+          status: data.is_active,
+          criteria: [], // We'll set criteria separately
         });
-        setCriteria(data.criteria || []);
+        
+        // Set criteria from the prompt (extracting from the prompt or using empty array)
+        try {
+          // Try to extract criteria if stored as JSON in prompt or elsewhere
+          const extractedCriteria = data.prompt ? 
+            JSON.parse(data.prompt).criteria || [] : 
+            [];
+          setCriteria(extractedCriteria);
+        } catch (e) {
+          setCriteria([]);
+        }
       }
     } catch (error) {
       console.error("Error fetching behavior:", error);
@@ -92,11 +106,18 @@ export default function BehaviorForm() {
     setIsSubmitting(true);
     
     try {
+      // Create a complete prompt that includes criteria
+      const promptWithCriteria = JSON.stringify({
+        description: values.description,
+        criteria: criteria,
+        instructions: values.prompt
+      });
+
       const behaviorData = {
         name: values.name,
         description: values.description,
-        status: values.status ? "active" : "inactive",
-        criteria: criteria,
+        prompt: promptWithCriteria,
+        is_active: values.status
       };
 
       if (isEditing && id) {
@@ -187,6 +208,27 @@ export default function BehaviorForm() {
                 </FormControl>
                 <FormDescription>
                   Explica en detalle qué busca evaluar este comportamiento
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="prompt"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Instrucciones para IA</FormLabel>
+                <FormControl>
+                  <Textarea 
+                    placeholder="Instrucciones detalladas para que la IA evalúe este comportamiento" 
+                    rows={4} 
+                    {...field} 
+                  />
+                </FormControl>
+                <FormDescription>
+                  Proporciona instrucciones detalladas sobre cómo la IA debe evaluar este comportamiento
                 </FormDescription>
                 <FormMessage />
               </FormItem>
