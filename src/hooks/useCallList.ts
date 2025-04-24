@@ -20,7 +20,7 @@ export function useCallList() {
       setError(null);
       
       // Set a reasonable page size to prevent timeouts
-      const pageSize = 250;
+      const pageSize = 1000;
       
       let query = supabase
         .from("calls")
