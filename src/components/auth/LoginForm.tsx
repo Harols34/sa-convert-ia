@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, LogIn } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
 interface LoginFormProps {
   language?: string;
@@ -37,6 +38,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 export default function LoginForm({ language = "es" }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { refreshUserSession } = useAuth();
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -57,6 +59,11 @@ export default function LoginForm({ language = "es" }: LoginFormProps) {
       if (error) throw error;
 
       if (data.session) {
+        console.log("Login successful, session established");
+        
+        // Refresh authentication context
+        await refreshUserSession();
+        
         // Load user profile
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
@@ -83,9 +90,11 @@ export default function LoginForm({ language = "es" }: LoginFormProps) {
                             !lastPath.includes('undefined');
         
         if (validLastPath) {
+          console.log("Redirecting to last path:", lastPath);
           localStorage.removeItem('lastPath');
           navigate(lastPath);
         } else {
+          console.log("Redirecting to dashboard");
           navigate("/dashboard");
         }
 

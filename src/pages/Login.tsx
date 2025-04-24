@@ -29,6 +29,7 @@ const Login = () => {
           }
         } catch (e) {
           console.error('Error parsing stored session:', e);
+          localStorage.removeItem('supabase.auth.token');
         }
       }
     };
@@ -36,15 +37,16 @@ const Login = () => {
     checkStoredToken();
   }, []);
 
-  // Redirigir si ya está autenticado, but prevent unnecessary redirects
+  // Redirigir si ya está autenticado
   useEffect(() => {
     if (!loading && isAuthenticated) {
+      console.log("Login page - User is authenticated, redirecting");
       // Get last path with proper default
       const lastPath = localStorage.getItem('lastPath');
       const validLastPath = lastPath && 
-                            lastPath !== '/login' && 
-                            lastPath !== '/' && 
-                            !lastPath.includes('undefined');
+                          lastPath !== '/login' && 
+                          lastPath !== '/' && 
+                          !lastPath.includes('undefined');
       
       if (validLastPath) {
         console.log("Already authenticated, redirecting to saved path:", lastPath);
