@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, X, RefreshCcw, Trash2 } from "lucide-react";
 import {
@@ -18,6 +18,7 @@ import CallListFilters from "./CallListFilters";
 import CallListExport from "./CallListExport";
 import { useCallList } from "@/hooks/useCallList";
 import { CallTable } from "./CallTable";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Select,
   SelectContent,
@@ -40,6 +41,7 @@ export default function CallList() {
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState<number>(20);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [filters, setFilters] = useState<any>({});
   
   const {
     calls,
@@ -64,25 +66,26 @@ export default function CallList() {
   const endIndex = Math.min(startIndex + pageSize, totalItems);
   const currentCalls = calls.slice(startIndex, endIndex);
 
-  const handleFilterChange = (filters: any) => {
+  const handleFilterChange = useCallback((newFilters: any) => {
+    setFilters(newFilters);
     setCurrentPage(1); // Reset to first page on filter change
-    fetchCalls(filters);
-  };
+    fetchCalls(newFilters);
+  }, [fetchCalls]);
 
-  const handlePageSizeChange = (value: string) => {
+  const handlePageSizeChange = useCallback((value: string) => {
     const newSize = parseInt(value);
     setPageSize(newSize);
     setCurrentPage(1); // Reset to first page when changing page size
-  };
+  }, []);
 
-  const handlePageChange = (page: number) => {
+  const handlePageChange = useCallback((page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
     }
-  };
+  }, [totalPages]);
 
   // Generate array of page numbers to display
-  const getPageNumbers = () => {
+  const getPageNumbers = useCallback(() => {
     const pages = [];
     const maxVisiblePages = 5;
     
@@ -128,6 +131,135 @@ export default function CallList() {
     }
     
     return pages;
+  }, [currentPage, totalPages]);
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="space-y-4">
+          <div className="rounded-md border">
+            <ScrollArea className="h-[400px]">
+              <div className="p-4 space-y-4">
+                {Array(5).fill(0).map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-5 w-full" />
+                    <Skeleton className="h-5 w-3/4" />
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        </div>
+      );
+    }
+    
+    if (error) {
+      return (
+        <div className="bg-destructive/15 text-destructive p-4 rounded-md">
+          <p className="font-medium">Error al cargar las llamadas</p>
+          <p className="text-sm">{error}</p>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="mt-2" 
+            onClick={handleRefresh}
+          >
+            <RefreshCcw className="mr-2 h-4 w-4" />
+            Intentar nuevamente
+          </Button>
+        </div>
+      );
+    }
+    
+    if (calls.length === 0) {
+      return (
+        <div className="p-8 text-center border rounded-md">
+          <p className="text-muted-foreground">No se encontraron llamadas.</p>
+        </div>
+      );
+    }
+    
+    return (
+      <>
+        <div className="rounded-md border">
+          <ScrollArea>
+            <CallTable
+              calls={currentCalls}
+              isLoading={false}
+              selectedCalls={selectedCalls}
+              multiSelectMode={multiSelectMode}
+              onDeleteCall={(id) => {
+                setSelectedCallId(id);
+                setIsDeleteDialogOpen(true);
+              }}
+              onToggleCallSelection={toggleCallSelection}
+              onToggleAllCalls={toggleAllCalls}
+            />
+          </ScrollArea>
+        </div>
+
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              Mostrar
+            </span>
+            <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+              <SelectTrigger className="w-[80px]">
+                <SelectValue placeholder="20" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="30">30</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-muted-foreground">
+              por página
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <span className="text-sm text-muted-foreground">
+              {totalItems === 0 ? "0" : startIndex + 1} - {endIndex} de {totalItems} llamadas
+            </span>
+          </div>
+
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+              
+              {getPageNumbers().map((page, index) => (
+                <PaginationItem key={index}>
+                  {page === "ellipsis" ? (
+                    <span className="px-4 py-2">...</span>
+                  ) : (
+                    <PaginationLink
+                      isActive={page === currentPage}
+                      onClick={() => typeof page === "number" && handlePageChange(page)}
+                    >
+                      {page}
+                    </PaginationLink>
+                  )}
+                </PaginationItem>
+              ))}
+              
+              <PaginationItem>
+                <PaginationNext 
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      </>
+    );
   };
 
   return (
@@ -191,99 +323,7 @@ export default function CallList() {
 
       <CallListFilters onFilterChange={handleFilterChange} />
 
-      {error && (
-        <div className="bg-destructive/15 text-destructive p-4 rounded-md">
-          <p className="font-medium">Error al cargar las llamadas</p>
-          <p className="text-sm">{error}</p>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="mt-2" 
-            onClick={handleRefresh}
-          >
-            <RefreshCcw className="mr-2 h-4 w-4" />
-            Intentar nuevamente
-          </Button>
-        </div>
-      )}
-
-      <div className="rounded-md border">
-        <ScrollArea>
-          <CallTable
-            calls={currentCalls}
-            isLoading={isLoading}
-            selectedCalls={selectedCalls}
-            multiSelectMode={multiSelectMode}
-            onDeleteCall={(id) => {
-              setSelectedCallId(id);
-              setIsDeleteDialogOpen(true);
-            }}
-            onToggleCallSelection={toggleCallSelection}
-            onToggleAllCalls={toggleAllCalls}
-          />
-        </ScrollArea>
-      </div>
-
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">
-            Mostrar
-          </span>
-          <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
-            <SelectTrigger className="w-[80px]">
-              <SelectValue placeholder="20" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="20">20</SelectItem>
-              <SelectItem value="30">30</SelectItem>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="100">100</SelectItem>
-            </SelectContent>
-          </Select>
-          <span className="text-sm text-muted-foreground">
-            por página
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          <span className="text-sm text-muted-foreground">
-            {startIndex + 1} - {endIndex} de {totalItems} llamadas
-          </span>
-        </div>
-
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious 
-                onClick={() => handlePageChange(currentPage - 1)}
-                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-              />
-            </PaginationItem>
-            
-            {getPageNumbers().map((page, index) => (
-              <PaginationItem key={index}>
-                {page === "ellipsis" ? (
-                  <span className="px-4 py-2">...</span>
-                ) : (
-                  <PaginationLink
-                    isActive={page === currentPage}
-                    onClick={() => typeof page === "number" && handlePageChange(page)}
-                  >
-                    {page}
-                  </PaginationLink>
-                )}
-              </PaginationItem>
-            ))}
-            
-            <PaginationItem>
-              <PaginationNext 
-                onClick={() => handlePageChange(currentPage + 1)}
-                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      </div>
+      {renderContent()}
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>

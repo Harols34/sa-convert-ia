@@ -27,6 +27,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+import { memo } from "react";
 
 interface CallTableProps {
   calls: Call[];
@@ -38,7 +39,76 @@ interface CallTableProps {
   onToggleAllCalls: (select: boolean) => void;
 }
 
-export function CallTable({
+const formatDuration = (duration: number) => {
+  const minutes = Math.floor(duration / 60);
+  const seconds = duration % 60;
+  return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+};
+
+const formatDate = (dateStr: string) => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString();
+};
+
+const StatusBadge = memo(({ status }: { status: string }) => {
+  let badgeVariant: "default" | "destructive" | "outline" | "secondary" = "secondary";
+  let statusText = "";
+  
+  if (status === "complete") {
+    badgeVariant = "default";
+    statusText = "Completo";
+  } else if (status === "pending") {
+    badgeVariant = "secondary";
+    statusText = "Pendiente";
+  } else if (status === "analyzing") {
+    badgeVariant = "secondary";
+    statusText = "Analizando";
+  } else if (status === "transcribing") {
+    badgeVariant = "secondary";
+    statusText = "Transcribiendo";
+  } else if (status === "error") {
+    badgeVariant = "destructive";
+    statusText = "Error";
+  } else {
+    statusText = status;
+  }
+  
+  return <Badge variant={badgeVariant}>{statusText}</Badge>;
+});
+
+StatusBadge.displayName = 'StatusBadge';
+
+const ActionCell = memo(({ id, onDeleteCall }: { id: string, onDeleteCall: (id: string) => void }) => (
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button variant="ghost" className="h-8 w-8 p-0">
+        <span className="sr-only">Abrir menú</span>
+        <MoreVertical className="h-4 w-4" />
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end">
+      <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+      <DropdownMenuItem asChild>
+        <Link to={`/calls/${id}`}>
+          <Edit className="mr-2 h-4 w-4" />
+          Editar
+        </Link>
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        onClick={() => onDeleteCall(id)}
+        className="text-red-500 focus:text-red-500"
+      >
+        <Trash2 className="mr-2 h-4 w-4" />
+        Eliminar
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
+));
+
+ActionCell.displayName = 'ActionCell';
+
+export const CallTable = memo(({
   calls,
   isLoading,
   selectedCalls,
@@ -46,7 +116,7 @@ export function CallTable({
   onDeleteCall,
   onToggleCallSelection,
   onToggleAllCalls,
-}: CallTableProps) {
+}: CallTableProps) => {
   const columns: ColumnDef<Call>[] = [
     ...(multiSelectMode ? [
       {
@@ -81,20 +151,12 @@ export function CallTable({
     {
       accessorKey: "duration",
       header: "Duración",
-      cell: ({ row }) => {
-        const duration = row.getValue("duration") as number;
-        const minutes = Math.floor(duration / 60);
-        const seconds = duration % 60;
-        return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
-      },
+      cell: ({ row }) => formatDuration(row.getValue("duration")),
     },
     {
       accessorKey: "date",
       header: "Fecha",
-      cell: ({ row }) => {
-        const date = new Date(row.getValue("date") as string);
-        return date.toLocaleDateString();
-      },
+      cell: ({ row }) => formatDate(row.getValue("date")),
     },
     {
       accessorKey: "agentName",
@@ -117,65 +179,12 @@ export function CallTable({
     {
       accessorKey: "status",
       header: "Estado",
-      cell: ({ row }) => {
-        const status = row.getValue("status") as string;
-        let badgeVariant: "default" | "destructive" | "outline" | "secondary" = "secondary";
-        let statusText = "";
-        
-        if (status === "complete") {
-          badgeVariant = "default";
-          statusText = "Completo";
-        } else if (status === "pending") {
-          badgeVariant = "secondary";
-          statusText = "Pendiente";
-        } else if (status === "analyzing") {
-          badgeVariant = "secondary";
-          statusText = "Analizando";
-        } else if (status === "transcribing") {
-          badgeVariant = "secondary";
-          statusText = "Transcribiendo";
-        } else if (status === "error") {
-          badgeVariant = "destructive";
-          statusText = "Error";
-        } else {
-          statusText = status;
-        }
-        
-        return <Badge variant={badgeVariant}>{statusText}</Badge>;
-      },
+      cell: ({ row }) => <StatusBadge status={row.getValue("status")} />,
     },
     {
       id: "actions",
       header: "Acciones",
-      cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Abrir menú</span>
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-            <DropdownMenuItem asChild>
-              <Link to={`/calls/${row.original.id}`}>
-                <Edit className="mr-2 h-4 w-4" />
-                Editar
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => {
-                onDeleteCall(row.original.id);
-              }}
-              className="text-red-500 focus:text-red-500"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Eliminar
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
+      cell: ({ row }) => <ActionCell id={row.original.id} onDeleteCall={onDeleteCall} />,
     },
   ];
 
@@ -250,4 +259,6 @@ export function CallTable({
       </TableBody>
     </Table>
   );
-}
+});
+
+CallTable.displayName = 'CallTable';

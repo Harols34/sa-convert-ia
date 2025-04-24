@@ -1,11 +1,10 @@
 
-import React from "react";
+import React, { memo } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, RefreshCcw } from "lucide-react";
-import { Call, Feedback, BehaviorAnalysis } from "@/lib/types";
+import { Download } from "lucide-react";
+import { Call } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { validateCallStatus } from "@/components/calls/detail/CallUtils";
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +19,7 @@ interface CallListExportProps {
   filteredCalls: Call[];
 }
 
-export default function CallListExport({ selectedCalls, filteredCalls }: CallListExportProps) {
+const CallListExport = memo(({ selectedCalls, filteredCalls }: CallListExportProps) => {
   const prepareExportData = async () => {
     try {
       toast.loading("Preparando exportación...", { id: "export" });
@@ -35,20 +34,29 @@ export default function CallListExport({ selectedCalls, filteredCalls }: CallLis
         calls = filteredCalls;
       }
       
-      const { data: tipificacionesData } = await supabase
-        .from('tipificaciones')
-        .select('id, name');
-        
-      const tipificacionMap = new Map();
-      if (tipificacionesData) {
-        tipificacionesData.forEach(tip => {
-          tipificacionMap.set(tip.id, tip.name);
-        });
+      // Get tipificaciones in a single batch for efficiency
+      let tipificacionMap = new Map();
+      
+      if (calls.some(call => call.tipificacionId)) {
+        const tipificacionIds = calls
+          .map(call => call.tipificacionId)
+          .filter(id => id) as string[];
+          
+        if (tipificacionIds.length > 0) {
+          const { data: tipificacionesData } = await supabase
+            .from('tipificaciones')
+            .select('id, name')
+            .in('id', Array.from(new Set(tipificacionIds)));
+            
+          if (tipificacionesData) {
+            tipificacionesData.forEach(tip => {
+              tipificacionMap.set(tip.id, tip.name);
+            });
+          }
+        }
       }
       
-      const exportRows = [];
-      
-      for (const call of calls) {
+      const exportRows = calls.map(call => {
         const date = new Date(call.date);
         const formattedDate = date.toLocaleString();
         
@@ -56,7 +64,7 @@ export default function CallListExport({ selectedCalls, filteredCalls }: CallLis
           tipificacionMap.get(call.tipificacionId) || "Sin asignar" : 
           "Sin asignar";
         
-        exportRows.push({
+        return {
           "Título": call.title,
           "Duración (seg)": call.duration,
           "Fecha": formattedDate,
@@ -69,8 +77,8 @@ export default function CallListExport({ selectedCalls, filteredCalls }: CallLis
                    call.status === "error" ? "Error" : call.status,
           "Resumen Estado": call.statusSummary || "",
           "Resumen": call.summary || ""
-        });
-      }
+        };
+      });
       
       const headers = exportRows.length > 0 ? 
         Object.keys(exportRows[0]) : 
@@ -107,8 +115,8 @@ export default function CallListExport({ selectedCalls, filteredCalls }: CallLis
       
       // Add export information
       const callCount = exportRows.length;
-      const timestamp = new Date().toLocaleString();
-      XLSX.writeFile(workbook, `llamadas_${callCount}_registros_${new Date().toISOString().slice(0,10)}.xlsx`);
+      const timestamp = new Date().toISOString().slice(0,10);
+      XLSX.writeFile(workbook, `llamadas_${callCount}_registros_${timestamp}.xlsx`);
       
       toast.success(`Exportación completada: ${callCount} registros`, { id: "export" });
     } catch (error) {
@@ -139,7 +147,8 @@ export default function CallListExport({ selectedCalls, filteredCalls }: CallLis
       const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const callCount = exportRows.length;
-      downloadAudio(url, `llamadas_${callCount}_registros_${new Date().toISOString().slice(0,10)}`, 'txt');
+      const timestamp = new Date().toISOString().slice(0,10);
+      downloadAudio(url, `llamadas_${callCount}_registros_${timestamp}`, 'txt');
       
       toast.success(`Exportación completada: ${callCount} registros`, { id: "export" });
     } catch (error) {
@@ -151,24 +160,29 @@ export default function CallListExport({ selectedCalls, filteredCalls }: CallLis
     }
   };
 
+  // Calculate export count
+  const exportCount = selectedCalls?.length || filteredCalls.length;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" className="flex items-center gap-2">
           <Download className="h-4 w-4" />
-          <span>Exportar</span>
+          <span>Exportar{exportCount ? ` (${exportCount})` : ''}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuItem onClick={exportToExcel}>
-          Exportar a Excel (.xlsx) {selectedCalls?.length ? `(${selectedCalls.length})` : 
-            filteredCalls?.length ? `(${filteredCalls.length})` : ''}
+          Exportar a Excel (.xlsx) {exportCount ? `(${exportCount})` : ''}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={exportToText}>
-          Exportar a Texto (.txt) {selectedCalls?.length ? `(${selectedCalls.length})` : 
-            filteredCalls?.length ? `(${filteredCalls.length})` : ''}
+          Exportar a Texto (.txt) {exportCount ? `(${exportCount})` : ''}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
-}
+});
+
+CallListExport.displayName = 'CallListExport';
+
+export default CallListExport;

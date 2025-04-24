@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Call, Feedback, BehaviorAnalysis } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -12,19 +12,38 @@ export function useCallList() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
-  const fetchCalls = async (filters: any = {}) => {
+  const fetchCalls = useCallback(async (filters: any = {}) => {
     try {
       setIsLoading(true);
       setError(null);
       
+      // Set a reasonable page size to prevent timeouts
+      const pageSize = 50;
+      
       let query = supabase
         .from("calls")
         .select(`
-          *,
-          feedback (*)
+          id, 
+          title, 
+          filename,
+          agent_name,
+          agent_id,
+          duration,
+          date,
+          status,
+          progress,
+          audio_url,
+          summary,
+          result,
+          product,
+          reason,
+          tipificacion_id,
+          status_summary
         `)
-        .order("date", { ascending: false });
+        .order("date", { ascending: false })
+        .limit(pageSize);
 
       if (filters.status && filters.status !== "all") {
         query = query.eq("status", filters.status);
@@ -69,45 +88,6 @@ export function useCallList() {
       }
 
       const mappedCalls: Call[] = data.map((call) => {
-        let feedback: Feedback | undefined = undefined;
-          
-        if (call.feedback && call.feedback.length > 0) {
-          const fbData = call.feedback[0];
-          
-          let behaviorsAnalysis: BehaviorAnalysis[] = [];
-          if (fbData.behaviors_analysis) {
-            if (typeof fbData.behaviors_analysis === 'string') {
-              try {
-                behaviorsAnalysis = JSON.parse(fbData.behaviors_analysis);
-              } catch (e) {
-                console.error("Error parsing behaviors_analysis:", e);
-              }
-            } else if (Array.isArray(fbData.behaviors_analysis)) {
-              behaviorsAnalysis = fbData.behaviors_analysis.map((item: any) => ({
-                name: item.name || "",
-                evaluation: (item.evaluation === "cumple" || item.evaluation === "no cumple") 
-                  ? item.evaluation : "no cumple",
-                comments: item.comments || ""
-              }));
-            }
-          }
-          
-          feedback = {
-            id: fbData.id,
-            call_id: fbData.call_id,
-            score: fbData.score || 0,
-            positive: fbData.positive || [],
-            negative: fbData.negative || [],
-            opportunities: fbData.opportunities || [],
-            behaviors_analysis: behaviorsAnalysis,
-            created_at: fbData.created_at,
-            updated_at: fbData.updated_at,
-            sentiment: fbData.sentiment,
-            topics: fbData.topics || [],
-            entities: fbData.entities || []
-          };
-        }
-        
         let result: "" | "venta" | "no venta" = "";
         
         let product: "" | "fijo" | "móvil" = "";
@@ -133,27 +113,99 @@ export function useCallList() {
           product: product,
           reason: call.reason || "",
           tipificacionId: call.tipificacion_id,
-          feedback: feedback,
+          feedback: undefined,
           statusSummary: call.status_summary || ""
         };
       });
 
+      // Now fetch feedback data in batches to avoid timeout
+      if (mappedCalls.length > 0) {
+        const callIds = mappedCalls.map(call => call.id);
+        
+        // Fetch feedback in smaller batches
+        const batchSize = 10;
+        for (let i = 0; i < callIds.length; i += batchSize) {
+          const batchIds = callIds.slice(i, i + batchSize);
+          
+          const { data: feedbackData } = await supabase
+            .from('feedback')
+            .select('*')
+            .in('call_id', batchIds);
+            
+          if (feedbackData) {
+            for (const feedback of feedbackData) {
+              const callIndex = mappedCalls.findIndex(call => call.id === feedback.call_id);
+              
+              if (callIndex !== -1) {
+                let behaviorsAnalysis: BehaviorAnalysis[] = [];
+                
+                if (feedback.behaviors_analysis) {
+                  try {
+                    if (typeof feedback.behaviors_analysis === 'string') {
+                      behaviorsAnalysis = JSON.parse(feedback.behaviors_analysis);
+                    } else if (Array.isArray(feedback.behaviors_analysis)) {
+                      behaviorsAnalysis = feedback.behaviors_analysis.map((item: any) => ({
+                        name: item.name || "",
+                        evaluation: (item.evaluation === "cumple" || item.evaluation === "no cumple") 
+                          ? item.evaluation : "no cumple",
+                        comments: item.comments || ""
+                      }));
+                    }
+                  } catch (e) {
+                    console.error("Error parsing behaviors_analysis:", e);
+                  }
+                }
+                
+                mappedCalls[callIndex].feedback = {
+                  id: feedback.id,
+                  call_id: feedback.call_id,
+                  score: feedback.score || 0,
+                  positive: feedback.positive || [],
+                  negative: feedback.negative || [],
+                  opportunities: feedback.opportunities || [],
+                  behaviors_analysis: behaviorsAnalysis,
+                  created_at: feedback.created_at,
+                  updated_at: feedback.updated_at,
+                  sentiment: feedback.sentiment,
+                  topics: feedback.topics || [],
+                  entities: feedback.entities || []
+                };
+              }
+            }
+          }
+        }
+      }
+
       setCalls(mappedCalls);
       setError(null);
+      setRetryCount(0);
     } catch (error) {
       console.error("Unexpected error fetching calls:", error);
       setError(error instanceof Error ? error.message : "Error inesperado al cargar las llamadas");
-      toast.error("Error inesperado al cargar las llamadas");
+      
+      // Implement retry logic (max 3 retries)
+      if (retryCount < 3) {
+        const retryDelay = 1000 * Math.pow(2, retryCount); // Exponential backoff
+        toast.error(`Error al cargar las llamadas. Reintentando en ${retryDelay/1000} segundos...`);
+        
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+          fetchCalls(filters);
+        }, retryDelay);
+      } else {
+        toast.error("Error al cargar las llamadas después de varios intentos");
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [retryCount]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
+    setRetryCount(0);
     fetchCalls({});
-  };
+  }, [fetchCalls]);
 
   useEffect(() => {
     fetchCalls({});
