@@ -70,10 +70,11 @@ export const prepareResultsData = (calls: any[]) => {
     return acc;
   }, {});
 
+  // Update to include color for each result type
   return Object.entries(results).map(([name, value], index) => ({
     name,
     value,
-    color: COLORS[index % COLORS.length],
+    color: COLORS[index % COLORS.length] // Use existing COLORS array
   }));
 };
 

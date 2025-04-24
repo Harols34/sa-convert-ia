@@ -145,8 +145,16 @@ export default function AnalyticsPage() {
         setCallVolumeData(sampleCallsData);
         
         const sampleResultsData = [
-          { name: 'Venta', value: Math.round(agentsData.length * 15 * (Math.random() + 0.7)) },
-          { name: 'No Venta', value: Math.round(agentsData.length * 10 * (Math.random() + 0.5)) }
+          { 
+            name: 'Venta', 
+            value: Math.round(agentsData.length * 15 * (Math.random() + 0.7)), 
+            color: COLORS[0] 
+          },
+          { 
+            name: 'No Venta', 
+            value: Math.round(agentsData.length * 10 * (Math.random() + 0.5)), 
+            color: COLORS[1] 
+          }
         ];
         
         setResultsData(sampleResultsData);
@@ -189,8 +197,16 @@ export default function AnalyticsPage() {
         });
         
         const formattedResultsData: ResultsData[] = [
-          { name: 'Venta', value: resultCounts['venta'] },
-          { name: 'No Venta', value: resultCounts['no venta'] }
+          { 
+            name: 'Venta', 
+            value: resultCounts['venta'], 
+            color: COLORS[0] 
+          },
+          { 
+            name: 'No Venta', 
+            value: resultCounts['no venta'], 
+            color: COLORS[1] 
+          }
         ];
         
         setResultsData(formattedResultsData);
@@ -515,7 +531,7 @@ export default function AnalyticsPage() {
                   <SelectValue placeholder="Seleccionar periodo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="day">Últimas 24 Horas</SelectItem>
+                  <SelectItem value="day">��ltimas 24 Horas</SelectItem>
                   <SelectItem value="week">Últimos 7 Días</SelectItem>
                   <SelectItem value="month">Últimos 30 Días</SelectItem>
                   <SelectItem value="quarter">Último Trimestre</SelectItem>
