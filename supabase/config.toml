@@ -1,0 +1,46 @@
+
+project_id = "ejzidvltowbhccxukllc"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "extensions"]
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:5173"
+
+[analytics]
+enabled = false
+
+[realtime]
+enabled = true
+
+[functions.process-call]
+verify_jwt = false
+
+[functions.analyze-call]
+verify_jwt = false
+
+[functions.ai-chat]
+verify_jwt = false
+
+[functions.general-chat]
+verify_jwt = false
