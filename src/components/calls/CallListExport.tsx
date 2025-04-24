@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Download, RefreshCcw } from "lucide-react";
@@ -26,10 +27,11 @@ export default function CallListExport({ selectedCalls, filteredCalls }: CallLis
       
       let calls: Call[] = [];
       
+      // Use selected calls if provided, otherwise use filtered calls
       if (selectedCalls && selectedCalls.length > 0) {
         calls = selectedCalls;
       } else {
-        // Use filtered calls instead of fetching all calls
+        // Use filtered calls
         calls = filteredCalls;
       }
       
@@ -103,9 +105,12 @@ export default function CallListExport({ selectedCalls, filteredCalls }: CallLis
       
       XLSX.utils.book_append_sheet(workbook, worksheet, "Llamadas");
       
-      XLSX.writeFile(workbook, `llamadas_${new Date().toISOString().slice(0,10)}.xlsx`);
+      // Add export information
+      const callCount = exportRows.length;
+      const timestamp = new Date().toLocaleString();
+      XLSX.writeFile(workbook, `llamadas_${callCount}_registros_${new Date().toISOString().slice(0,10)}.xlsx`);
       
-      toast.success("Exportación a Excel completada", { id: "export" });
+      toast.success(`Exportación completada: ${callCount} registros`, { id: "export" });
     } catch (error) {
       console.error("Error exporting to Excel:", error);
       toast.error("Error en la exportación a Excel", { 
@@ -133,9 +138,10 @@ export default function CallListExport({ selectedCalls, filteredCalls }: CallLis
       
       const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
-      downloadAudio(url, `llamadas_${new Date().toISOString().slice(0,10)}`, 'txt');
+      const callCount = exportRows.length;
+      downloadAudio(url, `llamadas_${callCount}_registros_${new Date().toISOString().slice(0,10)}`, 'txt');
       
-      toast.success("Exportación a texto completada", { id: "export" });
+      toast.success(`Exportación completada: ${callCount} registros`, { id: "export" });
     } catch (error) {
       console.error("Error exporting to text:", error);
       toast.error("Error en la exportación a texto", { 
@@ -155,10 +161,12 @@ export default function CallListExport({ selectedCalls, filteredCalls }: CallLis
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuItem onClick={exportToExcel}>
-          Exportar a Excel (.xlsx)
+          Exportar a Excel (.xlsx) {selectedCalls?.length ? `(${selectedCalls.length})` : 
+            filteredCalls?.length ? `(${filteredCalls.length})` : ''}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={exportToText}>
-          Exportar a Texto (.txt)
+          Exportar a Texto (.txt) {selectedCalls?.length ? `(${selectedCalls.length})` : 
+            filteredCalls?.length ? `(${filteredCalls.length})` : ''}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

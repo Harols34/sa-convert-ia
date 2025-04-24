@@ -1,3 +1,4 @@
+
 import { Call } from "@/lib/types";
 import { MoreVertical, Edit, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -186,21 +187,22 @@ export function CallTable({
 
   if (isLoading) {
     return (
-      <TableRow>
-        <TableCell colSpan={columns.length} className="text-center">
-          Cargando llamadas...
-        </TableCell>
-      </TableRow>
+      <div className="p-8 text-center">
+        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
+          <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">
+            Cargando...
+          </span>
+        </div>
+        <p className="mt-2 text-muted-foreground">Cargando llamadas...</p>
+      </div>
     );
   }
 
   if (calls.length === 0) {
     return (
-      <TableRow>
-        <TableCell colSpan={columns.length} className="text-center">
-          No se encontraron llamadas.
-        </TableCell>
-      </TableRow>
+      <div className="p-8 text-center">
+        <p className="text-muted-foreground">No se encontraron llamadas.</p>
+      </div>
     );
   }
 
@@ -223,20 +225,28 @@ export function CallTable({
         ))}
       </TableHeader>
       <TableBody>
-        {table.getRowModel().rows.map((row) => (
-          <TableRow 
-            key={row.id}
-            className={selectedCalls.includes(row.original.id) ? "bg-accent/30" : ""}
-            onClick={() => multiSelectMode && onToggleCallSelection(row.original.id)}
-            style={{ cursor: multiSelectMode ? "pointer" : "default" }}
-          >
-            {row.getVisibleCells().map((cell) => (
-              <TableCell key={cell.id}>
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-              </TableCell>
-            ))}
+        {table.getRowModel().rows.length > 0 ? (
+          table.getRowModel().rows.map((row) => (
+            <TableRow 
+              key={row.id}
+              className={selectedCalls.includes(row.original.id) ? "bg-accent/30" : ""}
+              onClick={() => multiSelectMode && onToggleCallSelection(row.original.id)}
+              style={{ cursor: multiSelectMode ? "pointer" : "default" }}
+            >
+              {row.getVisibleCells().map((cell) => (
+                <TableCell key={cell.id}>
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))
+        ) : (
+          <TableRow>
+            <TableCell colSpan={columns.length} className="h-24 text-center">
+              No se encontraron llamadas.
+            </TableCell>
           </TableRow>
-        ))}
+        )}
       </TableBody>
     </Table>
   );

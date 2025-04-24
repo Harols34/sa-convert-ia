@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Call, Feedback, BehaviorAnalysis } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,10 +11,13 @@ export function useCallList() {
   const [selectedCalls, setSelectedCalls] = useState<string[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchCalls = async (filters: any) => {
+  const fetchCalls = async (filters: any = {}) => {
     try {
       setIsLoading(true);
+      setError(null);
+      
       let query = supabase
         .from("calls")
         .select(`
@@ -22,7 +26,7 @@ export function useCallList() {
         `)
         .order("date", { ascending: false });
 
-      if (filters.status !== "all") {
+      if (filters.status && filters.status !== "all") {
         query = query.eq("status", filters.status);
       }
 
@@ -59,6 +63,7 @@ export function useCallList() {
 
       if (error) {
         console.error("Error fetching calls:", error);
+        setError(`${error.message}`);
         toast.error("Error al cargar las llamadas");
         return;
       }
@@ -134,8 +139,10 @@ export function useCallList() {
       });
 
       setCalls(mappedCalls);
+      setError(null);
     } catch (error) {
       console.error("Unexpected error fetching calls:", error);
+      setError(error instanceof Error ? error.message : "Error inesperado al cargar las llamadas");
       toast.error("Error inesperado al cargar las llamadas");
     } finally {
       setIsLoading(false);
@@ -147,6 +154,11 @@ export function useCallList() {
     setIsRefreshing(true);
     fetchCalls({});
   };
+
+  useEffect(() => {
+    fetchCalls({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const deleteCall = async (callId: string) => {
     try {
@@ -214,6 +226,7 @@ export function useCallList() {
     isLoading,
     selectedCalls,
     isRefreshing,
+    error,
     multiSelectMode,
     setMultiSelectMode,
     fetchCalls,
