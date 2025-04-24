@@ -212,6 +212,8 @@ export default function CallList() {
                 <SelectItem value="30">30</SelectItem>
                 <SelectItem value="50">50</SelectItem>
                 <SelectItem value="100">100</SelectItem>
+                <SelectItem value="150">150</SelectItem>
+                <SelectItem value="250">250</SelectItem>
               </SelectContent>
             </Select>
             <span className="text-sm text-muted-foreground">
