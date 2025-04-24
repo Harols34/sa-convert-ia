@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -21,7 +22,7 @@ import Tipificaciones from "./pages/Tipificaciones";
 import Prompts from "./pages/Prompts";
 import { Suspense, useEffect } from "react";
 import { Loader2 } from "lucide-react";
-import RouteObserver from "./components/layout/RouteObserver";
+import RouteObserver from "@/components/layout/RouteObserver";
 import { supabase } from "./integrations/supabase/client";
 import { toast } from "sonner";
 import { User as AppUser } from "@/lib/types";
