@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { Prompt } from "@/hooks/usePrompts";
+import { Prompt, PromptType } from "@/hooks/usePrompts";
 
 export default function PromptsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -74,7 +74,14 @@ export default function PromptsPage() {
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
-      setPrompts(data || []);
+      
+      // Cast the type field to PromptType to ensure type safety
+      const typedPrompts = data?.map(prompt => ({
+        ...prompt,
+        type: prompt.type as PromptType
+      })) || [];
+      
+      setPrompts(typedPrompts);
     } catch (error) {
       console.error("Error fetching prompts:", error);
       toast.error("Error al cargar los prompts");
