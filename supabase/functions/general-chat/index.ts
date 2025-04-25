@@ -1,5 +1,4 @@
 
-// Edge function for general chat about all calls
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import OpenAI from 'https://esm.sh/openai@4.28.0';
 
@@ -18,7 +17,6 @@ const supabase = createClient(supabaseUrl, supabaseKey);
  * Initializes and returns an OpenAI client with the API key from environment variables
  */
 function initializeOpenAI() {
-  // Try multiple possible environment variable names
   const openaiKey = Deno.env.get("API_DE_OPENAI") || 
                   Deno.env.get("API de OPENAI") || 
                   Deno.env.get("OPENAI_API_KEY");
@@ -61,6 +59,18 @@ Tu trabajo es ayudar a entender tendencias, identificar oportunidades de mejora 
 Responde de manera profesional, objetiva y precisa basándote en los datos disponibles.
 Si no tienes información suficiente para responder una pregunta, indícalo claramente y sugiere qué datos serían útiles.
 Mantén un tono profesional y orientado a datos en todas tus respuestas.
+
+Ejemplos de preguntas que puedes responder:
+- "¿Cuántas llamadas tenemos en total?"
+- "¿Cuáles son los principales temas tratados en las llamadas?"
+- "¿Cuál es el promedio de duración de las llamadas?"
+- "¿Qué agentes han atendido más llamadas?"
+- "¿Qué productos se mencionan más frecuentemente?"
+- "¿Cuáles son los motivos más comunes de las llamadas?"
+- "¿Puedes mostrarme un resumen de la llamada más reciente?"
+- "¿Cuál es el sentimiento general de las llamadas?"
+- "¿Qué oportunidades de mejora has identificado?"
+- "¿Cuáles son las quejas más comunes?"
 `;
   
   // Prepare message history for the API
@@ -117,7 +127,7 @@ async function fetchCallStats() {
     // Fetch recent calls (last 10)
     const { data: recentCalls, error: recentError } = await supabase
       .from('calls')
-      .select('id, title, agent_name, duration, date, result, product, summary')
+      .select('id, title, agent_name, duration, date, result, product, summary, transcription')
       .order('date', { ascending: false })
       .limit(10);
       
@@ -137,23 +147,20 @@ async function fetchCallStats() {
     }
     
     // Count call results
-    const { data: results, error: resultsError } = await supabase
-      .from('calls')
-      .select('result, count')
-      .filter('result', 'not.is', null)
-      .group('result');
-      
-    if (resultsError) {
-      console.error("Error fetching call results:", resultsError);
-    }
+    const resultsCount = {};
+    recentCalls.forEach(call => {
+      if (call.result) {
+        resultsCount[call.result] = (resultsCount[call.result] || 0) + 1;
+      }
+    });
     
     // Format the statistics as text
     let statsText = `Total de llamadas en el sistema: ${totalCalls || 0}\n\n`;
     
-    if (results && results.length > 0) {
-      statsText += "Resultados de llamadas:\n";
-      results.forEach(r => {
-        statsText += `- ${r.result || 'Sin resultado'}: ${r.count}\n`;
+    if (Object.keys(resultsCount).length > 0) {
+      statsText += "Resultados de llamadas recientes:\n";
+      Object.entries(resultsCount).forEach(([result, count]) => {
+        statsText += `- ${result || 'Sin resultado'}: ${count}\n`;
       });
       statsText += "\n";
     }
@@ -168,13 +175,16 @@ async function fetchCallStats() {
     }
     
     if (recentCalls && recentCalls.length > 0) {
-      statsText += "Llamadas recientes:\n";
+      statsText += "Llamadas recientes con sus detalles:\n";
       recentCalls.forEach(call => {
-        statsText += `- ID: ${call.id}, Agente: ${call.agent_name}, Fecha: ${new Date(call.date).toLocaleDateString()}, `;
-        statsText += `Resultado: ${call.result || 'Desconocido'}, Producto: ${call.product || 'No especificado'}\n`;
+        statsText += `- ID: ${call.id}, Agente: ${call.agent_name}, Fecha: ${new Date(call.date).toLocaleDateString()}\n`;
         if (call.summary) {
-          statsText += `  Resumen: ${call.summary.substring(0, 150)}...\n`;
+          statsText += `  Resumen: ${call.summary}\n`;
         }
+        if (call.transcription) {
+          statsText += `  Transcripción: ${call.transcription.substring(0, 200)}...\n`;
+        }
+        statsText += "\n";
       });
     }
     

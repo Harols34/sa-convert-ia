@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, Brain } from "lucide-react";
+import { Pencil, Trash2, Brain, Loader2, ToggleLeft, ToggleRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import { Behavior } from "@/lib/types";
 export default function BehaviorList() {
   const [behaviors, setBehaviors] = useState<Behavior[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isActivating, setIsActivating] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -39,11 +40,9 @@ export default function BehaviorList() {
       }
 
       if (data) {
-        // Transform database behaviors to match our UI types
         const transformedBehaviors: Behavior[] = data.map(behavior => {
           let criteria: string[] = [];
           
-          // Try to extract criteria from the prompt field if it's stored as JSON
           try {
             if (behavior.prompt) {
               const parsedPrompt = JSON.parse(behavior.prompt);
@@ -75,6 +74,33 @@ export default function BehaviorList() {
       toast.error("Error al cargar los comportamientos");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const toggleBehaviorActive = async (id: string, currentState: boolean) => {
+    try {
+      setIsActivating(true);
+      
+      const { error } = await supabase
+        .from("behaviors")
+        .update({ is_active: !currentState })
+        .eq("id", id);
+      
+      if (error) throw error;
+      
+      setBehaviors(prev => prev.map(behavior => {
+        if (behavior.id === id) {
+          return { ...behavior, isActive: !currentState };
+        }
+        return behavior;
+      }));
+      
+      toast.success("Estado del comportamiento actualizado");
+    } catch (error) {
+      console.error("Error updating behavior status:", error);
+      toast.error("Error al actualizar el estado del comportamiento");
+    } finally {
+      setIsActivating(false);
     }
   };
 
@@ -153,11 +179,21 @@ export default function BehaviorList() {
                 {behavior.description}
               </TableCell>
               <TableCell>
-                <Badge
-                  variant={behavior.isActive ? "default" : "secondary"}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => toggleBehaviorActive(behavior.id, behavior.isActive)}
+                  disabled={isActivating}
+                  title={behavior.isActive ? "Desactivar comportamiento" : "Activar comportamiento"}
                 >
-                  {behavior.isActive ? "Activo" : "Inactivo"}
-                </Badge>
+                  {isActivating ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : behavior.isActive ? (
+                    <ToggleRight className="h-4 w-4 text-primary" />
+                  ) : (
+                    <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
               </TableCell>
               <TableCell>
                 <div className="flex flex-wrap gap-1">
