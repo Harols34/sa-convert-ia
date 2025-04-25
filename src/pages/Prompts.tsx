@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, MessageSquare } from "lucide-react";
+import { Pencil, Trash2, MessageSquare, ToggleRight, ToggleLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -38,6 +38,7 @@ export default function PromptsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
+  const [isActivating, setIsActivating] = useState(false);
   const navigate = useNavigate();
   const { isAuthenticated, loading, user } = useAuth();
 
@@ -112,6 +113,47 @@ export default function PromptsPage() {
     }
   };
 
+  const togglePromptActive = async (promptId: string, promptType: PromptType) => {
+    try {
+      setIsActivating(true);
+      
+      // Get the prompt we want to activate
+      const promptToActivate = prompts.find(p => p.id === promptId);
+      if (!promptToActivate) return;
+      
+      // First, set all prompts of the same type to inactive
+      const { error: deactivateError } = await supabase
+        .from("prompts")
+        .update({ active: false })
+        .eq("type", promptType);
+      
+      if (deactivateError) throw deactivateError;
+      
+      // Then activate only the selected prompt
+      const { error: activateError } = await supabase
+        .from("prompts")
+        .update({ active: true })
+        .eq("id", promptId);
+      
+      if (activateError) throw activateError;
+      
+      // Update the local state to reflect these changes
+      setPrompts(prev => prev.map(prompt => {
+        if (prompt.type === promptType) {
+          return { ...prompt, active: prompt.id === promptId };
+        }
+        return prompt;
+      }));
+      
+      toast.success("Estado del prompt actualizado correctamente");
+    } catch (error) {
+      console.error("Error updating prompt status:", error);
+      toast.error("Error al actualizar el estado del prompt");
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
   if (loading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -138,7 +180,7 @@ export default function PromptsPage() {
             </div>
             <Button
               onClick={() => navigate("/prompts/new")}
-              className="mt-4 md:mt-0 bg-purple text-white hover:bg-purple/90"
+              className="mt-4 md:mt-0 bg-green-600 text-white hover:bg-green-700"
             >
               <MessageSquare className="mr-2 h-4 w-4" /> Nuevo Prompt
             </Button>
@@ -167,21 +209,37 @@ export default function PromptsPage() {
                       <TableRow key={prompt.id} className="hover:bg-gray-50">
                         <TableCell className="font-medium">{prompt.name}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={prompt.type === "summary" ? "bg-blue-100 text-blue-800 border-blue-300" : "bg-purple-100 text-purple-800 border-purple-300"}>
+                          <Badge variant="outline" className={prompt.type === "summary" ? "bg-blue-100 text-blue-800 border-blue-300" : "bg-green-100 text-green-800 border-green-300"}>
                             {prompt.type === "summary" ? "Resumen" : "Feedback"}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={prompt.active ? "default" : "secondary"} className={prompt.active ? "bg-green-100 text-green-800 border-green-300" : "bg-gray-100 text-gray-800 border-gray-300"}>
+                          <Badge variant={prompt.active ? "default" : "secondary"} className={prompt.active ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"}>
                             {prompt.active ? "Activo" : "Inactivo"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => togglePromptActive(prompt.id, prompt.type)}
+                            disabled={isActivating || prompt.active}
+                            className="hover:bg-green-50"
+                            title={prompt.active ? "Prompt activo" : "Activar prompt"}
+                          >
+                            {isActivating ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : prompt.active ? (
+                              <ToggleRight className="h-4 w-4 text-green-600" />
+                            ) : (
+                              <ToggleLeft className="h-4 w-4 text-gray-500" />
+                            )}
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => navigate(`/prompts/edit/${prompt.id}`)}
-                            className="hover:bg-gray-100 hover:text-gray-900"
+                            className="hover:bg-gray-100"
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -192,7 +250,7 @@ export default function PromptsPage() {
                               setSelectedPromptId(prompt.id);
                               setIsDeleteDialogOpen(true);
                             }}
-                            className="hover:bg-red-50 hover:text-red-600"
+                            className="hover:bg-red-50 text-red-600"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

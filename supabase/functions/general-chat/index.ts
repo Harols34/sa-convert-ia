@@ -36,13 +36,13 @@ function initializeOpenAI() {
  */
 async function handleGeneralChat(req) {
   // Parse request body
-  const { message, history } = await req.json();
+  const { query, userId, history } = await req.json();
   
-  if (!message) {
+  if (!query) {
     throw new Error("Message is required");
   }
   
-  console.log(`Processing general chat query: "${message.substring(0, 50)}..."`);
+  console.log(`Processing general chat query: "${query.substring(0, 50)}..."`);
   
   // Initialize OpenAI client
   const openai = initializeOpenAI();
@@ -66,8 +66,11 @@ Mantén un tono profesional y orientado a datos en todas tus respuestas.
   // Prepare message history for the API
   const messages = [
     { role: "system", content: systemPrompt },
-    ...history,
-    { role: "user", content: message }
+    ...(history || []).map(msg => ({
+      role: msg.role,
+      content: msg.content
+    })),
+    { role: "user", content: query }
   ];
   
   // Call OpenAI API
@@ -133,7 +136,7 @@ async function fetchCallStats() {
       console.error("Error fetching agents:", agentsError);
     }
     
-    // Count call results - Fixed this query that was causing the error
+    // Count call results
     const { data: results, error: resultsError } = await supabase
       .from('calls')
       .select('result, count')

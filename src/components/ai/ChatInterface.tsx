@@ -45,7 +45,7 @@ export default function ChatInterface() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("ai-chat", {
+      const { data, error } = await supabase.functions.invoke("general-chat", {
         body: { 
           query: input.trim(),
           userId: user?.id,
@@ -122,7 +122,7 @@ export default function ChatInterface() {
                 <div
                   className={`max-w-[80%] rounded-lg p-3 ${
                     message.role === "user"
-                      ? "bg-primary text-primary-foreground"
+                      ? "bg-green-600 text-white"
                       : "bg-muted"
                   }`}
                 >
@@ -150,7 +150,7 @@ export default function ChatInterface() {
         />
         <Button
           size="icon"
-          className="absolute right-2 bottom-2"
+          className="absolute right-2 bottom-2 bg-green-600 hover:bg-green-700"
           onClick={handleSendMessage}
           disabled={isLoading || !input.trim()}
         >
