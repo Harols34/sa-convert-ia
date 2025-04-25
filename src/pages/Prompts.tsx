@@ -124,7 +124,7 @@ export default function PromptsPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-background">
       <Navbar toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
       <div className="flex flex-1">
         <Sidebar isOpen={sidebarOpen} closeSidebar={() => setSidebarOpen(false)} />
@@ -138,57 +138,71 @@ export default function PromptsPage() {
             </div>
             <Button
               onClick={() => navigate("/prompts/new")}
-              className="mt-4 md:mt-0"
+              className="mt-4 md:mt-0 bg-purple text-white hover:bg-purple/90"
             >
               <MessageSquare className="mr-2 h-4 w-4" /> Nuevo Prompt
             </Button>
           </div>
 
-          <Card className="overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {prompts.map((prompt) => (
-                  <TableRow key={prompt.id}>
-                    <TableCell className="font-medium">{prompt.name}</TableCell>
-                    <TableCell>
-                      {prompt.type === "summary" ? "Resumen" : "Feedback"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={prompt.active ? "default" : "secondary"}>
-                        {prompt.active ? "Activo" : "Inactivo"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => navigate(`/prompts/edit/${prompt.id}`)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setSelectedPromptId(prompt.id);
-                          setIsDeleteDialogOpen(true);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
+          <Card className="overflow-hidden shadow-md border-gray-200">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-gray-50">
+                  <TableRow>
+                    <TableHead className="font-semibold text-gray-700">Nombre</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Tipo</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Estado</TableHead>
+                    <TableHead className="text-right font-semibold text-gray-700">Acciones</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {prompts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                        No hay prompts disponibles
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    prompts.map((prompt) => (
+                      <TableRow key={prompt.id} className="hover:bg-gray-50">
+                        <TableCell className="font-medium">{prompt.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={prompt.type === "summary" ? "bg-blue-100 text-blue-800 border-blue-300" : "bg-purple-100 text-purple-800 border-purple-300"}>
+                            {prompt.type === "summary" ? "Resumen" : "Feedback"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={prompt.active ? "default" : "secondary"} className={prompt.active ? "bg-green-100 text-green-800 border-green-300" : "bg-gray-100 text-gray-800 border-gray-300"}>
+                            {prompt.active ? "Activo" : "Inactivo"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => navigate(`/prompts/edit/${prompt.id}`)}
+                            className="hover:bg-gray-100 hover:text-gray-900"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setSelectedPromptId(prompt.id);
+                              setIsDeleteDialogOpen(true);
+                            }}
+                            className="hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </Card>
         </main>
       </div>
@@ -197,7 +211,7 @@ export default function PromptsPage() {
       </div>
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-white">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -205,8 +219,8 @@ export default function PromptsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>Eliminar</AlertDialogAction>
+            <AlertDialogCancel className="bg-gray-100 text-gray-900 hover:bg-gray-200">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 text-white hover:bg-red-700">Eliminar</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

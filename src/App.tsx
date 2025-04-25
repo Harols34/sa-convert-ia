@@ -20,6 +20,7 @@ import NotFound from "./pages/NotFound";
 import Agents from "./pages/Agents";
 import Tipificaciones from "./pages/Tipificaciones";
 import Prompts from "./pages/Prompts";
+import PromptForm from "./pages/PromptForm";
 import { Suspense, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import RouteObserver from "@/components/layout/RouteObserver";
@@ -253,6 +254,22 @@ const AppContent = () => {
                 element={
                   <ProtectedRoute>
                     <Prompts />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/prompts/new" 
+                element={
+                  <ProtectedRoute>
+                    <PromptForm />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/prompts/edit/:id" 
+                element={
+                  <ProtectedRoute>
+                    <PromptForm />
                   </ProtectedRoute>
                 } 
               />
