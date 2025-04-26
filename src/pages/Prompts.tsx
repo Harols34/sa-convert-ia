@@ -193,37 +193,25 @@ export default function PromptsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge 
-                            variant="state" 
-                            className={prompt.active ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"}
-                          >
-                            {prompt.active ? "Activo" : "Inactivo"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right space-x-1">
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => togglePromptActive(prompt.id, prompt.type)}
                             disabled={isActivating || prompt.active}
-                            className={`hover:bg-green-50 py-1.5 px-3 ${
-                              prompt.active ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"
-                            }`}
+                            className="py-2 px-4 gap-2"
                             title={prompt.active ? "Prompt activo" : "Activar prompt"}
                           >
                             {isActivating ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Loader2 className="h-5 w-5 animate-spin" />
+                            ) : prompt.active ? (
+                              <ToggleRight className="h-6 w-6" />
                             ) : (
-                              <>
-                                {prompt.active ? (
-                                  <ToggleRight className="mr-2 h-5 w-5" />
-                                ) : (
-                                  <ToggleLeft className="mr-2 h-5 w-5" />
-                                )}
-                                {prompt.active ? "Activo" : "Activar"}
-                              </>
+                              <ToggleLeft className="h-6 w-6" />
                             )}
+                            <span className="ml-2">{prompt.active ? "Activo" : "Activar"}</span>
                           </Button>
+                        </TableCell>
+                        <TableCell className="text-right space-x-1">
                           <Button
                             variant="ghost"
                             size="icon"
