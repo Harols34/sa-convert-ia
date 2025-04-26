@@ -75,7 +75,6 @@ export default function PromptsPage() {
 
       if (error) throw error;
       
-      // Cast the type field to PromptType to ensure type safety
       const typedPrompts = data?.map(prompt => ({
         ...prompt,
         type: prompt.type as PromptType
@@ -116,7 +115,6 @@ export default function PromptsPage() {
     try {
       setIsActivating(true);
       
-      // Update prompt activation in the database
       const { error } = await supabase
         .from("prompts")
         .update({ active: true })
@@ -124,7 +122,6 @@ export default function PromptsPage() {
       
       if (error) throw error;
       
-      // Reload prompts to reflect the new state
       await fetchPrompts();
       
       toast.success("Estado del prompt actualizado correctamente");
@@ -209,13 +206,22 @@ export default function PromptsPage() {
                             size="sm"
                             onClick={() => togglePromptActive(prompt.id, prompt.type)}
                             disabled={isActivating || prompt.active}
-                            className="hover:bg-green-50"
+                            className={`hover:bg-green-50 py-1.5 px-3 ${
+                              prompt.active ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"
+                            }`}
                             title={prompt.active ? "Prompt activo" : "Activar prompt"}
                           >
                             {isActivating ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
-                              (prompt.active ? "Activo" : "Activar")
+                              <>
+                                {prompt.active ? (
+                                  <ToggleRight className="mr-2 h-5 w-5" />
+                                ) : (
+                                  <ToggleLeft className="mr-2 h-5 w-5" />
+                                )}
+                                {prompt.active ? "Activo" : "Activar"}
+                              </>
                             )}
                           </Button>
                           <Button

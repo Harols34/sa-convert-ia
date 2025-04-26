@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   Table,
@@ -181,17 +180,18 @@ export default function BehaviorList() {
               <TableCell>
                 <Button
                   variant="ghost"
-                  size="icon"
+                  size="sm"
                   onClick={() => toggleBehaviorActive(behavior.id, behavior.isActive)}
                   disabled={isActivating}
+                  className="py-1.5 px-3"
                   title={behavior.isActive ? "Desactivar comportamiento" : "Activar comportamiento"}
                 >
                   {isActivating ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : behavior.isActive ? (
-                    <ToggleRight className="h-4 w-4 text-primary" />
+                    <ToggleRight className="h-5 w-5 text-primary" />
                   ) : (
-                    <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+                    <ToggleLeft className="h-5 w-5 text-muted-foreground" />
                   )}
                 </Button>
               </TableCell>
