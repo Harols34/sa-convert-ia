@@ -18,14 +18,14 @@ interface Message {
 const EXAMPLE_QUESTIONS = [
   "¿Cuántas llamadas se han registrado en total?",
   "¿Cuál es el promedio de duración de las llamadas?",
-  "¿Cuáles son los agentes con más ventas?",
-  "¿Qué productos se mencionan más frecuentemente?",
+  "¿Qué títulos de llamadas son más frecuentes?",
+  "¿Cuáles son los productos más mencionados?",
   "¿Cuáles son los motivos más comunes de las llamadas?",
+  "¿Qué tendencias puedes identificar en las llamadas?",
+  "¿Cuál es el sentimiento general de las interacciones?",
+  "¿Qué agentes tienen los mejores resultados?",
   "¿Hay llamadas con retroalimentación negativa?",
-  "¿Cuál es el sentimiento general de las llamadas?",
-  "Muestra un resumen de las últimas llamadas",
-  "¿Qué patrones o tendencias has identificado?",
-  "¿Cuáles son las quejas más comunes de los clientes?"
+  "¿Cuáles son las quejas más recurrentes?"
 ];
 
 export default function ChatInterface() {
@@ -119,7 +119,7 @@ export default function ChatInterface() {
             <Bot size={48} className="text-primary mb-4" />
             <h3 className="text-xl font-medium">Asistente de ConvertIA</h3>
             <p className="text-muted-foreground mt-2 max-w-md mb-6">
-              Pregúntame cualquier cosa sobre tus llamadas, insights o consejos para mejorar la conversión.
+              Tengo acceso a los datos de tus llamadas. Pregúntame sobre insights, tendencias y análisis.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto text-left">
               {EXAMPLE_QUESTIONS.map((question, index) => (

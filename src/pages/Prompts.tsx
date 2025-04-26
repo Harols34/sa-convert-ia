@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Footer from "@/components/layout/Footer";
@@ -117,33 +116,16 @@ export default function PromptsPage() {
     try {
       setIsActivating(true);
       
-      // Get the prompt we want to activate
-      const promptToActivate = prompts.find(p => p.id === promptId);
-      if (!promptToActivate) return;
-      
-      // First, set all prompts of the same type to inactive
-      const { error: deactivateError } = await supabase
-        .from("prompts")
-        .update({ active: false })
-        .eq("type", promptType);
-      
-      if (deactivateError) throw deactivateError;
-      
-      // Then activate only the selected prompt
-      const { error: activateError } = await supabase
+      // Update prompt activation in the database
+      const { error } = await supabase
         .from("prompts")
         .update({ active: true })
         .eq("id", promptId);
       
-      if (activateError) throw activateError;
+      if (error) throw error;
       
-      // Update the local state to reflect these changes
-      setPrompts(prev => prev.map(prompt => {
-        if (prompt.type === promptType) {
-          return { ...prompt, active: prompt.id === promptId };
-        }
-        return prompt;
-      }));
+      // Reload prompts to reflect the new state
+      await fetchPrompts();
       
       toast.success("Estado del prompt actualizado correctamente");
     } catch (error) {
@@ -214,14 +196,17 @@ export default function PromptsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={prompt.active ? "default" : "secondary"} className={prompt.active ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"}>
+                          <Badge 
+                            variant="state" 
+                            className={prompt.active ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"}
+                          >
                             {prompt.active ? "Activo" : "Inactivo"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right space-x-1">
                           <Button
                             variant="ghost"
-                            size="icon"
+                            size="sm"
                             onClick={() => togglePromptActive(prompt.id, prompt.type)}
                             disabled={isActivating || prompt.active}
                             className="hover:bg-green-50"
@@ -229,10 +214,8 @@ export default function PromptsPage() {
                           >
                             {isActivating ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : prompt.active ? (
-                              <ToggleRight className="h-4 w-4 text-green-600" />
                             ) : (
-                              <ToggleLeft className="h-4 w-4 text-gray-500" />
+                              (prompt.active ? "Activo" : "Activar")
                             )}
                           </Button>
                           <Button

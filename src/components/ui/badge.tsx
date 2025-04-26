@@ -18,6 +18,7 @@ const badgeVariants = cva(
         outline: "text-foreground",
         success:
           "border-transparent bg-green-500 text-white hover:bg-green-600",
+        state: "text-sm font-medium rounded-lg px-3 py-1.5 hover:opacity-90" // New variant for state badges
       },
     },
     defaultVariants: {
