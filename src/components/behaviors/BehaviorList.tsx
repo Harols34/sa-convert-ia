@@ -183,16 +183,17 @@ export default function BehaviorList() {
                   size="sm"
                   onClick={() => toggleBehaviorActive(behavior.id, behavior.isActive)}
                   disabled={isActivating}
-                  className="py-1.5 px-3"
+                  className="py-2 px-4 gap-2"
                   title={behavior.isActive ? "Desactivar comportamiento" : "Activar comportamiento"}
                 >
                   {isActivating ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-5 w-5 animate-spin" />
                   ) : behavior.isActive ? (
-                    <ToggleRight className="h-5 w-5 text-primary" />
+                    <ToggleRight className="h-6 w-6 text-primary" />
                   ) : (
-                    <ToggleLeft className="h-5 w-5 text-muted-foreground" />
+                    <ToggleLeft className="h-6 w-6 text-muted-foreground" />
                   )}
+                  <span className="ml-2">{behavior.isActive ? "Activo" : "Activar"}</span>
                 </Button>
               </TableCell>
               <TableCell>
