@@ -15,6 +15,19 @@ interface Message {
   timestamp: Date;
 }
 
+const EXAMPLE_QUESTIONS = [
+  "¿Cuántas llamadas se han registrado en total?",
+  "¿Cuál es el promedio de duración de las llamadas?",
+  "¿Cuáles son los agentes con más ventas?",
+  "¿Qué productos se mencionan más frecuentemente?",
+  "¿Cuáles son los motivos más comunes de las llamadas?",
+  "¿Hay llamadas con retroalimentación negativa?",
+  "¿Cuál es el sentimiento general de las llamadas?",
+  "Muestra un resumen de las últimas llamadas",
+  "¿Qué patrones o tendencias has identificado?",
+  "¿Cuáles son las quejas más comunes de los clientes?"
+];
+
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -68,7 +81,7 @@ export default function ChatInterface() {
         
         setMessages((prevMessages) => [...prevMessages, aiMessage]);
         
-        // Save chat history to chat_messages table
+        // Save chat history
         await supabase.from("chat_messages").insert([{
           user_id: user?.id,
           content: userMessage.content,
@@ -76,7 +89,6 @@ export default function ChatInterface() {
           timestamp: new Date().toISOString(),
         }]);
 
-        // Save assistant response
         await supabase.from("chat_messages").insert([{
           user_id: user?.id,
           content: data.response,
@@ -106,9 +118,23 @@ export default function ChatInterface() {
           <div className="h-full flex flex-col items-center justify-center text-center p-4">
             <Bot size={48} className="text-primary mb-4" />
             <h3 className="text-xl font-medium">Asistente de ConvertIA</h3>
-            <p className="text-muted-foreground mt-2 max-w-md">
+            <p className="text-muted-foreground mt-2 max-w-md mb-6">
               Pregúntame cualquier cosa sobre tus llamadas, insights o consejos para mejorar la conversión.
             </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto text-left">
+              {EXAMPLE_QUESTIONS.map((question, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  className="justify-start text-left h-auto py-2 px-3"
+                  onClick={() => {
+                    setInput(question);
+                  }}
+                >
+                  {question}
+                </Button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="space-y-4">

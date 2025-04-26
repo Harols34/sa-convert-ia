@@ -27,7 +27,6 @@ export function usePrompts(type?: PromptType) {
       .order("updated_at", { ascending: false })
       .then(({ data, error }) => {
         if (!error && data) {
-          // Ensure the type is cast to PromptType since we're filtering by a valid type
           const typedPrompts = data.map(prompt => ({
             ...prompt,
             type: prompt.type as PromptType
@@ -38,7 +37,7 @@ export function usePrompts(type?: PromptType) {
       });
   }, [type]);
 
-  // Utility to get the active prompt quickly
+  // Get the active prompt quickly
   const activePrompt = prompts.find((p) => p.active);
 
   const createPrompt = async (p: Omit<Prompt, "id" | "updated_at">) => {
@@ -52,11 +51,8 @@ export function usePrompts(type?: PromptType) {
   };
 
   // Utility to activate just one prompt for this type
-  const activatePrompt = async (id: string) => {
-    // Set all prompts of this type to inactive
-    await supabase.from("prompts").update({ active: false }).eq("type", prompts.find(p => p.id === id)?.type);
-    // Set the selected as active
-    return updatePrompt(id, { active: true });
+  const togglePromptActive = async (id: string, currentState: boolean) => {
+    return updatePrompt(id, { active: !currentState });
   };
 
   return {
@@ -65,6 +61,6 @@ export function usePrompts(type?: PromptType) {
     activePrompt,
     createPrompt,
     updatePrompt,
-    activatePrompt,
+    togglePromptActive,
   };
 }

@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import OpenAI from 'https://esm.sh/openai@4.28.0';
 
@@ -33,7 +32,6 @@ function initializeOpenAI() {
  * Main handler for the general chat function
  */
 async function handleGeneralChat(req) {
-  // Parse request body
   const { query, userId, history } = await req.json();
   
   if (!query) {
@@ -42,13 +40,9 @@ async function handleGeneralChat(req) {
   
   console.log(`Processing general chat query: "${query.substring(0, 50)}..."`);
   
-  // Initialize OpenAI client
   const openai = initializeOpenAI();
-  
-  // Fetch general call data for context
   const callStats = await fetchCallStats();
   
-  // Create system prompt for general chat
   const systemPrompt = `
 Eres un asistente especializado en el análisis de llamadas telefónicas para un servicio de atención al cliente o ventas.
 
@@ -73,17 +67,12 @@ Ejemplos de preguntas que puedes responder:
 - "¿Cuáles son las quejas más comunes?"
 `;
   
-  // Prepare message history for the API
   const messages = [
     { role: "system", content: systemPrompt },
-    ...(history || []).map(msg => ({
-      role: msg.role,
-      content: msg.content
-    })),
+    ...(history || []),
     { role: "user", content: query }
   ];
   
-  // Call OpenAI API
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: messages.map(msg => ({
@@ -94,7 +83,6 @@ Ejemplos de preguntas que puedes responder:
     max_tokens: 1000,
   });
   
-  // Get the response
   const response = completion.choices[0]?.message?.content || "No pude generar una respuesta.";
   
   return new Response(
@@ -109,75 +97,29 @@ Ejemplos de preguntas que puedes responder:
   );
 }
 
-/**
- * Fetches call statistics for context
- */
 async function fetchCallStats() {
   try {
-    // Fetch total number of calls
-    const { count: totalCalls, error: countError } = await supabase
+    const { count: totalCalls } = await supabase
       .from('calls')
       .select('*', { count: 'exact', head: true });
     
-    if (countError) {
-      console.error("Error fetching call count:", countError);
-      return "No hay datos disponibles sobre las llamadas.";
-    }
-    
-    // Fetch recent calls (last 10)
-    const { data: recentCalls, error: recentError } = await supabase
+    const { data: recentCalls } = await supabase
       .from('calls')
       .select('id, title, agent_name, duration, date, result, product, summary, transcription')
       .order('date', { ascending: false })
       .limit(10);
       
-    if (recentError) {
-      console.error("Error fetching recent calls:", recentError);
-      return `Total de llamadas: ${totalCalls || 0}. No hay datos detallados disponibles.`;
-    }
-    
-    // Fetch agent performance
-    const { data: agents, error: agentsError } = await supabase
+    const { data: agents } = await supabase
       .from('agents')
       .select('name, status')
       .limit(20);
-      
-    if (agentsError) {
-      console.error("Error fetching agents:", agentsError);
-    }
     
-    // Count call results
-    const resultsCount = {};
-    recentCalls.forEach(call => {
-      if (call.result) {
-        resultsCount[call.result] = (resultsCount[call.result] || 0) + 1;
-      }
-    });
-    
-    // Format the statistics as text
     let statsText = `Total de llamadas en el sistema: ${totalCalls || 0}\n\n`;
-    
-    if (Object.keys(resultsCount).length > 0) {
-      statsText += "Resultados de llamadas recientes:\n";
-      Object.entries(resultsCount).forEach(([result, count]) => {
-        statsText += `- ${result || 'Sin resultado'}: ${count}\n`;
-      });
-      statsText += "\n";
-    }
-    
-    if (agents && agents.length > 0) {
-      statsText += `Total de agentes: ${agents.length}\n`;
-      statsText += "Agentes activos:\n";
-      agents.filter(a => a.status === 'active').forEach(a => {
-        statsText += `- ${a.name}\n`;
-      });
-      statsText += "\n";
-    }
     
     if (recentCalls && recentCalls.length > 0) {
       statsText += "Llamadas recientes con sus detalles:\n";
       recentCalls.forEach(call => {
-        statsText += `- ID: ${call.id}, Agente: ${call.agent_name}, Fecha: ${new Date(call.date).toLocaleDateString()}\n`;
+        statsText += `- Título: ${call.title}, Agente: ${call.agent_name}, Fecha: ${new Date(call.date).toLocaleDateString()}\n`;
         if (call.summary) {
           statsText += `  Resumen: ${call.summary}\n`;
         }
@@ -185,6 +127,14 @@ async function fetchCallStats() {
           statsText += `  Transcripción: ${call.transcription.substring(0, 200)}...\n`;
         }
         statsText += "\n";
+      });
+    }
+    
+    if (agents && agents.length > 0) {
+      statsText += `Total de agentes: ${agents.length}\n`;
+      statsText += "Agentes activos:\n";
+      agents.filter(a => a.status === 'active').forEach(a => {
+        statsText += `- ${a.name}\n`;
       });
     }
     
