@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
@@ -16,23 +16,7 @@ interface NavbarProps {
 const Navbar = ({
   toggleSidebar
 }: NavbarProps) => {
-  // Safe way to access router
-  let navigate: (path: string) => void;
-  try {
-    // Dynamic import of useNavigate to avoid the direct hook call
-    // which would throw an error if not inside Router context
-    const { useNavigate } = require('react-router-dom');
-    const nav = useNavigate();
-    navigate = nav;
-  } catch (e) {
-    // Fallback function if not in Router context
-    navigate = (path: string) => {
-      console.warn('Navigation attempted outside Router context:', path);
-      // Use regular browser navigation as fallback
-      window.location.href = path;
-    };
-  }
-
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const isMobile = useIsMobile();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
