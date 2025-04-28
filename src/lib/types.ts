@@ -1,3 +1,4 @@
+
 import React from "react";
 
 export interface User {
@@ -67,17 +68,6 @@ export interface Behavior {
   isActive: boolean;
   criteria?: string[];
   createdBy: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Contract {
-  id: string;
-  name: string;
-  description: string | null;
-  content: string;
-  isActive: boolean;
-  criteria: string[];
   createdAt: string;
   updatedAt: string;
 }

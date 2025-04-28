@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { 
@@ -47,6 +48,7 @@ export default function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
     };
   }, []);
 
+  // Load collapsed state from localStorage
   useEffect(() => {
     const savedState = localStorage.getItem('sidebar-collapsed');
     if (savedState !== null) {
@@ -54,11 +56,13 @@ export default function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
     }
   }, []);
 
+  // Save collapsed state to localStorage and notify other components
   const toggleCollapse = () => {
     const newState = !collapsed;
     setCollapsed(newState);
     localStorage.setItem('sidebar-collapsed', String(newState));
     
+    // Dispatch storage event manually to notify other components
     window.dispatchEvent(new StorageEvent('storage', {
       key: 'sidebar-collapsed',
       newValue: String(newState),
@@ -134,16 +138,11 @@ export default function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
       path: "/settings",
       icon: <Cog />,
     },
-    {
-      name: "Contratos",
-      href: "/contracts",
-      icon: <FileText size={20} />,
-      role: ["superAdmin", "admin", "qualityAnalyst"]
-    },
   ];
 
   return (
     <>
+      {/* Mobile Overlay */}
       {isOpen && isMobile && (
         <div 
           className="fixed inset-0 bg-black/50 z-10"
