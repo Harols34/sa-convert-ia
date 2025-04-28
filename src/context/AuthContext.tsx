@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 import { Session, User } from '@supabase/supabase-js';
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User as AppUser } from "@/lib/types";
 import { toast } from "sonner";
@@ -35,6 +36,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshTimer, setRefreshTimer] = useState<NodeJS.Timeout | null>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Safety timeout to prevent infinite loading state
   useEffect(() => {
@@ -253,7 +256,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await supabase.auth.signOut();
       // No need to manually clear session here, the auth state listener will handle it
-      // No direct navigate here - let the component handle navigation after logging out
+      navigate('/login');
     } catch (error) {
       console.error("Error signing out:", error);
       setLoading(false);

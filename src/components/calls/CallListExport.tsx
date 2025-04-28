@@ -64,13 +64,6 @@ const CallListExport = memo(({ selectedCalls, filteredCalls }: CallListExportPro
           tipificacionMap.get(call.tipificacionId) || "Sin asignar" : 
           "Sin asignar";
         
-        // For demo purposes, we'll add mock contract compliance data
-        // In a real implementation, this would come from the database
-        const hasActiveContract = call.result === "venta";
-        const contractCompliance = hasActiveContract ? 
-          (Math.random() > 0.5 ? "Cumple" : "No cumple") : 
-          "N/A (Sin contrato activo)";
-        
         return {
           "Título": call.title,
           "Duración (seg)": call.duration,
@@ -78,13 +71,12 @@ const CallListExport = memo(({ selectedCalls, filteredCalls }: CallListExportPro
           "Asesor": call.agentName,
           "Tipificación": tipificacionName,
           "Estado": call.status === "complete" ? "Completo" : 
-                  call.status === "pending" ? "Pendiente" : 
-                  call.status === "analyzing" ? "Analizando" : 
-                  call.status === "transcribing" ? "Transcribiendo" : 
-                  call.status === "error" ? "Error" : call.status,
+                   call.status === "pending" ? "Pendiente" : 
+                   call.status === "analyzing" ? "Analizando" : 
+                   call.status === "transcribing" ? "Transcribiendo" : 
+                   call.status === "error" ? "Error" : call.status,
           "Resumen Estado": call.statusSummary || "",
-          "Resumen": call.summary || "",
-          "Cumplimiento de Contrato": contractCompliance
+          "Resumen": call.summary || ""
         };
       });
       
@@ -98,8 +90,7 @@ const CallListExport = memo(({ selectedCalls, filteredCalls }: CallListExportPro
           "Tipificación", 
           "Estado",
           "Resumen Estado",
-          "Resumen",
-          "Cumplimiento de Contrato"
+          "Resumen"
         ];
       
       return { exportRows, headers };
