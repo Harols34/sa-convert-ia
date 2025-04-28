@@ -24,12 +24,12 @@ import RouteObserver from "@/components/layout/RouteObserver";
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
+    <Router>
+      <AuthProvider>
         <RouteObserver />
         <AppContent />
-      </Router>
-    </AuthProvider>
+      </AuthProvider>
+    </Router>
   );
 }
 
