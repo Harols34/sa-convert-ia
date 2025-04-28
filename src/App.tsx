@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import {
   BrowserRouter as Router,
@@ -11,30 +12,21 @@ import Dashboard from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import Users from "@/pages/Users";
 import Prompts from "@/pages/Prompts";
-import NewCall from "@/pages/NewCall";
-import EditCall from "@/pages/EditCall";
-import NewUser from "@/pages/NewUser";
-import EditUser from "@/pages/EditUser";
-import NewPrompt from "@/pages/NewPrompt";
-import EditPrompt from "@/pages/EditPrompt";
 import Settings from "@/pages/Settings";
 import Layout from "@/components/layout/Layout";
 import Index from "@/pages/Index";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import NewTipificacion from "@/pages/NewTipificacion";
-import EditTipificacion from "@/pages/EditTipificacion";
 import Tipificaciones from "@/pages/Tipificaciones";
 import Behaviors from "@/pages/Behaviors";
-import NewBehavior from "@/pages/NewBehavior";
-import EditBehavior from "@/pages/EditBehavior";
-import CallDetail from "@/pages/CallDetail";
 import ContractsPage from "@/pages/Contracts";
+import RouteObserver from "@/components/layout/RouteObserver";
 
 function App() {
   return (
     <AuthProvider>
       <Router>
+        <RouteObserver />
         <AppContent />
       </Router>
     </AuthProvider>
@@ -76,29 +68,16 @@ function AppContent() {
 
   return (
     <Routes>
-      <Route path="/" element={<Layout />}>
-        <Route index element={<Index />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/calls" element={<Calls />} />
-        <Route path="/calls/new" element={<NewCall />} />
-        <Route path="/calls/:id" element={<CallDetail />} />
-        <Route path="/calls/edit/:id" element={<EditCall />} />
-        <Route path="/users" element={<Users />} />
-        <Route path="/users/new" element={<NewUser />} />
-        <Route path="/users/edit/:id" element={<EditUser />} />
-        <Route path="/prompts" element={<Prompts />} />
-        <Route path="/prompts/new" element={<NewPrompt />} />
-        <Route path="/prompts/edit/:id" element={<EditPrompt />} />
-        <Route path="/tipificaciones" element={<Tipificaciones />} />
-        <Route path="/tipificaciones/new" element={<NewTipificacion />} />
-        <Route path="/tipificaciones/edit/:id" element={<EditTipificacion />} />
-        <Route path="/behaviors" element={<Behaviors />} />
-        <Route path="/behaviors/new" element={<NewBehavior />} />
-        <Route path="/behaviors/edit/:id" element={<EditBehavior />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/contracts" element={<ContractsPage />} />
-      </Route>
+      <Route path="/" element={<Layout><Index /></Layout>} />
       <Route path="/login" element={<Login />} />
+      <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
+      <Route path="/calls" element={<Layout><Calls /></Layout>} />
+      <Route path="/users" element={<Layout><Users /></Layout>} />
+      <Route path="/prompts" element={<Layout><Prompts /></Layout>} />
+      <Route path="/tipificaciones" element={<Layout><Tipificaciones /></Layout>} />
+      <Route path="/behaviors" element={<Layout><Behaviors /></Layout>} />
+      <Route path="/settings" element={<Layout><Settings /></Layout>} />
+      <Route path="/contracts" element={<Layout><ContractsPage /></Layout>} />
     </Routes>
   );
 }
