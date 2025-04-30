@@ -1,4 +1,3 @@
-
 // OpenAI API key from environment variables
 const openAiKey = Deno.env.get("API_DE_OPENAI") || Deno.env.get("OPENAI_API_KEY") || Deno.env.get("Speech Analitycs");
 
@@ -120,7 +119,7 @@ DESCRIPCIÓN: ${behavior.description || ""}
 CRITERIO DE EVALUACIÓN: ${behavior.prompt || ""}
 
 TRANSCRIPCIÓN DE LA LLAMADA:
-${call.transcription}
+${call.transcription ? (typeof call.transcription === 'string' ? call.transcription : JSON.stringify(call.transcription)) : "No hay transcripción disponible."}
 
 IMPORTANTE: Lee muy cuidadosamente el criterio de evaluación y la descripción del comportamiento. Si el comportamiento menciona que deben cumplirse varios criterios o pautas (por ejemplo, "debe cumplir con al menos 3 de 4 criterios"), asegúrate de evaluar cada uno individualmente antes de determinar si CUMPLE o NO CUMPLE.
 
@@ -133,44 +132,98 @@ Tu respuesta debe seguir EXACTAMENTE este formato JSON:
 }
 `;
 
-      // Call OpenAI for evaluation
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openAiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: 'Eres un experto en calidad de llamadas telefónicas de servicio al cliente. Tu trabajo es evaluar rigurosamente si un asesor cumple o no con ciertos comportamientos esperados. Eres muy estricto en tus evaluaciones y sigues al pie de la letra los criterios especificados.' },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.3,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+      // Ensure transcription is not too long - truncate if needed
+      const maxPromptLength = 16000; // Setting a reasonable limit
+      let finalPrompt = prompt;
+      if (finalPrompt.length > maxPromptLength) {
+        console.log(`Prompt is too long (${finalPrompt.length} chars), truncating...`);
+        
+        // Find the index where the transcription starts
+        const transcriptionStartIndex = finalPrompt.indexOf('TRANSCRIPCIÓN DE LA LLAMADA:');
+        if (transcriptionStartIndex !== -1) {
+          // Calculate how much transcription we can keep
+          const beforeTranscription = finalPrompt.substring(0, transcriptionStartIndex + 'TRANSCRIPCIÓN DE LA LLAMADA:'.length);
+          const afterTranscriptionIndex = finalPrompt.indexOf('IMPORTANTE:', transcriptionStartIndex);
+          const afterTranscription = afterTranscriptionIndex !== -1 ? 
+            finalPrompt.substring(afterTranscriptionIndex) : 
+            "\n\nIMPORTANTE: Lee muy cuidadosamente el criterio..."; // Fallback
+          
+          // Calculate available space for transcription
+          const availableSpace = maxPromptLength - beforeTranscription.length - afterTranscription.length - 100; // Extra buffer
+          
+          // Extract and truncate transcription
+          const transcriptionContent = call.transcription ? 
+            (typeof call.transcription === 'string' ? call.transcription : JSON.stringify(call.transcription)) : 
+            "No hay transcripción disponible.";
+          
+          const truncatedTranscription = transcriptionContent.substring(0, availableSpace) + 
+            "\n\n[Transcripción truncada debido a limitaciones de longitud]";
+          
+          // Reassemble prompt
+          finalPrompt = beforeTranscription + "\n" + truncatedTranscription + "\n\n" + afterTranscription;
+          console.log(`Truncated prompt to ${finalPrompt.length} chars`);
+        }
       }
 
-      const data = await response.json();
-      const result = data.choices[0].message.content;
-      
-      console.log(`OpenAI raw result for ${behavior.name}:`, result);
-      
-      // Process and validate the evaluation
-      const processedResult = processEvaluation(behavior.name, result, behavior);
-      
-      // Add to analysis
-      behaviorsAnalysis.push({
-        name: behavior.name,
-        evaluation: processedResult.evaluation,
-        comments: processedResult.comments
-      });
+      try {
+        // Call OpenAI for evaluation with improved error handling
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openAiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              { 
+                role: 'system', 
+                content: 'Eres un experto en calidad de llamadas telefónicas de servicio al cliente. Tu trabajo es evaluar rigurosamente si un asesor cumple o no con ciertos comportamientos esperados. Eres muy estricto en tus evaluaciones y sigues al pie de la letra los criterios especificados.' 
+              },
+              { role: 'user', content: finalPrompt }
+            ],
+            temperature: 0.3,
+            max_tokens: 800,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorDetail = await response.text();
+          throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorDetail}`);
+        }
+
+        const data = await response.json();
+        
+        if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+          throw new Error("Respuesta inesperada de OpenAI: no se encontró el contenido esperado");
+        }
+        
+        const result = data.choices[0].message.content;
+        
+        console.log(`OpenAI raw result for ${behavior.name}:`, result);
+        
+        // Process and validate the evaluation
+        const processedResult = processEvaluation(behavior.name, result, behavior);
+        
+        // Add to analysis
+        behaviorsAnalysis.push({
+          name: behavior.name,
+          evaluation: processedResult.evaluation,
+          comments: processedResult.comments
+        });
+      } catch (apiError) {
+        console.error(`API error analyzing behavior ${behavior.name}:`, apiError);
+        
+        // Add fallback result for API errors
+        behaviorsAnalysis.push({
+          name: behavior.name,
+          evaluation: "no cumple",
+          comments: `Error al analizar este comportamiento con OpenAI: ${apiError.message}`
+        });
+      }
       
     } catch (error) {
-      console.error(`Error analyzing behavior ${behavior.name}:`, error);
+      console.error(`General error analyzing behavior ${behavior.name}:`, error);
       
       // Add fallback result in case of error
       behaviorsAnalysis.push({

@@ -37,6 +37,31 @@ export interface Call {
   tipificacionId?: string | null;
   speaker_analysis?: any;
   statusSummary?: string; // Field for brief status summary (max 4 words)
+  contractCompliance?: ContractCompliance; // New field for contract compliance
+}
+
+export interface ContractCompliance {
+  contractId: string;
+  contractName: string;
+  isActive: boolean;
+  complies: boolean;
+  comments: string;
+  criteriaResults: {
+    criteria: string;
+    complies: boolean;
+    comments: string;
+  }[];
+}
+
+export interface Contract {
+  id: string;
+  name: string;
+  description: string | null;
+  content: string;
+  criteria: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface BehaviorAnalysis {
