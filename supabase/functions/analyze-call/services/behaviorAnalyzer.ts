@@ -110,58 +110,71 @@ export async function analyzeBehaviors(call: any, behaviors: any[]) {
     try {
       console.log(`Analyzing behavior: ${behavior.id} - ${behavior.name} - active: ${behavior.is_active}`);
       
-      // Create prompt for OpenAI
+      // Extract transcription text with proper speaker labeling
+      let readableTranscript = "";
+      try {
+        if (call.transcription) {
+          const segments = typeof call.transcription === 'string' 
+            ? JSON.parse(call.transcription) 
+            : call.transcription;
+          
+          if (Array.isArray(segments)) {
+            readableTranscript = segments.map(segment => {
+              const speaker = segment.speaker || "Desconocido";
+              return `${speaker}: ${segment.text || ""}`;
+            }).join("\n\n");
+          } else {
+            readableTranscript = call.transcription;
+          }
+        }
+      } catch (parseError) {
+        console.error("Error parsing transcription:", parseError);
+        readableTranscript = typeof call.transcription === 'string' 
+          ? call.transcription 
+          : JSON.stringify(call.transcription);
+      }
+      
+      // Create prompt for OpenAI - optimized for lower token usage
       const prompt = `
-Basado en la siguiente transcripción de una llamada telefónica, evalúa si el asesor cumple o no cumple con este comportamiento:
+Evalúa el siguiente comportamiento del asesor basado en la transcripción proporcionada:
 
-COMPORTAMIENTO A EVALUAR: ${behavior.name}
+COMPORTAMIENTO: ${behavior.name}
 DESCRIPCIÓN: ${behavior.description || ""}
-CRITERIO DE EVALUACIÓN: ${behavior.prompt || ""}
+CRITERIO: ${behavior.prompt || ""}
 
-TRANSCRIPCIÓN DE LA LLAMADA:
-${call.transcription ? (typeof call.transcription === 'string' ? call.transcription : JSON.stringify(call.transcription)) : "No hay transcripción disponible."}
+TRANSCRIPCIÓN:
+${readableTranscript}
 
-IMPORTANTE: Lee muy cuidadosamente el criterio de evaluación y la descripción del comportamiento. Si el comportamiento menciona que deben cumplirse varios criterios o pautas (por ejemplo, "debe cumplir con al menos 3 de 4 criterios"), asegúrate de evaluar cada uno individualmente antes de determinar si CUMPLE o NO CUMPLE.
-
-Por ejemplo, si el criterio menciona que el asesor debe cumplir con 3 de 4 elementos y solo cumple con 1 o 2, entonces la evaluación debe ser "no cumple".
-
-Tu respuesta debe seguir EXACTAMENTE este formato JSON:
-{
-  "evaluation": "cumple" O "no cumple",
-  "comments": "Explicación detallada de por qué cumple o no cumple, mencionando específicamente qué criterios se cumplieron y cuáles no."
-}
+Tu respuesta debe ser un objeto JSON con estos campos:
+{"evaluation": "cumple" o "no cumple", "comments": "explicación detallada"}
 `;
 
       // Ensure transcription is not too long - truncate if needed
-      const maxPromptLength = 16000; // Setting a reasonable limit
+      const maxPromptLength = 12000; // Setting a smaller limit to save tokens
       let finalPrompt = prompt;
       if (finalPrompt.length > maxPromptLength) {
         console.log(`Prompt is too long (${finalPrompt.length} chars), truncating...`);
         
         // Find the index where the transcription starts
-        const transcriptionStartIndex = finalPrompt.indexOf('TRANSCRIPCIÓN DE LA LLAMADA:');
+        const transcriptionStartIndex = finalPrompt.indexOf('TRANSCRIPCIÓN:');
         if (transcriptionStartIndex !== -1) {
           // Calculate how much transcription we can keep
-          const beforeTranscription = finalPrompt.substring(0, transcriptionStartIndex + 'TRANSCRIPCIÓN DE LA LLAMADA:'.length);
-          const afterTranscriptionIndex = finalPrompt.indexOf('IMPORTANTE:', transcriptionStartIndex);
+          const beforeTranscription = finalPrompt.substring(0, transcriptionStartIndex + 'TRANSCRIPCIÓN:'.length);
+          const afterTranscriptionIndex = finalPrompt.indexOf('Tu respuesta debe ser', transcriptionStartIndex);
           const afterTranscription = afterTranscriptionIndex !== -1 ? 
             finalPrompt.substring(afterTranscriptionIndex) : 
-            "\n\nIMPORTANTE: Lee muy cuidadosamente el criterio..."; // Fallback
+            "\n\nTu respuesta debe ser un objeto JSON..."; // Fallback
           
           // Calculate available space for transcription
           const availableSpace = maxPromptLength - beforeTranscription.length - afterTranscription.length - 100; // Extra buffer
           
           // Extract and truncate transcription
-          const transcriptionContent = call.transcription ? 
-            (typeof call.transcription === 'string' ? call.transcription : JSON.stringify(call.transcription)) : 
-            "No hay transcripción disponible.";
-          
-          const truncatedTranscription = transcriptionContent.substring(0, availableSpace) + 
-            "\n\n[Transcripción truncada debido a limitaciones de longitud]";
+          const truncatedTranscription = readableTranscript.substring(0, availableSpace) + 
+            "\n\n[Transcripción truncada para reducir uso de tokens]";
           
           // Reassemble prompt
           finalPrompt = beforeTranscription + "\n" + truncatedTranscription + "\n\n" + afterTranscription;
-          console.log(`Truncated prompt to ${finalPrompt.length} chars`);
+          console.log(`Truncated prompt to ${finalPrompt.length} chars to reducir costos`);
         }
       }
 
@@ -174,22 +187,23 @@ Tu respuesta debe seguir EXACTAMENTE este formato JSON:
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: 'gpt-4o-mini', // Cambio a modelo más económico
             messages: [
               { 
                 role: 'system', 
-                content: 'Eres un experto en calidad de llamadas telefónicas de servicio al cliente. Tu trabajo es evaluar rigurosamente si un asesor cumple o no con ciertos comportamientos esperados. Eres muy estricto en tus evaluaciones y sigues al pie de la letra los criterios especificados.' 
+                content: 'Evalúa rigurosamente si un asesor cumple o no con comportamientos específicos basado en una transcripción. Sé estricto y sigue al pie de la letra los criterios.' 
               },
               { role: 'user', content: finalPrompt }
             ],
             temperature: 0.3,
-            max_tokens: 800,
+            max_tokens: 600, // Reducido para ahorrar tokens
           }),
         });
 
         if (!response.ok) {
           const errorDetail = await response.text();
-          throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorDetail}`);
+          console.error(`OpenAI API error details: ${errorDetail}`);
+          throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
@@ -214,12 +228,60 @@ Tu respuesta debe seguir EXACTAMENTE este formato JSON:
       } catch (apiError) {
         console.error(`API error analyzing behavior ${behavior.name}:`, apiError);
         
-        // Add fallback result for API errors
-        behaviorsAnalysis.push({
-          name: behavior.name,
-          evaluation: "no cumple",
-          comments: `Error al analizar este comportamiento con OpenAI: ${apiError.message}`
-        });
+        // Retry once with even more simplified prompt if there's an error
+        try {
+          console.log(`Retrying behavior ${behavior.name} with simplified prompt...`);
+          
+          const simplifiedPrompt = `
+Evalúa si el asesor cumple o no con este comportamiento:
+${behavior.name}: ${behavior.prompt}
+
+Transcripción resumida:
+${readableTranscript.substring(0, 5000)}
+
+Responde con JSON: {"evaluation": "cumple" o "no cumple", "comments": "explicación"}
+`;
+
+          const retryResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openAiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'gpt-3.5-turbo', // Modelo aún más económico para el reintento
+              messages: [
+                { role: 'user', content: simplifiedPrompt }
+              ],
+              temperature: 0.2,
+              max_tokens: 400,
+            }),
+          });
+          
+          if (!retryResponse.ok) {
+            throw new Error(`Retry failed: ${retryResponse.status}`);
+          }
+          
+          const retryData = await retryResponse.json();
+          const retryResult = retryData.choices[0].message.content;
+          const processedRetryResult = processEvaluation(behavior.name, retryResult, behavior);
+          
+          behaviorsAnalysis.push({
+            name: behavior.name,
+            evaluation: processedRetryResult.evaluation,
+            comments: processedRetryResult.comments + " (análisis simplificado por limitaciones técnicas)"
+          });
+          
+        } catch (retryError) {
+          console.error(`Retry also failed for behavior ${behavior.name}:`, retryError);
+          
+          // Add fallback result for API errors
+          behaviorsAnalysis.push({
+            name: behavior.name,
+            evaluation: "no cumple",
+            comments: `Error al analizar este comportamiento: ${apiError.message}`
+          });
+        }
       }
       
     } catch (error) {

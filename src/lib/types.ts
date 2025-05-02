@@ -138,3 +138,30 @@ export interface ChatHistoryItem {
   created_at: string;
   user_id: string;
 }
+
+// Interfaces para la transcripción mejorada 
+export interface TranscriptSegment {
+  text: string;
+  start: number;
+  end: number;
+  speaker: "Asesor" | "Cliente" | "silence" | "unknown";
+  confidence?: number;
+  words?: TranscriptWord[];
+}
+
+export interface TranscriptWord {
+  word: string;
+  start: number; 
+  end: number;
+  confidence?: number;
+}
+
+export interface SpeakerAnalysis {
+  porcentaje_asesor: number;
+  porcentaje_cliente: number;
+  tiempo_total: number;
+  tiempo_asesor: number;
+  tiempo_cliente: number;
+  silencios_prolongados: number;
+  tiempo_silencios: number;
+}
