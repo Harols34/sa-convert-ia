@@ -90,7 +90,7 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
       .sort((a, b) => a.start - b.start);
   }, [segments]);
 
-  // Improved speaker identification
+  // Normalize speaker roles without using keyword detection
   const processedSegments = segments.map(segment => {
     // Create a copy of the segment to avoid mutating the original
     const processedSegment = { ...segment };
@@ -106,47 +106,13 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
       return processedSegment;
     }
     
-    // Identify speakers based on patterns in the text or segment structure
-    if (!processedSegment.speaker) {
-      // Try to identify based on text patterns
-      const text = (processedSegment.text || "").toLowerCase();
-      
-      // Check for patterns that might indicate agent vs client
-      if (text.includes("gracias por llamar") || 
-          text.includes("mi nombre es") || 
-          text.includes("le atiende") || 
-          text.includes("le puedo ayudar") ||
-          text.includes("servicio al cliente") || 
-          text.includes("bienvenido a")) {
-        processedSegment.speaker = "agent";
-      } 
-      // Try to identify client based on common client phrases
-      else if (text.includes("mi problema es") || 
-               text.includes("quisiera saber") || 
-               text.includes("tengo una duda") || 
-               text.includes("necesito ayuda") ||
-               text.includes("mi consulta")) {
-        processedSegment.speaker = "client";
-      }
-      // Try speaker ID if available
-      else if (segment.speaker_id !== undefined || segment.speakerId !== undefined) {
-        const speakerId = segment.speaker_id || segment.speakerId;
-        // Convert numerical ID to role (typically 0 = agent, 1 = client)
-        processedSegment.speaker = speakerId === 0 || speakerId === "0" ? "agent" : "client";
-      }
-      // Use alternating pattern as last resort based on segment index
-      else if (segments.length > 1) {
-        // Assume first speaker is agent, then alternate
-        const index = segments.indexOf(segment);
-        processedSegment.speaker = index % 2 === 0 ? "agent" : "client";
-      }
-      else {
-        processedSegment.speaker = "unknown";
-      }
-    }
     // Normalize existing speaker values
-    else {
+    if (processedSegment.speaker) {
       processedSegment.speaker = normalizeSpekearRole(processedSegment.speaker);
+    } else {
+      // Default to alternating if we can't determine
+      const index = segments.indexOf(segment);
+      processedSegment.speaker = index % 2 === 0 ? "agent" : "client";
     }
     
     return processedSegment;
@@ -429,3 +395,4 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
     </Card>
   );
 }
+

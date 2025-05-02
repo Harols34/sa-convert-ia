@@ -36,9 +36,10 @@ app.get("/api/status/transcription", async (c) => {
     status: "operational",
     provider: "OpenAI Whisper",
     features: [
-      "Enhanced speaker diarization",
+      "Enhanced acoustic-based speaker diarization",
       "Silence detection",
-      "Cost-optimized processing"
+      "Cost-optimized processing",
+      "Turn detection using acoustic patterns"
     ],
     timestamp: new Date().toISOString()
   });

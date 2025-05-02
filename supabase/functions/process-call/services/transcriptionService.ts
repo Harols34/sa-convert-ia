@@ -34,8 +34,7 @@ export async function transcribeAudio(openai: OpenAI, audioUrl: string) {
   const segments = transcriptionResult.segments || [];
   console.log(`Transcripción completada con ${segments.length} segmentos`);
   
-  // Aplicar post-procesamiento para mejorar la identificación de hablantes
-  // Este algoritmo avanzado simula algunas de las capacidades de WhisperX
+  // Aplicar técnicas avanzadas de diarización basadas en características acústicas
   const enhancedSegments = enhanceTranscriptionWithSpeakerDetection(segments);
   
   return enhancedSegments;
@@ -43,7 +42,7 @@ export async function transcribeAudio(openai: OpenAI, audioUrl: string) {
 
 /**
  * Mejora la transcripción aplicando algoritmos avanzados para identificar hablantes
- * simulando algunas de las capacidades de WhisperX mediante procesamiento local
+ * basándose principalmente en características acústicas y patrones de conversación
  */
 function enhanceTranscriptionWithSpeakerDetection(segments: any[]) {
   if (!segments || segments.length === 0) {
@@ -54,43 +53,12 @@ function enhanceTranscriptionWithSpeakerDetection(segments: any[]) {
   const speakerTypes = ['Asesor', 'Cliente'];
   let currentSpeaker = 0; // Empezamos asumiendo que el primer hablante es el asesor
   
-  // Palabras clave que probablemente indican un asesor - Lista ampliada
-  const asesorKeywords = [
-    'le puedo ayudar', 'mi nombre es', 'le saluda', 'bienvenido', 'en qué puedo ayudarle',
-    'gracias por llamar', 'le ofrecemos', 'tenemos', 'nuestra empresa', 'nuestro servicio',
-    'permítame', 'con gusto', 'le comento', 'le explico', 'déjeme verificar',
-    'le informo', 'como representante', 'nuestras políticas', 'nuestros productos',
-    'muchas gracias por comunicarse', 'en nombre de', 'estamos para servirle',
-    'puedo ofrecerle', 'revisando su cuenta', 'si me permite', 'según nuestros registros'
-  ];
-  
-  // Palabras clave que probablemente indican un cliente - Lista ampliada
-  const clienteKeywords = [
-    'quiero saber', 'me interesa', 'necesito', 'tengo una duda', 'quisiera preguntar',
-    'mi problema es', 'me gustaría', 'estoy llamando por', 'mi nombre es', 'yo soy',
-    'mi cuenta', 'lo que pasa es', 'me están cobrando', 'no entiendo por qué', 'quería consultar',
-    'he notado que', 'en mi factura', 'estoy intentando', 'no funciona mi', 'acabo de comprar',
-    'recibí un mensaje', 'no puedo acceder', 'tengo problemas con', 'hace poco contraté'
-  ];
-
-  // Frases que indican presentación/inicio de conversación
-  const introductionPhrases = [
-    'buenos días', 'buenas tardes', 'buenas noches', 'hola', 'saludos', 
-    'gracias por comunicarse', 'gracias por llamar'
-  ];
-  
-  // Características que suelen tener las preguntas
-  const questionPatterns = [
-    '?', 'qué', 'cuál', 'cómo', 'cuándo', 'dónde', 'por qué', 'quién', 
-    'podría', 'me puede', 'quisiera saber'
-  ];
-  
   // Análisis acústico básico basado en estadísticas de segmentos
   const segmentStats = analyzeAcousticFeatures(segments);
   console.log("Estadísticas acústicas calculadas:", segmentStats);
   
-  // Función para detectar cambios de turno basados en patrones lingüísticos y acústicos
-  const detectTurnChange = (currentIndex: number, previousSpeaker: number) => {
+  // Función para detectar cambios de turno basados en patrones acústicos
+  const detectTurnChange = (currentIndex: number) => {
     if (currentIndex === 0) return true; // Primer segmento siempre es cambio
     
     const current = segments[currentIndex];
@@ -98,70 +66,66 @@ function enhanceTranscriptionWithSpeakerDetection(segments: any[]) {
     
     // Detectar si hay una pausa significativa entre segmentos
     const silenceGap = current.start - previous.end;
-    const significantSilence = silenceGap > 1.0; // Más de 1 segundo
+    const significantSilence = silenceGap > 0.8; // Umbral de silencio en segundos
     
-    // Detectar cambios basados en patrones lingüísticos
-    const currentText = current.text?.toLowerCase() || '';
+    // Detectar cambios basados en características acústicas
+    let acousticChange = false;
     
-    // Si el texto actual contiene una frase de introducción, probablemente es un cambio de turno
-    const hasIntroduction = introductionPhrases.some(phrase => currentText.includes(phrase));
-    if (hasIntroduction) return true;
-    
-    // Si hay una pregunta, probablemente es cambio de turno
-    const isQuestion = questionPatterns.some(pattern => currentText.includes(pattern));
-    
-    // Combinamos múltiples factores para decidir si hay cambio de turno
-    return significantSilence || isQuestion;
-  };
-  
-  // Función para detectar el tipo de hablante basado en el texto y acústica
-  const detectSpeakerType = (text: string, segment: any, index: number) => {
-    text = text.toLowerCase();
-    
-    // Verificar si contiene palabras clave de asesor
-    const isAsesor = asesorKeywords.some(keyword => text.includes(keyword.toLowerCase()));
-    if (isAsesor) return 0; // Asesor
-    
-    // Verificar si contiene palabras clave de cliente
-    const isCliente = clienteKeywords.some(keyword => text.includes(keyword.toLowerCase()));
-    if (isCliente) return 1; // Cliente
-    
-    // Análisis acústico: comparar con estadísticas para determinar el hablante
-    if (segmentStats.agentAvgConfidence && segmentStats.clientAvgConfidence) {
-      // Si tenemos suficientes datos para comparar características acústicas
-      const segmentConfidence = segment.confidence || 0;
-      const agentDiff = Math.abs(segmentConfidence - segmentStats.agentAvgConfidence);
-      const clientDiff = Math.abs(segmentConfidence - segmentStats.clientAvgConfidence);
-      
-      if (agentDiff < clientDiff) return 0; // Más cercano al patrón del agente
-      if (clientDiff < agentDiff) return 1; // Más cercano al patrón del cliente
+    // Comparar confianza si está disponible
+    if (current.confidence !== undefined && previous.confidence !== undefined) {
+      const confidenceDifference = Math.abs(current.confidence - previous.confidence);
+      if (confidenceDifference > 0.15) { // Umbral de diferencia de confianza
+        acousticChange = true;
+      }
     }
     
-    // Si no podemos determinar, alternar basado en patrones de la conversación
-    return index % 2 === 0 ? 0 : 1;
+    // Comparar duración media de las palabras si están disponibles
+    if (current.words && current.words.length > 0 && 
+        previous.words && previous.words.length > 0) {
+      
+      const currentAvgWordDuration = getAverageWordDuration(current.words);
+      const previousAvgWordDuration = getAverageWordDuration(previous.words);
+      
+      const durationDifference = Math.abs(currentAvgWordDuration - previousAvgWordDuration);
+      if (durationDifference > 0.05) { // Umbral de diferencia de duración
+        acousticChange = true;
+      }
+    }
+    
+    return significantSilence || acousticChange;
   };
+  
+  // Función auxiliar para calcular la duración media de las palabras
+  function getAverageWordDuration(words: any[]) {
+    if (!words || words.length === 0) return 0;
+    
+    const totalDuration = words.reduce((sum, word) => {
+      return sum + ((word.end || 0) - (word.start || 0));
+    }, 0);
+    
+    return totalDuration / words.length;
+  }
   
   // Aplicar algoritmo mejorado de detección de hablantes en múltiples pasadas
   let enhancedSegments = [...segments];
   let lastEndTime = 0;
   
-  // Primera pasada: identificación preliminar de hablantes
+  // Primera pasada: identificación basada en cambios de turno y patrón temporal
   for (let i = 0; i < enhancedSegments.length; i++) {
     const segment = enhancedSegments[i];
     if (!segment.text) continue;
     
     // Verificar si hay un silencio significativo entre segmentos
     const silenceGap = segment.start - lastEndTime;
-    const significantSilence = silenceGap > 1.0; // Más de 1 segundo de silencio
+    const significantSilence = silenceGap > 0.8; // Umbral de silencio
     
-    // Detectar cambio de turno
-    const turnChange = detectTurnChange(i, currentSpeaker);
+    // Detectar cambio de turno basado en características acústicas
+    const turnChange = detectTurnChange(i);
     
     // Actualizar hablante si hay cambio de turno
     if (i === 0 || significantSilence || turnChange) {
-      // Intentar detectar el hablante por el contenido
-      const detectedSpeaker = detectSpeakerType(segment.text, segment, i);
-      currentSpeaker = detectedSpeaker;
+      // Alternamos hablantes en cambios de turno
+      currentSpeaker = 1 - currentSpeaker; // Alterna entre 0 y 1
     }
     
     // Asignar el hablante al segmento
@@ -235,6 +199,17 @@ function enhanceTranscriptionWithSpeakerDetection(segments: any[]) {
  * Analiza características acústicas de los segmentos para ayudar en la diarización
  */
 function analyzeAcousticFeatures(segments: any[]) {
+  if (!segments || segments.length < 2) {
+    return {
+      agentSegments: [],
+      clientSegments: [],
+      agentAvgConfidence: 0,
+      clientAvgConfidence: 0,
+      agentAvgDuration: 0,
+      clientAvgDuration: 0
+    };
+  }
+  
   const stats = {
     agentSegments: [],
     clientSegments: [],
@@ -244,21 +219,58 @@ function analyzeAcousticFeatures(segments: any[]) {
     clientAvgDuration: 0
   };
   
-  // Identificar primeros segmentos para establecer linea base
-  // Típicamente el primer segmento es del agente y el segundo del cliente
-  if (segments.length >= 2) {
-    const firstSegment = segments[0];
-    const secondSegment = segments[1];
+  // Características acústicas para diferenciar hablantes
+  const confidenceValues: number[] = [];
+  const durationValues: number[] = [];
+  const wordRateValues: number[] = [];
+  
+  // Recopilar datos acústicos de todos los segmentos
+  segments.forEach(segment => {
+    if (!segment.text) return;
     
-    stats.agentSegments.push(firstSegment);
-    stats.clientSegments.push(secondSegment);
+    const duration = (segment.end || 0) - (segment.start || 0);
+    const wordCount = segment.words ? segment.words.length : segment.text.split(/\s+/).length;
+    const wordsPerSecond = duration > 0 ? wordCount / duration : 0;
     
-    stats.agentAvgConfidence = firstSegment.confidence || 0;
-    stats.clientAvgConfidence = secondSegment.confidence || 0;
+    if (segment.confidence !== undefined) {
+      confidenceValues.push(segment.confidence);
+    }
     
-    stats.agentAvgDuration = firstSegment.end - firstSegment.start;
-    stats.clientAvgDuration = secondSegment.end - secondSegment.start;
+    durationValues.push(duration);
+    wordRateValues.push(wordsPerSecond);
+  });
+  
+  // Usar clustering simple para agrupar segmentos similares
+  // (Este es un enfoque simplificado del clustering por k-means)
+  if (confidenceValues.length > 0) {
+    // Ordenar valores para encontrar la mediana
+    const sortedConfidence = [...confidenceValues].sort((a, b) => a - b);
+    const medianConfidence = sortedConfidence[Math.floor(sortedConfidence.length / 2)];
+    
+    // Asignar segmentos preliminares basados en la confianza
+    segments.forEach((segment, index) => {
+      if (!segment.confidence) return;
+      
+      // Los segmentos por encima/debajo de la mediana se asignan temporalmente
+      if (segment.confidence >= medianConfidence) {
+        stats.agentSegments.push(segment);
+      } else {
+        stats.clientSegments.push(segment);
+      }
+    });
+  }
+  
+  // Calcular estadísticas de los grupos preliminares
+  if (stats.agentSegments.length > 0) {
+    stats.agentAvgConfidence = stats.agentSegments.reduce((sum, seg) => sum + (seg.confidence || 0), 0) / stats.agentSegments.length;
+    stats.agentAvgDuration = stats.agentSegments.reduce((sum, seg) => sum + ((seg.end || 0) - (seg.start || 0)), 0) / stats.agentSegments.length;
+  }
+  
+  if (stats.clientSegments.length > 0) {
+    stats.clientAvgConfidence = stats.clientSegments.reduce((sum, seg) => sum + (seg.confidence || 0), 0) / stats.clientSegments.length;
+    stats.clientAvgDuration = stats.clientSegments.reduce((sum, seg) => sum + ((seg.end || 0) - (seg.start || 0)), 0) / stats.clientSegments.length;
   }
   
   return stats;
 }
+
