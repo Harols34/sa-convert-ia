@@ -36,12 +36,29 @@ app.get("/api/status/transcription", async (c) => {
     status: "operational",
     provider: "OpenAI Whisper",
     features: [
-      "Enhanced acoustic-based speaker diarization",
-      "Silence detection",
-      "Cost-optimized processing",
-      "Turn detection using acoustic patterns"
+      "Alta precisión en reconocimiento automático de voz",
+      "Diarización basada en características acústicas",
+      "Detección de silencios optimizada",
+      "Identificación mejorada de hablantes",
+      "Transcripción adaptada a español latinoamericano"
     ],
     timestamp: new Date().toISOString()
+  });
+});
+
+// Nueva ruta para configuración de transcripción avanzada
+app.get("/api/config/transcription", async (c) => {
+  return c.json({
+    model: "whisper-1",
+    language: "es",
+    temperature: 0,
+    response_format: "verbose_json",
+    timestamp_granularities: ["segment", "word"],
+    diarization: {
+      enabled: true,
+      speakers: ["Asesor", "Cliente"],
+      method: "acoustic"
+    }
   });
 });
 

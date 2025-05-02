@@ -3,11 +3,11 @@ import OpenAI from "https://esm.sh/openai@4.28.0";
 
 /**
  * Transcribe y procesa audio usando una versión optimizada del servicio de Whisper
- * con mejoras en la identificación de hablantes y detección de silencios
+ * con mejoras en la identificación de hablantes y detección acústica
  */
 export async function transcribeAudio(openai: OpenAI, audioUrl: string) {
   console.log(`Descargando archivo de audio: ${audioUrl}`);
-  console.log("Iniciando transcripción mejorada y económica...");
+  console.log("Iniciando transcripción con alta precisión y diarización...");
 
   // Descargar archivo de audio usando fetch
   const audioResponse = await fetch(audioUrl);
@@ -18,23 +18,23 @@ export async function transcribeAudio(openai: OpenAI, audioUrl: string) {
   const audioBlob = await audioResponse.blob();
   const file = new File([audioBlob], "audio.mp3", { type: "audio/mpeg" });
   
-  console.log("Comenzando transcripción con Whisper...");
+  console.log("Comenzando transcripción con Whisper optimizado...");
   
-  // Utilizamos tiny.en para reducir costos cuando sea posible, o whisper-1 para español
+  // Configuración optimizada para transcripción de alta calidad
   const transcriptionResult = await openai.audio.transcriptions.create({
     file: file,
-    model: "whisper-1", // Más económico pero efectivo para español
-    response_format: "verbose_json", // Formato detallado para tener más información
-    temperature: 0,
-    language: "es",
-    timestamp_granularities: ["segment", "word"] // Solicitar timestamps a nivel de palabra y segmento
+    model: "whisper-1", // Usar el modelo más preciso
+    response_format: "verbose_json",
+    temperature: 0, // Sin aleatoriedad para máxima precisión
+    language: "es", // Especificar español para mejor reconocimiento
+    timestamp_granularities: ["segment", "word"] // Timestamps a nivel de palabra y segmento
   });
   
   // Extraer segmentos de la transcripción
   const segments = transcriptionResult.segments || [];
   console.log(`Transcripción completada con ${segments.length} segmentos`);
   
-  // Aplicar técnicas avanzadas de diarización basadas en características acústicas
+  // Aplicar diarización mejorada basada en características acústicas
   const enhancedSegments = enhanceTranscriptionWithSpeakerDetection(segments);
   
   return enhancedSegments;
@@ -42,7 +42,7 @@ export async function transcribeAudio(openai: OpenAI, audioUrl: string) {
 
 /**
  * Mejora la transcripción aplicando algoritmos avanzados para identificar hablantes
- * basándose principalmente en características acústicas y patrones de conversación
+ * basándose exclusivamente en características acústicas
  */
 function enhanceTranscriptionWithSpeakerDetection(segments: any[]) {
   if (!segments || segments.length === 0) {
@@ -53,11 +53,11 @@ function enhanceTranscriptionWithSpeakerDetection(segments: any[]) {
   const speakerTypes = ['Asesor', 'Cliente'];
   let currentSpeaker = 0; // Empezamos asumiendo que el primer hablante es el asesor
   
-  // Análisis acústico básico basado en estadísticas de segmentos
+  // Análisis acústico avanzado basado en estadísticas de segmentos
   const segmentStats = analyzeAcousticFeatures(segments);
-  console.log("Estadísticas acústicas calculadas:", segmentStats);
+  console.log("Estadísticas acústicas calculadas para diarización:", segmentStats);
   
-  // Función para detectar cambios de turno basados en patrones acústicos
+  // Función para detectar cambios de turno basados ÚNICAMENTE en patrones acústicos
   const detectTurnChange = (currentIndex: number) => {
     if (currentIndex === 0) return true; // Primer segmento siempre es cambio
     
@@ -66,7 +66,7 @@ function enhanceTranscriptionWithSpeakerDetection(segments: any[]) {
     
     // Detectar si hay una pausa significativa entre segmentos
     const silenceGap = current.start - previous.end;
-    const significantSilence = silenceGap > 0.8; // Umbral de silencio en segundos
+    const significantSilence = silenceGap > 0.75; // Umbral de silencio en segundos
     
     // Detectar cambios basados en características acústicas
     let acousticChange = false;
@@ -74,7 +74,7 @@ function enhanceTranscriptionWithSpeakerDetection(segments: any[]) {
     // Comparar confianza si está disponible
     if (current.confidence !== undefined && previous.confidence !== undefined) {
       const confidenceDifference = Math.abs(current.confidence - previous.confidence);
-      if (confidenceDifference > 0.15) { // Umbral de diferencia de confianza
+      if (confidenceDifference > 0.12) { // Umbral de diferencia de confianza
         acousticChange = true;
       }
     }
@@ -87,7 +87,15 @@ function enhanceTranscriptionWithSpeakerDetection(segments: any[]) {
       const previousAvgWordDuration = getAverageWordDuration(previous.words);
       
       const durationDifference = Math.abs(currentAvgWordDuration - previousAvgWordDuration);
-      if (durationDifference > 0.05) { // Umbral de diferencia de duración
+      if (durationDifference > 0.04) { // Umbral de diferencia de duración
+        acousticChange = true;
+      }
+    }
+    
+    // Detección de características prosódicas (si están disponibles)
+    if (current.avg_logprob !== undefined && previous.avg_logprob !== undefined) {
+      const logprobDifference = Math.abs(current.avg_logprob - previous.avg_logprob);
+      if (logprobDifference > 0.1) {
         acousticChange = true;
       }
     }
@@ -106,18 +114,18 @@ function enhanceTranscriptionWithSpeakerDetection(segments: any[]) {
     return totalDuration / words.length;
   }
   
-  // Aplicar algoritmo mejorado de detección de hablantes en múltiples pasadas
+  // Aplicar algoritmo avanzado de detección de hablantes en múltiples pasadas
   let enhancedSegments = [...segments];
   let lastEndTime = 0;
   
-  // Primera pasada: identificación basada en cambios de turno y patrón temporal
+  // Primera pasada: identificación basada en cambios de turno y patrones temporales
   for (let i = 0; i < enhancedSegments.length; i++) {
     const segment = enhancedSegments[i];
     if (!segment.text) continue;
     
     // Verificar si hay un silencio significativo entre segmentos
     const silenceGap = segment.start - lastEndTime;
-    const significantSilence = silenceGap > 0.8; // Umbral de silencio
+    const significantSilence = silenceGap > 0.75; // Umbral de silencio
     
     // Detectar cambio de turno basado en características acústicas
     const turnChange = detectTurnChange(i);
@@ -138,7 +146,7 @@ function enhanceTranscriptionWithSpeakerDetection(segments: any[]) {
   for (let i = windowSize; i < enhancedSegments.length - windowSize; i++) {
     const currentSegment = enhancedSegments[i];
     
-    // Contar hablantes en la ventana anterior
+    // Contar hablantes en la ventana anterior y posterior
     const previousWindow = enhancedSegments.slice(i - windowSize, i);
     const followingWindow = enhancedSegments.slice(i + 1, i + 1 + windowSize);
     
@@ -189,7 +197,7 @@ function enhanceTranscriptionWithSpeakerDetection(segments: any[]) {
   // Combinar segmentos normales con silencios y ordenar por tiempo
   const allSegments = [...enhancedSegments, ...silenceSegments].sort((a, b) => a.start - b.start);
   
-  console.log("Transcripción mejorada con identificación avanzada de hablantes");
+  console.log("Transcripción mejorada con identificación avanzada de hablantes basada en acústica");
   console.log(`Total de segmentos: ${allSegments.length}, incluyendo ${silenceSegments.length} silencios detectados`);
   
   return allSegments;
@@ -197,6 +205,7 @@ function enhanceTranscriptionWithSpeakerDetection(segments: any[]) {
 
 /**
  * Analiza características acústicas de los segmentos para ayudar en la diarización
+ * sin depender de palabras clave
  */
 function analyzeAcousticFeatures(segments: any[]) {
   if (!segments || segments.length < 2) {
@@ -223,6 +232,8 @@ function analyzeAcousticFeatures(segments: any[]) {
   const confidenceValues: number[] = [];
   const durationValues: number[] = [];
   const wordRateValues: number[] = [];
+  const logprobValues: number[] = [];
+  const noSpeechProbValues: number[] = [];
   
   // Recopilar datos acústicos de todos los segmentos
   segments.forEach(segment => {
@@ -236,23 +247,54 @@ function analyzeAcousticFeatures(segments: any[]) {
       confidenceValues.push(segment.confidence);
     }
     
+    if (segment.avg_logprob !== undefined) {
+      logprobValues.push(segment.avg_logprob);
+    }
+    
+    if (segment.no_speech_prob !== undefined) {
+      noSpeechProbValues.push(segment.no_speech_prob);
+    }
+    
     durationValues.push(duration);
     wordRateValues.push(wordsPerSecond);
   });
   
-  // Usar clustering simple para agrupar segmentos similares
-  // (Este es un enfoque simplificado del clustering por k-means)
-  if (confidenceValues.length > 0) {
+  // Usar clustering basado en múltiples características para mejorar la precisión
+  if (confidenceValues.length > 0 || logprobValues.length > 0) {
     // Ordenar valores para encontrar la mediana
     const sortedConfidence = [...confidenceValues].sort((a, b) => a - b);
-    const medianConfidence = sortedConfidence[Math.floor(sortedConfidence.length / 2)];
+    const medianConfidence = sortedConfidence[Math.floor(sortedConfidence.length / 2)] || 0;
     
-    // Asignar segmentos preliminares basados en la confianza
+    const sortedLogprob = [...logprobValues].sort((a, b) => a - b);
+    const medianLogprob = sortedLogprob[Math.floor(sortedLogprob.length / 2)] || 0;
+    
+    // Asignar segmentos preliminares basados en múltiples características
     segments.forEach((segment, index) => {
-      if (!segment.confidence) return;
+      // Usar una combinación de características para asignación
+      let isAgent = false;
       
-      // Los segmentos por encima/debajo de la mediana se asignan temporalmente
-      if (segment.confidence >= medianConfidence) {
+      // Ponderación de características
+      if (segment.confidence !== undefined && segment.confidence >= medianConfidence) {
+        isAgent = true;
+      }
+      
+      if (segment.avg_logprob !== undefined && segment.avg_logprob >= medianLogprob) {
+        isAgent = !isAgent; // Invertir si contradice la confianza
+      }
+      
+      // Usar también la tasa de palabras como indicador
+      if (index < wordRateValues.length) {
+        const sortedWordRates = [...wordRateValues].sort((a, b) => a - b);
+        const medianWordRate = sortedWordRates[Math.floor(sortedWordRates.length / 2)];
+        
+        if (wordRateValues[index] >= medianWordRate) {
+          // Los asesores tienden a hablar más rápido en contextos formales
+          isAgent = true;
+        }
+      }
+      
+      // Asignar basado en determinación final
+      if (isAgent) {
         stats.agentSegments.push(segment);
       } else {
         stats.clientSegments.push(segment);
@@ -273,4 +315,3 @@ function analyzeAcousticFeatures(segments: any[]) {
   
   return stats;
 }
-

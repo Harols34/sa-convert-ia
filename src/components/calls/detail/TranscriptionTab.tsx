@@ -91,32 +91,41 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
   }, [segments]);
 
   // Normalize speaker roles without using keyword detection
-  const processedSegments = segments.map(segment => {
-    // Create a copy of the segment to avoid mutating the original
-    const processedSegment = { ...segment };
-    
-    // Check if it's a silence segment
-    if (
-      (processedSegment.text && 
-       (processedSegment.text.toLowerCase().includes("silencio") || 
-        processedSegment.text.toLowerCase().includes("silence"))) ||
-      processedSegment.speaker === "silence"
-    ) {
-      processedSegment.speaker = "silence";
+  const processedSegments = useMemo(() => {
+    return segments.map(segment => {
+      // Create a copy of the segment to avoid mutating the original
+      const processedSegment = { ...segment };
+      
+      // Check if it's a silence segment
+      if (
+        (processedSegment.text && 
+         (processedSegment.text.toLowerCase().includes("silencio") || 
+          processedSegment.text.toLowerCase().includes("silence"))) ||
+        processedSegment.speaker === "silence"
+      ) {
+        processedSegment.speaker = "silence";
+        return processedSegment;
+      }
+      
+      // Use speaker assigned by the acoustic diarization
+      if (processedSegment.speaker) {
+        // Simple normalization to standard values
+        const speakerLower = processedSegment.speaker.toLowerCase();
+        
+        if (speakerLower.includes("asesor") || speakerLower === "speaker_0") {
+          processedSegment.speaker = "agent";
+        } 
+        else if (speakerLower.includes("cliente") || speakerLower === "speaker_1") {
+          processedSegment.speaker = "client";
+        }
+        else if (speakerLower.includes("silence")) {
+          processedSegment.speaker = "silence";
+        }
+      }
+      
       return processedSegment;
-    }
-    
-    // Normalize existing speaker values
-    if (processedSegment.speaker) {
-      processedSegment.speaker = normalizeSpekearRole(processedSegment.speaker);
-    } else {
-      // Default to alternating if we can't determine
-      const index = segments.indexOf(segment);
-      processedSegment.speaker = index % 2 === 0 ? "agent" : "client";
-    }
-    
-    return processedSegment;
-  });
+    });
+  }, [segments]);
 
   // Calculate total speaking time and percentages
   const speakingTimeStats = useMemo(() => {
@@ -176,35 +185,6 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
       segment.text?.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [processedSegments, silences, searchQuery]);
-
-  // Helper function to normalize speaker roles
-  function normalizeSpekearRole(speaker: string): string {
-    // Convert various speaker identifications to consistent formats
-    const speakerLower = speaker.toLowerCase();
-    
-    if (speakerLower.includes("agent") || 
-        speakerLower.includes("asesor") || 
-        speakerLower === "a" || 
-        speakerLower === "0" ||
-        speakerLower === "speaker_0" ||
-        speakerLower === "speaker 0") {
-      return "agent";
-    } 
-    else if (speakerLower.includes("client") || 
-             speakerLower.includes("cliente") || 
-             speakerLower === "b" || 
-             speakerLower === "1" ||
-             speakerLower === "speaker_1" ||
-             speakerLower === "speaker 1") {
-      return "client";
-    } 
-    else if (speakerLower.includes("silence") || 
-             speakerLower.includes("silencio")) {
-      return "silence";
-    }
-    
-    return "unknown";
-  }
 
   // Helper function to format time in mm:ss
   function formatTime(seconds: number): string {
@@ -395,4 +375,3 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
     </Card>
   );
 }
-
