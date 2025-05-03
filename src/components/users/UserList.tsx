@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { User } from "@/lib/types";
 import { 
@@ -40,7 +41,10 @@ export default function UserList() {
   // Fetch all user emails at once using the edge function
   const fetchUserEmails = useCallback(async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('getAllUserEmails');
+      // Add a timestamp to prevent caching
+      const { data, error } = await supabase.functions.invoke('getAllUserEmails', {
+        body: { timestamp: new Date().getTime() }
+      });
       
       if (error) {
         console.error("Error al obtener correos de usuarios:", error);
@@ -63,10 +67,11 @@ export default function UserList() {
     try {
       console.log("Obteniendo usuarios...");
       
-      // Get all profiles
+      // Get all profiles with a fresh query to avoid cached results
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('*');
+        .select('*')
+        .order('created_at', { ascending: false });
       
       if (profilesError) {
         console.error("Error al obtener perfiles:", profilesError);
@@ -118,9 +123,16 @@ export default function UserList() {
     }
   }, [fetchUserEmails]);
 
+  // Fetch users on mount and when dependencies change
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  // Force refresh users
+  const handleRefreshUsers = () => {
+    toast.info("Actualizando lista de usuarios...");
+    fetchUsers();
+  };
 
   const deleteUser = async (userId: string) => {
     if (confirm("¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer.")) {
@@ -192,7 +204,7 @@ export default function UserList() {
 
   if (error) {
     return (
-      <div className="p-8 text-center bg-white">
+      <div className="p-8 text-center bg-white rounded-lg shadow-sm border">
         <p className="text-red-500 mb-4">{error}</p>
         <Button onClick={fetchUsers}>Intentar de nuevo</Button>
       </div>
@@ -201,7 +213,7 @@ export default function UserList() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4 bg-white">
+      <div className="space-y-4 bg-white rounded-lg shadow-sm border p-6">
         {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className="animate-pulse">
             <div className="h-16 bg-secondary rounded-lg"></div>
@@ -226,7 +238,7 @@ export default function UserList() {
           </div>
           <Button 
             variant="outline" 
-            onClick={fetchUsers}
+            onClick={handleRefreshUsers}
             size="icon"
             title="Refrescar usuarios"
           >

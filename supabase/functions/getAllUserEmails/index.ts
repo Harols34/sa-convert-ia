@@ -27,7 +27,7 @@ serve(async (req) => {
 
     if (authError) {
       console.error("Error fetching auth users:", authError);
-      return new Response(JSON.stringify({ error: "Failed to fetch users" }), {
+      return new Response(JSON.stringify({ error: "Failed to fetch users", details: authError.message }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
       });
@@ -46,7 +46,8 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error:", error.message);
+    console.error("Error stack:", error.stack);
     return new Response(JSON.stringify({ error: "Server error", details: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
