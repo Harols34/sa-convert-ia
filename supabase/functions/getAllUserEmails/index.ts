@@ -26,13 +26,15 @@ serve(async (req) => {
     const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
 
     if (authError) {
-      console.error("Error fetching users:", authError);
+      console.error("Error fetching auth users:", authError);
       return new Response(JSON.stringify({ error: "Failed to fetch users" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
       });
     }
 
+    console.log(`Found ${authUsers.users.length} auth users`);
+    
     // Create a map of user IDs to emails
     const userEmailMap = {};
     authUsers.users.forEach((user) => {
@@ -45,7 +47,7 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("Error:", error);
-    return new Response(JSON.stringify({ error: "Server error" }), {
+    return new Response(JSON.stringify({ error: "Server error", details: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

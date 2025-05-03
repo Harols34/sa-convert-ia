@@ -37,19 +37,22 @@ export default function UserList() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Fetch all user emails at once using the new edge function
+  // Fetch all user emails at once using the edge function
   const fetchUserEmails = useCallback(async () => {
     try {
       const { data, error } = await supabase.functions.invoke('getAllUserEmails');
       
       if (error) {
         console.error("Error al obtener correos de usuarios:", error);
+        toast.error("Error al obtener correos de usuarios");
         return {};
       }
       
+      console.log("User emails data:", data);
       return data?.userEmails || {};
     } catch (e) {
       console.error("Error al invocar la función getAllUserEmails:", e);
+      toast.error("Error al conectar con el servidor");
       return {};
     }
   }, []);
@@ -70,7 +73,7 @@ export default function UserList() {
         throw profilesError;
       }
       
-      console.log("Perfiles obtenidos:", profiles?.length || 0);
+      console.log("Perfiles obtenidos:", profiles);
       
       if (!profiles || profiles.length === 0) {
         console.log("No se encontraron perfiles de usuario");
@@ -81,7 +84,7 @@ export default function UserList() {
 
       // Fetch all emails at once
       const userEmailsMap = await fetchUserEmails();
-      console.log("Mapa de emails obtenido:", Object.keys(userEmailsMap).length);
+      console.log("Mapa de emails obtenido:", userEmailsMap);
       
       // Map the profile data to match the User interface and include emails
       const mappedUsers: User[] = profiles.map(profile => {
@@ -101,6 +104,7 @@ export default function UserList() {
         };
       });
       
+      console.log("Usuarios mapeados:", mappedUsers);
       setUsers(mappedUsers);
     } catch (error) {
       console.error("Error obteniendo usuarios:", error);
