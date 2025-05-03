@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { User } from "@/lib/types";
 import { 
   Table, 
@@ -38,17 +37,30 @@ export default function UserList() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchUsers();
+  // Fetch all user emails at once using the new edge function
+  const fetchUserEmails = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('getAllUserEmails');
+      
+      if (error) {
+        console.error("Error al obtener correos de usuarios:", error);
+        return {};
+      }
+      
+      return data?.userEmails || {};
+    } catch (e) {
+      console.error("Error al invocar la función getAllUserEmails:", e);
+      return {};
+    }
   }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       console.log("Obteniendo usuarios...");
       
-      // Get all profiles instead of trying to fetch individual ones
+      // Get all profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*');
@@ -58,7 +70,7 @@ export default function UserList() {
         throw profilesError;
       }
       
-      console.log("Perfiles obtenidos:", profiles);
+      console.log("Perfiles obtenidos:", profiles?.length || 0);
       
       if (!profiles || profiles.length === 0) {
         console.log("No se encontraron perfiles de usuario");
@@ -66,13 +78,17 @@ export default function UserList() {
         setIsLoading(false);
         return;
       }
+
+      // Fetch all emails at once
+      const userEmailsMap = await fetchUserEmails();
+      console.log("Mapa de emails obtenido:", Object.keys(userEmailsMap).length);
       
-      // Map the profile data to match the User interface
+      // Map the profile data to match the User interface and include emails
       const mappedUsers: User[] = profiles.map(profile => {
         return {
           id: profile.id,
           name: profile.full_name || '',
-          email: '', // Initialize with empty string - will be populated if needed
+          email: userEmailsMap[profile.id] || '',
           role: (profile.role as User["role"]) || 'agent',
           avatar: profile.avatar_url,
           dailyQueryLimit: 100, // Default values
@@ -85,24 +101,6 @@ export default function UserList() {
         };
       });
       
-      // Try to get emails if possible, but don't fail if we can't get them
-      for (const user of mappedUsers) {
-        try {
-          const { data: userData } = await supabase.functions.invoke('getUserEmail', {
-            body: { userId: user.id }
-          }).catch(err => {
-            console.log(`No se pudo obtener el email para el usuario ${user.id}:`, err);
-            return { data: null };
-          });
-          
-          if (userData?.email) {
-            user.email = userData.email;
-          }
-        } catch (e) {
-          console.log(`No se pudo obtener el email para el usuario ${user.id}:`, e);
-        }
-      }
-      
       setUsers(mappedUsers);
     } catch (error) {
       console.error("Error obteniendo usuarios:", error);
@@ -114,7 +112,11 @@ export default function UserList() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [fetchUserEmails]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const deleteUser = async (userId: string) => {
     if (confirm("¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer.")) {
@@ -310,4 +312,4 @@ export default function UserList() {
       </div>
     </div>
   );
-};
+}

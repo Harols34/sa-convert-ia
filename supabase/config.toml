@@ -4,43 +4,57 @@ project_id = "ejzidvltowbhccxukllc"
 [api]
 enabled = true
 port = 54321
-schemas = ["public", "storage", "extensions"]
+schemas = ["public", "storage", "graphql_public"]
 
 [db]
 port = 54322
 shadow_port = 54320
 major_version = 15
 
+[realtime]
+enabled = true
+
 [studio]
 enabled = true
 port = 54323
 api_url = "http://127.0.0.1"
-
-[inbucket]
-enabled = true
-port = 54324
 
 [storage]
 enabled = true
 
 [auth]
 enabled = true
-site_url = "http://127.0.0.1:5173"
+site_url = "http://127.0.0.1:3000"
 
 [analytics]
-enabled = false
-
-[realtime]
 enabled = true
 
-[functions.process-call]
-verify_jwt = false
+[functions]
+enabled = true
 
-[functions.analyze-call]
-verify_jwt = false
+[functions."getUserEmail"]
+verify_jwt = true
 
-[functions.ai-chat]
-verify_jwt = false
+[functions."getAllUserEmails"]
+verify_jwt = true
 
-[functions.general-chat]
-verify_jwt = false
+[functions."createUser"]
+verify_jwt = true
+
+[functions."deleteUser"]
+verify_jwt = true
+
+[functions."ai-chat"]
+verify_jwt = true
+
+[functions."analyze-call"]
+verify_jwt = true
+
+[functions."general-chat"]
+verify_jwt = true
+
+[functions."process-call"]
+verify_jwt = true
+
+[functions."reprocess-calls"]
+verify_jwt = true
