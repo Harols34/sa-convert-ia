@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import Footer from "@/components/layout/Footer";
@@ -11,14 +11,35 @@ import { ArrowLeft } from "lucide-react";
 
 export default function UsersPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigate = useNavigate();
+  
+  // Get sidebar collapsed state from localStorage
+  useEffect(() => {
+    const savedState = localStorage.getItem('sidebar-collapsed');
+    if (savedState !== null) {
+      setSidebarCollapsed(savedState === 'true');
+    }
+    
+    // Listen for changes to localStorage
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'sidebar-collapsed') {
+        setSidebarCollapsed(e.newValue === 'true');
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <Navbar toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
       <div className="flex flex-1">
         <Sidebar isOpen={sidebarOpen} closeSidebar={() => setSidebarOpen(false)} />
-        <main className="flex-1 p-4 md:p-6 ml-0 md:ml-64 transition-all duration-300 bg-white">
+        <main className={`flex-1 p-4 md:p-6 transition-all duration-300 bg-white ${sidebarCollapsed ? 'ml-0 md:ml-16' : 'ml-0 md:ml-64'}`}>
           <Routes>
             <Route
               path="/"
@@ -87,7 +108,7 @@ export default function UsersPage() {
           </Routes>
         </main>
       </div>
-      <div className="ml-0 md:ml-64 transition-all duration-300">
+      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-0 md:ml-16' : 'ml-0 md:ml-64'}`}>
         <Footer />
       </div>
     </div>

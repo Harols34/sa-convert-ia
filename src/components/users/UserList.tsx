@@ -15,7 +15,8 @@ import {
   Edit, 
   Trash2, 
   UserPlus,
-  Search
+  Search,
+  RefreshCw
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -46,19 +47,28 @@ export default function UserList() {
     setError(null);
     try {
       console.log("Obteniendo usuarios...");
-      const { data, error } = await supabase
+      
+      // Get all profiles instead of trying to fetch individual ones
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*');
       
-      if (error) {
-        console.error("Error al obtener usuarios:", error);
-        throw error;
+      if (profilesError) {
+        console.error("Error al obtener perfiles:", profilesError);
+        throw profilesError;
       }
       
-      console.log("Usuarios obtenidos:", data);
+      console.log("Perfiles obtenidos:", profiles);
+      
+      if (!profiles || profiles.length === 0) {
+        console.log("No se encontraron perfiles de usuario");
+        setUsers([]);
+        setIsLoading(false);
+        return;
+      }
       
       // Map the profile data to match the User interface
-      const mappedUsers: User[] = (data || []).map(profile => {
+      const mappedUsers: User[] = profiles.map(profile => {
         return {
           id: profile.id,
           name: profile.full_name || '',
@@ -75,17 +85,21 @@ export default function UserList() {
         };
       });
       
-      // Intentar obtener emails para los usuarios si es posible
+      // Try to get emails if possible, but don't fail if we can't get them
       for (const user of mappedUsers) {
         try {
           const { data: userData } = await supabase.functions.invoke('getUserEmail', {
             body: { userId: user.id }
+          }).catch(err => {
+            console.log(`No se pudo obtener el email para el usuario ${user.id}:`, err);
+            return { data: null };
           });
+          
           if (userData?.email) {
             user.email = userData.email;
           }
         } catch (e) {
-          console.error(`No se pudo obtener el email para el usuario ${user.id}:`, e);
+          console.log(`No se pudo obtener el email para el usuario ${user.id}:`, e);
         }
       }
       
@@ -204,6 +218,14 @@ export default function UserList() {
               className="pl-9 w-full md:w-80"
             />
           </div>
+          <Button 
+            variant="outline" 
+            onClick={fetchUsers}
+            size="icon"
+            title="Refrescar usuarios"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
         </div>
         <Button asChild>
           <Link to="/users/new">
@@ -257,7 +279,7 @@ export default function UserList() {
                       {translateRole(user.role)}
                     </Badge>
                   </TableCell>
-                  <TableCell>Español</TableCell>
+                  <TableCell>{user.language === 'en' ? 'Inglés' : 'Español'}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

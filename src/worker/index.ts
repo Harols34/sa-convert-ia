@@ -7,9 +7,9 @@ interface Env {
   // Define your environment variables here if needed
 }
 
-// Implementar caché para respuestas frecuentes
+// Implementar caché para respuestas frecuentes con mayor tiempo de caché
 const cache = new Map<string, { data: any, timestamp: number }>();
-const CACHE_TTL = 300000; // 5 minutos en milisegundos
+const CACHE_TTL = 900000; // 15 minutos en milisegundos (aumentado de 5 a 15 minutos)
 
 // Función para verificar la caché
 function getCachedResponse(key: string) {
@@ -108,6 +108,30 @@ app.get("/api/config/transcription", async (c) => {
       speakers: ["Asesor", "Cliente"],
       method: "acoustic"
     }
+  };
+  
+  setCachedResponse(cacheKey, response);
+  return c.json(response);
+});
+
+// Nueva ruta para obtener la lista de usuarios (para admins)
+app.get("/api/users", async (c) => {
+  const cacheKey = "users_list";
+  const cached = getCachedResponse(cacheKey);
+  
+  if (cached) {
+    return c.json(cached);
+  }
+  
+  // Simulamos obtener la lista de usuarios
+  // En producción, aquí se conectaría a la base de datos
+  const response = {
+    users: [
+      { id: "1", name: "Admin Usuario", role: "admin" },
+      { id: "2", name: "Agente Ejemplo", role: "agent" },
+      { id: "3", name: "Supervisor Demo", role: "supervisor" }
+    ],
+    timestamp: new Date().toISOString()
   };
   
   setCachedResponse(cacheKey, response);
