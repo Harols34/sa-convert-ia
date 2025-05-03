@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, X, RefreshCcw, Trash2 } from "lucide-react";
 import {
@@ -59,14 +59,19 @@ export default function CallList() {
     toggleAllCalls,
   } = useCallList();
 
-  // Calculate pagination values
-  const totalItems = calls.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = Math.min(startIndex + pageSize, totalItems);
-  const currentCalls = calls.slice(startIndex, endIndex);
+  // Pagination memoization for performance
+  const { totalItems, totalPages, startIndex, endIndex, currentCalls } = useMemo(() => {
+    const totalItems = calls.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, totalItems);
+    const currentCalls = calls.slice(startIndex, endIndex);
+    
+    return { totalItems, totalPages, startIndex, endIndex, currentCalls };
+  }, [calls, currentPage, pageSize]);
 
   const handleFilterChange = useCallback((newFilters: any) => {
+    console.log("Filter change:", newFilters);
     setFilters(newFilters);
     setCurrentPage(1); // Reset to first page on filter change
     fetchCalls(newFilters);
@@ -81,11 +86,13 @@ export default function CallList() {
   const handlePageChange = useCallback((page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
+      // Scroll to top when changing page for better UX
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [totalPages]);
 
-  // Generate array of page numbers to display
-  const getPageNumbers = useCallback(() => {
+  // Generate array of page numbers to display - memoized
+  const pageNumbers = useMemo(() => {
     const pages = [];
     const maxVisiblePages = 5;
     
@@ -133,8 +140,9 @@ export default function CallList() {
     return pages;
   }, [currentPage, totalPages]);
 
+  // Optimized content rendering with early return patterns
   const renderContent = () => {
-    if (isLoading) {
+    if (isLoading && calls.length === 0) {
       return (
         <div className="space-y-4">
           <div className="rounded-md border">
@@ -182,10 +190,10 @@ export default function CallList() {
     return (
       <>
         <div className="rounded-md border">
-          <ScrollArea>
+          <ScrollArea className="h-[calc(100vh-350px)]">
             <CallTable
               calls={currentCalls}
-              isLoading={false}
+              isLoading={isLoading}
               selectedCalls={selectedCalls}
               multiSelectMode={multiSelectMode}
               onDeleteCall={(id) => {
@@ -236,7 +244,7 @@ export default function CallList() {
                 />
               </PaginationItem>
               
-              {getPageNumbers().map((page, index) => (
+              {pageNumbers.map((page, index) => (
                 <PaginationItem key={index}>
                   {page === "ellipsis" ? (
                     <span className="px-4 py-2">...</span>

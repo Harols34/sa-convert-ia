@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Call, Feedback, BehaviorAnalysis } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -13,11 +13,30 @@ export function useCallList() {
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [lastFetchTimestamp, setLastFetchTimestamp] = useState<number | null>(null);
+  const [fetchInProgress, setFetchInProgress] = useState(false);
 
-  const fetchCalls = useCallback(async (filters: any = {}) => {
+  // Cachea los resultados de la consulta para evitar solicitudes duplicadas
+  const fetchCalls = useCallback(async (filters: any = {}, forceRefresh = false) => {
+    // Evita consultas simultáneas
+    if (fetchInProgress) {
+      console.log("Fetch already in progress, skipping request");
+      return;
+    }
+    
+    // Comprueba si ha pasado suficiente tiempo desde la última actualización (30 segundos)
+    const now = Date.now();
+    if (!forceRefresh && lastFetchTimestamp && now - lastFetchTimestamp < 30000) {
+      console.log("Using cached data, last fetch was", Math.round((now - lastFetchTimestamp)/1000), "seconds ago");
+      return;
+    }
+    
     try {
-      setIsLoading(true);
+      setFetchInProgress(true);
+      setIsLoading(prevLoading => calls.length === 0 ? true : prevLoading);
       setError(null);
+      
+      console.time("fetchCalls");
       
       // Set a reasonable page size to prevent timeouts
       const pageSize = 1000;
@@ -45,6 +64,7 @@ export function useCallList() {
         .order("date", { ascending: false })
         .limit(pageSize);
 
+      // Aplicar filtros si existen
       if (filters.status && filters.status !== "all") {
         query = query.eq("status", filters.status);
       }
@@ -78,6 +98,7 @@ export function useCallList() {
         query = query.or(`title.ilike.%${filters.search}%,agent_name.ilike.%${filters.search}%`);
       }
 
+      console.log("Fetching calls with filters:", filters);
       const { data, error } = await query;
 
       if (error) {
@@ -87,8 +108,14 @@ export function useCallList() {
         return;
       }
 
-      const mappedCalls: Call[] = data.map((call) => {
+      console.log(`Loaded ${data?.length || 0} calls`);
+      
+      // Procesar datos de llamadas de forma más eficiente
+      const mappedCalls: Call[] = (data || []).map((call) => {
         let result: "" | "venta" | "no venta" = "";
+        if (call.result === "venta" || call.result === "no venta") {
+          result = call.result;
+        }
         
         let product: "" | "fijo" | "móvil" = "";
         if (call.product === "fijo" || call.product === "móvil") {
@@ -118,67 +145,93 @@ export function useCallList() {
         };
       });
 
-      // Now fetch feedback data in batches to avoid timeout
+      // Ahora buscar los feedbacks en lotes más pequeños y sólo si hay llamadas
       if (mappedCalls.length > 0) {
         const callIds = mappedCalls.map(call => call.id);
         
-        // Fetch feedback in smaller batches
-        const batchSize = 10;
+        // Fetch feedback in smaller batches with a more efficient approach
+        const batchSize = 20; // Aumentado para reducir el número de solicitudes
+        
+        // Crear promesas para todas las consultas de feedback en lotes
+        const feedbackPromises = [];
+        
         for (let i = 0; i < callIds.length; i += batchSize) {
           const batchIds = callIds.slice(i, i + batchSize);
           
-          const { data: feedbackData } = await supabase
+          const feedbackPromise = supabase
             .from('feedback')
             .select('*')
             .in('call_id', batchIds);
             
-          if (feedbackData) {
-            for (const feedback of feedbackData) {
-              const callIndex = mappedCalls.findIndex(call => call.id === feedback.call_id);
-              
-              if (callIndex !== -1) {
-                let behaviorsAnalysis: BehaviorAnalysis[] = [];
-                
-                if (feedback.behaviors_analysis) {
-                  try {
-                    if (typeof feedback.behaviors_analysis === 'string') {
-                      behaviorsAnalysis = JSON.parse(feedback.behaviors_analysis);
-                    } else if (Array.isArray(feedback.behaviors_analysis)) {
-                      behaviorsAnalysis = feedback.behaviors_analysis.map((item: any) => ({
-                        name: item.name || "",
-                        evaluation: (item.evaluation === "cumple" || item.evaluation === "no cumple") 
-                          ? item.evaluation : "no cumple",
-                        comments: item.comments || ""
-                      }));
-                    }
-                  } catch (e) {
-                    console.error("Error parsing behaviors_analysis:", e);
-                  }
+          feedbackPromises.push(feedbackPromise);
+        }
+        
+        // Ejecutar todas las consultas de feedback en paralelo
+        console.time("fetchFeedback");
+        const feedbackResults = await Promise.all(feedbackPromises);
+        console.timeEnd("fetchFeedback");
+        
+        // Procesar los resultados
+        const feedbackMap = new Map();
+        
+        // Combinar todos los resultados de feedback
+        for (const result of feedbackResults) {
+          if (result.data) {
+            for (const feedback of result.data) {
+              feedbackMap.set(feedback.call_id, feedback);
+            }
+          }
+        }
+        
+        // Aplicar los feedbacks a las llamadas
+        for (let i = 0; i < mappedCalls.length; i++) {
+          const call = mappedCalls[i];
+          const feedback = feedbackMap.get(call.id);
+          
+          if (feedback) {
+            let behaviorsAnalysis: BehaviorAnalysis[] = [];
+            
+            if (feedback.behaviors_analysis) {
+              try {
+                if (typeof feedback.behaviors_analysis === 'string') {
+                  behaviorsAnalysis = JSON.parse(feedback.behaviors_analysis);
+                } else if (Array.isArray(feedback.behaviors_analysis)) {
+                  behaviorsAnalysis = feedback.behaviors_analysis.map((item: any) => ({
+                    name: item.name || "",
+                    evaluation: (item.evaluation === "cumple" || item.evaluation === "no cumple") 
+                      ? item.evaluation : "no cumple",
+                    comments: item.comments || ""
+                  }));
                 }
-                
-                mappedCalls[callIndex].feedback = {
-                  id: feedback.id,
-                  call_id: feedback.call_id,
-                  score: feedback.score || 0,
-                  positive: feedback.positive || [],
-                  negative: feedback.negative || [],
-                  opportunities: feedback.opportunities || [],
-                  behaviors_analysis: behaviorsAnalysis,
-                  created_at: feedback.created_at,
-                  updated_at: feedback.updated_at,
-                  sentiment: feedback.sentiment,
-                  topics: feedback.topics || [],
-                  entities: feedback.entities || []
-                };
+              } catch (e) {
+                console.error("Error parsing behaviors_analysis:", e);
               }
             }
+            
+            mappedCalls[i].feedback = {
+              id: feedback.id,
+              call_id: feedback.call_id,
+              score: feedback.score || 0,
+              positive: feedback.positive || [],
+              negative: feedback.negative || [],
+              opportunities: feedback.opportunities || [],
+              behaviors_analysis: behaviorsAnalysis,
+              created_at: feedback.created_at,
+              updated_at: feedback.updated_at,
+              sentiment: feedback.sentiment,
+              topics: feedback.topics || [],
+              entities: feedback.entities || []
+            };
           }
         }
       }
 
       setCalls(mappedCalls);
+      setLastFetchTimestamp(now);
       setError(null);
       setRetryCount(0);
+      
+      console.timeEnd("fetchCalls");
     } catch (error) {
       console.error("Unexpected error fetching calls:", error);
       setError(error instanceof Error ? error.message : "Error inesperado al cargar las llamadas");
@@ -198,15 +251,17 @@ export function useCallList() {
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      setFetchInProgress(false);
     }
-  }, [retryCount]);
+  }, [calls.length, fetchInProgress, lastFetchTimestamp, retryCount]);
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
     setRetryCount(0);
-    fetchCalls({});
+    fetchCalls({}, true);
   }, [fetchCalls]);
 
+  // Efecto para cargar los datos iniciales
   useEffect(() => {
     fetchCalls({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -220,7 +275,9 @@ export function useCallList() {
         console.error("Error deleting call:", error);
         toast.error("Error al eliminar la llamada");
       } else {
+        // Actualizar el estado local en lugar de recargar todos los datos
         setCalls((prevCalls) => prevCalls.filter((call) => call.id !== callId));
+        setSelectedCalls(prev => prev.filter(id => id !== callId));
         toast.success("Llamada eliminada correctamente");
       }
     } catch (error) {
@@ -244,6 +301,7 @@ export function useCallList() {
         console.error("Error deleting calls:", error);
         toast.error("Error al eliminar las llamadas", { id: "delete-multiple" });
       } else {
+        // Actualizar estado local
         setCalls((prevCalls) => prevCalls.filter((call) => !selectedCalls.includes(call.id)));
         toast.success(`${selectedCalls.length} llamadas eliminadas correctamente`, { id: "delete-multiple" });
         setSelectedCalls([]);

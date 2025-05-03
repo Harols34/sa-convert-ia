@@ -7,6 +7,27 @@ interface Env {
   // Define your environment variables here if needed
 }
 
+// Implementar caché para respuestas frecuentes
+const cache = new Map<string, { data: any, timestamp: number }>();
+const CACHE_TTL = 300000; // 5 minutos en milisegundos
+
+// Función para verificar la caché
+function getCachedResponse(key: string) {
+  const now = Date.now();
+  const cachedData = cache.get(key);
+  
+  if (cachedData && now - cachedData.timestamp < CACHE_TTL) {
+    return cachedData.data;
+  }
+  
+  return null;
+}
+
+// Función para guardar respuesta en caché
+function setCachedResponse(key: string, data: any) {
+  cache.set(key, { data, timestamp: Date.now() });
+}
+
 // Create Hono app
 const app = new Hono<{ Bindings: Env }>();
 
@@ -19,19 +40,37 @@ app.use("*", cors({
   maxAge: 600,
 }));
 
-// Define basic routes
-app.get("/api/", (c) => c.json({ name: "Speech Analytics API", status: "OK" }));
+// Define basic routes with caching
+app.get("/api/", (c) => {
+  const cacheKey = "api_root";
+  const cached = getCachedResponse(cacheKey);
+  
+  if (cached) {
+    return c.json(cached);
+  }
+  
+  const response = { name: "Speech Analytics API", status: "OK" };
+  setCachedResponse(cacheKey, response);
+  return c.json(response);
+});
 
-// Health check route
+// Health check route - no cachear ya que necesitamos timestamp actualizado
 app.get("/api/health", (c) => c.json({ 
   status: "healthy", 
   timestamp: new Date().toISOString(),
   version: "1.0.0"
 }));
 
-// Analytics API status
+// Analytics API status with caching
 app.get("/api/status/transcription", async (c) => {
-  return c.json({
+  const cacheKey = "transcription_status";
+  const cached = getCachedResponse(cacheKey);
+  
+  if (cached) {
+    return c.json(cached);
+  }
+  
+  const response = {
     service: "transcription",
     status: "operational",
     provider: "OpenAI Whisper",
@@ -43,12 +82,22 @@ app.get("/api/status/transcription", async (c) => {
       "Transcripción adaptada a español latinoamericano"
     ],
     timestamp: new Date().toISOString()
-  });
+  };
+  
+  setCachedResponse(cacheKey, response);
+  return c.json(response);
 });
 
-// Nueva ruta para configuración de transcripción avanzada
+// Nueva ruta para configuración de transcripción avanzada con caching
 app.get("/api/config/transcription", async (c) => {
-  return c.json({
+  const cacheKey = "transcription_config";
+  const cached = getCachedResponse(cacheKey);
+  
+  if (cached) {
+    return c.json(cached);
+  }
+  
+  const response = {
     model: "whisper-1",
     language: "es",
     temperature: 0,
@@ -59,7 +108,10 @@ app.get("/api/config/transcription", async (c) => {
       speakers: ["Asesor", "Cliente"],
       method: "acoustic"
     }
-  });
+  };
+  
+  setCachedResponse(cacheKey, response);
+  return c.json(response);
 });
 
 // Export the app

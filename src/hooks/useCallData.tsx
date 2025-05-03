@@ -1,18 +1,47 @@
-import { useState, useEffect } from "react";
+
+import { useState, useEffect, useRef } from "react";
 import { Call, Feedback, BehaviorAnalysis } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { validateCallStatus } from "@/components/calls/detail/CallUtils";
+
+// Cache para almacenar las llamadas ya cargadas
+const callCache = new Map<string, {
+  data: Call,
+  timestamp: number,
+  transcriptSegments: any[]
+}>();
+
+// TTL en milisegundos (5 minutos)
+const CACHE_TTL = 5 * 60 * 1000;
 
 export function useCallData(id: string | undefined) {
   const [call, setCall] = useState<Call | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [transcriptSegments, setTranscriptSegments] = useState<any[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  
+  // Referencia para cancelar operaciones si el componente se desmonta
+  const isMounted = useRef(true);
 
+  // Verificar cache
   useEffect(() => {
+    if (!id) return;
+    
+    const now = Date.now();
+    const cachedData = callCache.get(id);
+    
+    if (cachedData && now - cachedData.timestamp < CACHE_TTL) {
+      console.log("Using cached call data for ID:", id);
+      setCall(cachedData.data);
+      setTranscriptSegments(cachedData.transcriptSegments);
+      setIsLoading(false);
+      setLoadError(null);
+      return;
+    }
+    
     const loadCallData = async () => {
-      if (!id) return;
+      if (!id || !isMounted.current) return;
       
       setIsLoading(true);
       setLoadError(null);
@@ -28,13 +57,17 @@ export function useCallData(id: string | undefined) {
           
         if (callError) {
           console.error("Error loading call:", callError);
-          setLoadError(`Error loading call: ${callError.message}`);
+          if (isMounted.current) {
+            setLoadError(`Error loading call: ${callError.message}`);
+          }
           throw callError;
         }
         
         if (!callData) {
           console.error("No call found with ID:", id);
-          setLoadError("Call not found");
+          if (isMounted.current) {
+            setLoadError("Call not found");
+          }
           return;
         }
         
@@ -62,27 +95,39 @@ export function useCallData(id: string | undefined) {
           statusSummary: callData.status_summary || ""
         };
         
-        setCall(callObject);
+        let segments: any[] = [];
         
         if (callData.transcription) {
           try {
             if (typeof callData.transcription === 'string') {
               try {
                 const parsedTranscription = JSON.parse(callData.transcription);
-                setTranscriptSegments(parsedTranscription);
+                segments = parsedTranscription;
+                if (isMounted.current) {
+                  setTranscriptSegments(parsedTranscription);
+                }
               } catch (parseError) {
                 console.error("Error parsing transcription JSON:", parseError);
-                setTranscriptSegments([]);
+                if (isMounted.current) {
+                  setTranscriptSegments([]);
+                }
               }
             } else if (Array.isArray(callData.transcription)) {
-              setTranscriptSegments(callData.transcription);
+              segments = callData.transcription;
+              if (isMounted.current) {
+                setTranscriptSegments(callData.transcription);
+              }
             } else {
               console.error("Transcription is not a string or array:", callData.transcription);
-              setTranscriptSegments([]);
+              if (isMounted.current) {
+                setTranscriptSegments([]);
+              }
             }
           } catch (e) {
             console.error("Error handling transcription:", e);
-            setTranscriptSegments([]);
+            if (isMounted.current) {
+              setTranscriptSegments([]);
+            }
           }
         }
         
@@ -141,21 +186,40 @@ export function useCallData(id: string | undefined) {
             };
             
             callObject.feedback = typedFeedback;
-            setCall({...callObject});
           }
         }
+        
+        // Guardar en caché
+        callCache.set(id, {
+          data: callObject,
+          timestamp: Date.now(),
+          transcriptSegments: segments
+        });
+        
+        if (isMounted.current) {
+          setCall(callObject);
+          setIsLoading(false);
+          setLoadError(null);
+        }
+        
       } catch (error) {
         console.error("Error loading data:", error);
-        setLoadError(error instanceof Error ? error.message : "Unknown error");
-        toast.error("Error al cargar la llamada", {
-          description: "No se pudieron obtener los datos de la llamada"
-        });
-      } finally {
-        setIsLoading(false);
+        if (isMounted.current) {
+          setLoadError(error instanceof Error ? error.message : "Unknown error");
+          toast.error("Error al cargar la llamada", {
+            description: "No se pudieron obtener los datos de la llamada"
+          });
+          setIsLoading(false);
+        }
       }
     };
 
     loadCallData();
+    
+    // Cleanup función para prevenir problemas de actualización si el componente es desmontado
+    return () => {
+      isMounted.current = false;
+    };
   }, [id]);
 
   function validateBehaviorsAnalysis(data: any[]): BehaviorAnalysis[] {

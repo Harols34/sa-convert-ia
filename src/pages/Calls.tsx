@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import Footer from "@/components/layout/Footer";
@@ -11,6 +11,20 @@ import CallDetail from "@/components/calls/CallDetail";
 import CallControlPanel from "@/components/calls/CallControlPanel";
 import { Edit, MessageSquare, Plus, ArrowLeft, Settings, RefreshCcw } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
+import { Suspense, lazy } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+
+// Lazy load components that aren't needed for initial render
+const CallControlPanelLazy = lazy(() => import("@/components/calls/CallControlPanel"));
+
+// Placeholder loading component
+const LoadingPlaceholder = () => (
+  <div className="space-y-4">
+    <Skeleton className="h-8 w-64" />
+    <Skeleton className="h-4 w-full" />
+    <Skeleton className="h-64 w-full" />
+  </div>
+);
 
 export default function CallsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -23,12 +37,16 @@ export default function CallsPage() {
   // Check if user is admin or supervisor
   const isAdmin = user && (user.role === "admin" || user.role === "superAdmin" || user.role === "supervisor");
   
-  // Get sidebar collapsed state from localStorage
-  useEffect(() => {
+  // Get sidebar collapsed state from localStorage - optimizado para evitar cambios de estado innecesarios
+  const initSidebarState = useCallback(() => {
     const savedState = localStorage.getItem('sidebar-collapsed');
     if (savedState !== null) {
       setSidebarCollapsed(savedState === 'true');
     }
+  }, []);
+  
+  useEffect(() => {
+    initSidebarState();
     
     // Listen for changes to localStorage
     const handleStorageChange = (e: StorageEvent) => {
@@ -41,11 +59,11 @@ export default function CallsPage() {
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, []);
+  }, [initSidebarState]);
   
-  const toggleSidebar = () => {
+  const toggleSidebar = useCallback(() => {
     setSidebarOpen(!sidebarOpen);
-  };
+  }, [sidebarOpen]);
 
   // Prevent flickering by using a key based on the location pathname
   const routeKey = location.pathname;
@@ -77,9 +95,13 @@ export default function CallsPage() {
                   </div>
                 </div>
                 
-                {isAdmin && showAdminPanel && <div className="mb-6">
-                  <CallControlPanel />
-                </div>}
+                {isAdmin && showAdminPanel && (
+                  <div className="mb-6">
+                    <Suspense fallback={<LoadingPlaceholder />}>
+                      <CallControlPanelLazy />
+                    </Suspense>
+                  </div>
+                )}
                 
                 <CallList />
               </div>
