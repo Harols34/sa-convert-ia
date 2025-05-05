@@ -11,9 +11,9 @@ export default function useCallUpload() {
   const [isUploading, setIsUploading] = useState(false);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [uploadQueue, setUploadQueue] = useState<FileWithProgress[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processedCount, setProcessedCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
   const navigate = useNavigate();
 
   // Verificar sesión al cargar el componente
@@ -86,48 +86,7 @@ export default function useCallUpload() {
     return interval;
   };
 
-  // Procesar archivos en bloques de tamaño específico
-  const processFileBatch = async (filesToProcess: FileWithProgress[]) => {
-    setIsProcessing(true);
-    const results = [];
-    const total = filesToProcess.length;
-    const batchSize = 100; // Procesar 100 archivos a la vez como máximo
-    
-    // Reiniciar contador de procesados
-    setProcessedCount(0);
-    
-    // Procesar en lotes de batchSize
-    for (let i = 0; i < total; i += batchSize) {
-      const batch = filesToProcess.slice(i, i + batchSize);
-      
-      // Procesar todo el lote en paralelo
-      const batchPromises = batch.map(fileData => processCall(fileData));
-      const batchResults = await Promise.allSettled(batchPromises);
-      
-      // Actualizar contador y resultados
-      setProcessedCount(prev => prev + batch.length);
-      
-      // Mapear resultados
-      const processedResults = batchResults.map((result, index) => {
-        if (result.status === 'fulfilled') {
-          return { id: batch[index].id, success: true, callId: result.value };
-        } else {
-          return { 
-            id: batch[index].id, 
-            success: false, 
-            error: result.reason,
-            dupeTitleError: result.reason?.dupeTitleError || false
-          };
-        }
-      });
-      
-      results.push(...processedResults);
-    }
-    
-    setIsProcessing(false);
-    return results;
-  };
-
+  // Procesar llamada individual
   const processCall = async (fileData: FileWithProgress) => {
     let callId = null;
     let progressInterval: any = null;
@@ -183,10 +142,18 @@ export default function useCallUpload() {
       
       console.log("Subiendo archivo a bucket 'calls':", filePath);
       
-      // Upload to Supabase Storage
+      // Convertir file a Uint8Array para mayor compatibilidad con Supabase Storage
+      const arrayBuffer = await fileData.file.arrayBuffer();
+      const fileData8 = new Uint8Array(arrayBuffer);
+      
+      // Upload to Supabase Storage con opciones mejoradas
       const { data: storageData, error: storageError } = await supabase.storage
         .from('calls')
-        .upload(filePath, fileData.file);
+        .upload(filePath, fileData8, {
+          contentType: fileData.file.type,
+          cacheControl: '3600',
+          upsert: false
+        });
         
       if (storageError) {
         console.error("Error en la carga:", storageError);
@@ -326,6 +293,52 @@ export default function useCallUpload() {
     }
   };
 
+  // Procesar archivos en lotes para mejor rendimiento
+  const processFileBatch = async (filesToProcess: FileWithProgress[]) => {
+    setIsProcessing(true);
+    setTotalCount(filesToProcess.length);
+    const results = [];
+    const total = filesToProcess.length;
+    const batchSize = 3; // Reducir tamaño del lote para evitar sobrecarga
+    
+    // Reiniciar contador de procesados
+    setProcessedCount(0);
+    
+    // Procesar secuencialmente en lotes pequeños para evitar problemas
+    for (let i = 0; i < total; i += batchSize) {
+      const batch = filesToProcess.slice(i, i + batchSize);
+      
+      // Procesar lote de forma secuencial para reducir errores
+      const batchResults = [];
+      for (const fileData of batch) {
+        try {
+          const callId = await processCall(fileData);
+          batchResults.push({ id: fileData.id, success: true, callId });
+        } catch (error) {
+          batchResults.push({ 
+            id: fileData.id, 
+            success: false, 
+            error,
+            dupeTitleError: error?.dupeTitleError || false 
+          });
+        }
+        
+        // Actualizar contador después de cada archivo procesado
+        setProcessedCount(prev => prev + 1);
+      }
+      
+      results.push(...batchResults);
+      
+      // Pequeña pausa entre lotes para evitar sobrecarga
+      if (i + batchSize < total) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    setIsProcessing(false);
+    return results;
+  };
+
   const updateCallProgress = async (callId: string, progress: number, status: string) => {
     try {
       const { error } = await supabase
@@ -365,9 +378,9 @@ export default function useCallUpload() {
     try {
       setProcessedCount(0);
       
-      toast.info(`Procesando ${files.length} archivos`, {
-        description: files.length > 100 
-          ? "Se procesarán en lotes de 100 archivos" 
+      toast.info(`Procesando ${files.length} ${files.length === 1 ? 'archivo' : 'archivos'}`, {
+        description: files.length > 3 
+          ? "Se procesarán en lotes pequeños para mejorar la estabilidad" 
           : "Esto puede tomar algunos minutos"
       });
       
@@ -382,7 +395,7 @@ export default function useCallUpload() {
       // Mostrar mensaje según resultados
       if (successCount > 0) {
         toast.success(`Carga completa`, {
-          description: `Se subieron ${successCount} archivos${errorCount > 0 ? `, ${errorCount} con errores` : ''}${dupeCount > 0 ? `, ${dupeCount} ya existentes` : ''}`
+          description: `Se ${successCount === 1 ? 'subió 1 archivo' : `subieron ${successCount} archivos`}${errorCount > 0 ? `, ${errorCount} con ${errorCount === 1 ? 'error' : 'errores'}` : ''}${dupeCount > 0 ? `, ${dupeCount} ya ${dupeCount === 1 ? 'existente' : 'existentes'}` : ''}`
         });
       } else if (dupeCount === files.length) {
         toast.warning("Todas las grabaciones ya existen", {
@@ -390,13 +403,13 @@ export default function useCallUpload() {
         });
       } else {
         toast.error("Error al subir archivos", {
-          description: "Ningún archivo fue subido correctamente"
+          description: "Ningún archivo fue subido correctamente. Intente nuevamente con archivos más pequeños o menos archivos a la vez."
         });
       }
     } catch (error) {
       console.error("Error en el proceso de carga:", error);
       toast.error("Error en el proceso de carga", {
-        description: error.message || "Hubo un problema durante la carga"
+        description: error.message || "Hubo un problema durante la carga. Intente con menos archivos a la vez."
       });
     } finally {
       setIsUploading(false);
@@ -417,7 +430,7 @@ export default function useCallUpload() {
     currentUser,
     isProcessing,
     processedCount,
-    totalCount: files.length,
+    totalCount,
     onDrop,
     removeFile,
     uploadFiles
