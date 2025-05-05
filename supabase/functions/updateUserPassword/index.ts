@@ -51,7 +51,8 @@ serve(async (req) => {
             id: userId,
             full_name: userData.name,
             role: userData.role || 'agent',
-            language: userData.language || 'es'
+            language: userData.language || 'es',
+            biography: userData.biography || null
           });
         
         if (insertError) {
@@ -71,7 +72,8 @@ serve(async (req) => {
         .update({
           full_name: userData.name,
           role: userData.role,
-          language: userData.language || 'es'
+          language: userData.language || 'es',
+          biography: userData.biography
         })
         .eq('id', userId);
         
