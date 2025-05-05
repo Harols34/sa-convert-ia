@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import Footer from "@/components/layout/Footer";
 import Navbar from "@/components/layout/Navbar";
@@ -20,7 +21,7 @@ import { useUser } from "@/hooks/useUser";
 
 export default function Settings() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { settings, loading: loadingSettings, updateSetting } = useAudioSettings();
+  const { settings, isLoading: loadingSettings, updateSetting } = useAudioSettings();
   const { user, isLoading: loadingUser } = useUser();
   const { isAuthenticated, loading: loadingAuth } = useAuth();
   
@@ -266,8 +267,8 @@ export default function Settings() {
                       <Label htmlFor="noise_filter">Filtro de Ruido</Label>
                       <Switch
                         id="noise_filter"
-                        defaultChecked={settings?.noise_filter}
-                        onCheckedChange={(checked) => updateSetting("noise_filter", checked)}
+                        defaultChecked={settings?.noiseFilter}
+                        onCheckedChange={(checked) => updateSetting("noiseFilter", checked)}
                       />
                     </div>
 
@@ -275,8 +276,8 @@ export default function Settings() {
                       <Label htmlFor="normalize">Normalizar Audio</Label>
                       <Switch
                         id="normalize"
-                        defaultChecked={settings?.normalize}
-                        onCheckedChange={(checked) => updateSetting("normalize", checked)}
+                        defaultChecked={settings?.normalizeAudio}
+                        onCheckedChange={(checked) => updateSetting("normalizeAudio", checked)}
                       />
                     </div>
 
@@ -302,8 +303,8 @@ export default function Settings() {
                       <Label htmlFor="speaker_diarization">Diarización del Hablante</Label>
                       <Switch
                         id="speaker_diarization"
-                        defaultChecked={settings?.speaker_diarization}
-                        onCheckedChange={(checked) => updateSetting("speaker_diarization", checked)}
+                        defaultChecked={settings?.speakerDiarization}
+                        onCheckedChange={(checked) => updateSetting("speakerDiarization", checked)}
                       />
                     </div>
 
@@ -311,8 +312,8 @@ export default function Settings() {
                       <Label htmlFor="speed_detection">Detección de Velocidad del Habla</Label>
                       <Switch
                         id="speed_detection"
-                        defaultChecked={settings?.speed_detection}
-                        onCheckedChange={(checked) => updateSetting("speed_detection", checked)}
+                        defaultChecked={settings?.speechRateDetection}
+                        onCheckedChange={(checked) => updateSetting("speechRateDetection", checked)}
                       />
                     </div>
 
@@ -323,8 +324,8 @@ export default function Settings() {
                       <Input
                         id="min_silence_duration"
                         type="number"
-                        defaultValue={settings?.min_silence_duration?.toString() || "100"}
-                        onChange={(e) => updateSetting("min_silence_duration", parseInt(e.target.value))}
+                        defaultValue={settings?.minSilenceDuration?.toString() || "100"}
+                        onChange={(e) => updateSetting("minSilenceDuration", parseInt(e.target.value))}
                       />
                     </div>
 
@@ -333,8 +334,8 @@ export default function Settings() {
                       <Input
                         id="silence_threshold"
                         type="number"
-                        defaultValue={settings?.silence_threshold?.toString() || "-40"}
-                        onChange={(e) => updateSetting("silence_threshold", parseInt(e.target.value))}
+                        defaultValue={settings?.silenceThreshold?.toString() || "-40"}
+                        onChange={(e) => updateSetting("silenceThreshold", parseInt(e.target.value))}
                       />
                     </div>
                   </div>
@@ -352,8 +353,8 @@ export default function Settings() {
                   <div className="space-y-2">
                     <Label htmlFor="transcription_model">Modelo de Transcripción</Label>
                     <Select
-                      defaultValue={settings?.transcription_model || "whisper-1"}
-                      onValueChange={(value) => updateSetting("transcription_model", value)}
+                      defaultValue={settings?.model || "whisper-1"}
+                      onValueChange={(value) => updateSetting("model", value)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona un modelo" />

@@ -17,6 +17,10 @@ export interface AudioSettings {
   speakerDiarization: boolean;
   punctuation: boolean;
   timestamps: boolean;
+  sentiment_analysis?: boolean;
+  keyword_spotting?: boolean;
+  analysis_model?: string;
+  auto_feedback?: boolean;
 }
 
 // Configuración por defecto
@@ -31,7 +35,11 @@ const defaultSettings: AudioSettings = {
   model: "standard",
   speakerDiarization: true,
   punctuation: true,
-  timestamps: false
+  timestamps: false,
+  sentiment_analysis: true,
+  keyword_spotting: true,
+  analysis_model: "gpt-3.5-turbo",
+  auto_feedback: true
 };
 
 export function useAudioSettings() {
@@ -78,7 +86,11 @@ export function useAudioSettings() {
             model: data.transcription_model ?? defaultSettings.model,
             speakerDiarization: data.speaker_diarization ?? defaultSettings.speakerDiarization,
             punctuation: data.punctuation ?? defaultSettings.punctuation,
-            timestamps: data.timestamps ?? defaultSettings.timestamps
+            timestamps: data.timestamps ?? defaultSettings.timestamps,
+            sentiment_analysis: data.sentiment_analysis,
+            keyword_spotting: data.keyword_spotting,
+            analysis_model: data.analysis_model,
+            auto_feedback: data.auto_feedback
           };
           setSettings(loadedSettings);
           localStorage.setItem('audio-settings', JSON.stringify(loadedSettings));
@@ -113,6 +125,10 @@ export function useAudioSettings() {
         speaker_diarization: newSettings.speakerDiarization,
         punctuation: newSettings.punctuation,
         timestamps: newSettings.timestamps,
+        sentiment_analysis: newSettings.sentiment_analysis,
+        keyword_spotting: newSettings.keyword_spotting,
+        analysis_model: newSettings.analysis_model,
+        auto_feedback: newSettings.auto_feedback,
         updated_at: new Date().toISOString()
       };
       const { error } = await supabase
