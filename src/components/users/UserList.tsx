@@ -16,7 +16,8 @@ import {
   Trash2, 
   UserPlus,
   Search,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -30,34 +31,45 @@ import { toast } from "sonner";
 import { Link, useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function UserList() {
   const [users, setUsers] = useState<User[]>([]);
+  const [authUsers, setAuthUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Fetch all user emails at once using the edge function
-  const fetchUserEmails = useCallback(async () => {
+  // Fetch all user emails and auth data
+  const fetchUserData = useCallback(async () => {
     try {
+      console.log("Fetching user data from getAllUserEmails...");
       // Add a timestamp to prevent caching
       const { data, error } = await supabase.functions.invoke('getAllUserEmails', {
         body: { timestamp: new Date().getTime() }
       });
       
       if (error) {
-        console.error("Error al obtener correos de usuarios:", error);
-        toast.error("Error al obtener correos de usuarios");
-        return {};
+        console.error("Error invoking getAllUserEmails:", error);
+        toast.error("Error al obtener datos de usuarios");
+        return { emailMap: {}, authUsers: [] };
       }
       
-      console.log("User emails data:", data);
-      return data?.userEmails || {};
+      console.log("User data received:", data);
+      
+      if (data?.usersData) {
+        setAuthUsers(data.usersData);
+      }
+      
+      return { 
+        emailMap: data?.userEmails || {}, 
+        authUsers: data?.usersData || []
+      };
     } catch (e) {
-      console.error("Error al invocar la función getAllUserEmails:", e);
+      console.error("Error invoking getAllUserEmails:", e);
       toast.error("Error al conectar con el servidor");
-      return {};
+      return { emailMap: {}, authUsers: [] };
     }
   }, []);
 
@@ -67,7 +79,18 @@ export default function UserList() {
     try {
       console.log("Obteniendo usuarios...");
       
-      // Get all profiles with a fresh query to avoid cached results
+      // Get user emails and auth data first
+      const { emailMap, authUsers } = await fetchUserData();
+      console.log("Auth users:", authUsers);
+      
+      if (authUsers.length === 0) {
+        console.log("No se encontraron usuarios autenticados");
+        setError("No se encontraron usuarios en el sistema");
+        setIsLoading(false);
+        return;
+      }
+      
+      // Get all profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
@@ -80,37 +103,82 @@ export default function UserList() {
       
       console.log("Perfiles obtenidos:", profiles);
       
-      if (!profiles || profiles.length === 0) {
-        console.log("No se encontraron perfiles de usuario");
-        setUsers([]);
+      // Create a map of profiles by user ID for easy lookup
+      const profileMap = {};
+      if (profiles && profiles.length > 0) {
+        profiles.forEach(profile => {
+          profileMap[profile.id] = profile;
+        });
+      }
+      
+      // If we have no profiles but have auth users, create user objects from auth data
+      if ((!profiles || profiles.length === 0) && authUsers.length > 0) {
+        console.log("No profiles found, creating users from auth data");
+        
+        // Map the auth users to match the User interface
+        const mappedUsers: User[] = authUsers.map(authUser => {
+          return {
+            id: authUser.id,
+            name: authUser.email.split('@')[0] || 'Usuario',
+            email: authUser.email,
+            role: 'agent', // Default role
+            avatar: null,
+            dailyQueryLimit: 100, // Default values
+            queriesUsed: 0,
+            language: 'es', // Default language
+            created_at: authUser.createdAt,
+            updated_at: null
+          };
+        });
+        
+        console.log("Usuarios mapeados desde auth:", mappedUsers);
+        setUsers(mappedUsers);
         setIsLoading(false);
         return;
       }
-
-      // Fetch all emails at once
-      const userEmailsMap = await fetchUserEmails();
-      console.log("Mapa de emails obtenido:", userEmailsMap);
       
-      // Map the profile data to match the User interface and include emails
-      const mappedUsers: User[] = profiles.map(profile => {
-        return {
-          id: profile.id,
-          name: profile.full_name || '',
-          email: userEmailsMap[profile.id] || '',
-          role: (profile.role as User["role"]) || 'agent',
-          avatar: profile.avatar_url,
-          dailyQueryLimit: 100, // Default values
+      // If we have profiles, map them with emails from auth
+      if (profiles && profiles.length > 0) {
+        // Map the profile data to match the User interface and include emails
+        const mappedUsers: User[] = profiles.map(profile => {
+          return {
+            id: profile.id,
+            name: profile.full_name || emailMap[profile.id]?.split('@')[0] || '',
+            email: emailMap[profile.id] || '',
+            role: (profile.role as User["role"]) || 'agent',
+            avatar: profile.avatar_url,
+            dailyQueryLimit: 100, // Default values
+            queriesUsed: 0,
+            language: (profile.language as 'es' | 'en') || 'es',
+            full_name: profile.full_name,
+            avatar_url: profile.avatar_url,
+            created_at: profile.created_at,
+            updated_at: profile.updated_at
+          };
+        });
+        
+        console.log("Usuarios mapeados desde perfiles:", mappedUsers);
+        setUsers(mappedUsers);
+      } else {
+        // If we have auth users but no corresponding profiles, create dummy profiles
+        console.log("No profiles found for auth users, creating dummy profiles");
+        
+        const dummyUsers: User[] = authUsers.map(authUser => ({
+          id: authUser.id,
+          name: authUser.email.split('@')[0] || 'Usuario',
+          email: authUser.email,
+          role: 'agent',
+          avatar: null,
+          dailyQueryLimit: 100,
           queriesUsed: 0,
-          language: (profile.language as 'es' | 'en') || 'es',
-          full_name: profile.full_name,
-          avatar_url: profile.avatar_url,
-          created_at: profile.created_at,
-          updated_at: profile.updated_at
-        };
-      });
-      
-      console.log("Usuarios mapeados:", mappedUsers);
-      setUsers(mappedUsers);
+          language: 'es',
+          created_at: authUser.createdAt,
+          updated_at: null
+        }));
+        
+        console.log("Usuarios mapeados desde auth (sin perfiles):", dummyUsers);
+        setUsers(dummyUsers);
+      }
     } catch (error) {
       console.error("Error obteniendo usuarios:", error);
       setError("Hubo un problema al cargar la lista de usuarios.");
@@ -121,7 +189,7 @@ export default function UserList() {
     } finally {
       setIsLoading(false);
     }
-  }, [fetchUserEmails]);
+  }, [fetchUserData]);
 
   // Fetch users on mount and when dependencies change
   useEffect(() => {
@@ -205,7 +273,11 @@ export default function UserList() {
   if (error) {
     return (
       <div className="p-8 text-center bg-white rounded-lg shadow-sm border">
-        <p className="text-red-500 mb-4">{error}</p>
+        <Alert variant="destructive" className="mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
         <Button onClick={fetchUsers}>Intentar de nuevo</Button>
       </div>
     );
@@ -252,6 +324,17 @@ export default function UserList() {
         </Button>
       </div>
 
+      {authUsers.length > 0 && users.length === 0 && (
+        <Alert className="mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Información</AlertTitle>
+          <AlertDescription>
+            Se encontraron {authUsers.length} usuarios autenticados pero no hay perfiles correspondientes.
+            Puede ser necesario crear perfiles para estos usuarios.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="glass-card dark:glass-card-dark p-6 animate-slide-in-bottom bg-white border rounded-md">
         <Table>
           <TableHeader>
@@ -288,7 +371,7 @@ export default function UserList() {
                           {user.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="font-medium">{user.name}</span>
+                      <span className="font-medium">{user.name || 'Usuario'}</span>
                     </div>
                   </TableCell>
                   <TableCell>{user.email || "N/A"}</TableCell>

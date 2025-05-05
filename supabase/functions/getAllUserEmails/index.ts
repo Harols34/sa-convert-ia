@@ -17,12 +17,25 @@ serve(async (req) => {
   }
 
   try {
+    console.log("Starting getAllUserEmails function...");
+    
     // Create a Supabase client with the service role key
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error("Missing Supabase URL or Service Role Key");
+      return new Response(JSON.stringify({ error: "Server configuration error" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      });
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseKey);
+    console.log("Supabase client created");
 
     // Get all users from the auth.users table
+    console.log("Fetching auth users...");
     const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
 
     if (authError) {
@@ -39,9 +52,19 @@ serve(async (req) => {
     const userEmailMap = {};
     authUsers.users.forEach((user) => {
       userEmailMap[user.id] = user.email;
+      console.log(`User ID: ${user.id}, Email: ${user.email}`);
     });
 
-    return new Response(JSON.stringify({ userEmails: userEmailMap }), {
+    // Return all users data for debugging
+    return new Response(JSON.stringify({ 
+      userEmails: userEmailMap,
+      totalUsers: authUsers.users.length,
+      usersData: authUsers.users.map(u => ({ 
+        id: u.id, 
+        email: u.email,
+        createdAt: u.created_at
+      }))
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });

@@ -36,7 +36,7 @@ enabled = true
 verify_jwt = true
 
 [functions."getAllUserEmails"]
-verify_jwt = true
+verify_jwt = false
 
 [functions."createUser"]
 verify_jwt = true
