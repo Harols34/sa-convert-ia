@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { User } from "@/lib/types";
 import { 
@@ -53,7 +52,7 @@ export default function UserList() {
       if (error) {
         console.error("Error invoking getAllUserEmails:", error);
         toast.error("Error al obtener datos de usuarios");
-        return { emailMap: {}, authUsers: [] };
+        return { emailMap: {}, authUsers: [], userDataMap: {} };
       }
       
       console.log("User data received:", data);
@@ -64,12 +63,13 @@ export default function UserList() {
       
       return { 
         emailMap: data?.userEmails || {}, 
-        authUsers: data?.usersData || []
+        authUsers: data?.usersData || [],
+        userDataMap: data?.userData || {}
       };
     } catch (e) {
       console.error("Error invoking getAllUserEmails:", e);
       toast.error("Error al conectar con el servidor");
-      return { emailMap: {}, authUsers: [] };
+      return { emailMap: {}, authUsers: [], userDataMap: {} };
     }
   }, []);
 
@@ -79,9 +79,10 @@ export default function UserList() {
     try {
       console.log("Obteniendo usuarios...");
       
-      // Get user emails and auth data first
-      const { emailMap, authUsers } = await fetchUserData();
+      // Get user emails, roles and auth data first
+      const { emailMap, authUsers, userDataMap } = await fetchUserData();
       console.log("Auth users:", authUsers);
+      console.log("User data map with roles:", userDataMap);
       
       if (authUsers.length === 0) {
         console.log("No se encontraron usuarios autenticados");
@@ -98,7 +99,7 @@ export default function UserList() {
       
       if (profilesError) {
         console.error("Error al obtener perfiles:", profilesError);
-        throw profilesError;
+        console.log("Continuing with auth data only");
       }
       
       console.log("Perfiles obtenidos:", profiles);
@@ -111,17 +112,18 @@ export default function UserList() {
         });
       }
       
-      // If we have no profiles but have auth users, create user objects from auth data
+      // If we have no profiles but have auth users, create user objects from auth data with roles
       if ((!profiles || profiles.length === 0) && authUsers.length > 0) {
-        console.log("No profiles found, creating users from auth data");
+        console.log("No profiles found, creating users from auth data with roles");
         
         // Map the auth users to match the User interface
         const mappedUsers: User[] = authUsers.map(authUser => {
+          const userData = userDataMap[authUser.id] || {};
           return {
             id: authUser.id,
             name: authUser.email.split('@')[0] || 'Usuario',
             email: authUser.email,
-            role: 'agent', // Default role
+            role: userData.role || 'agent', // Use role from userDataMap if available
             avatar: null,
             dailyQueryLimit: 100, // Default values
             queriesUsed: 0,
@@ -131,21 +133,24 @@ export default function UserList() {
           };
         });
         
-        console.log("Usuarios mapeados desde auth:", mappedUsers);
+        console.log("Usuarios mapeados desde auth con roles:", mappedUsers);
         setUsers(mappedUsers);
         setIsLoading(false);
         return;
       }
       
-      // If we have profiles, map them with emails from auth
+      // If we have profiles, map them with emails and roles from auth/userData
       if (profiles && profiles.length > 0) {
-        // Map the profile data to match the User interface and include emails
+        // Map the profile data to match the User interface and include emails and roles
         const mappedUsers: User[] = profiles.map(profile => {
+          // Use role from profile if available, otherwise from userDataMap, default to agent
+          const role = profile.role || (userDataMap[profile.id]?.role) || 'agent';
+          
           return {
             id: profile.id,
             name: profile.full_name || emailMap[profile.id]?.split('@')[0] || '',
             email: emailMap[profile.id] || '',
-            role: (profile.role as User["role"]) || 'agent',
+            role: (role as User["role"]), // Cast to User["role"] type
             avatar: profile.avatar_url,
             dailyQueryLimit: 100, // Default values
             queriesUsed: 0,
@@ -157,26 +162,29 @@ export default function UserList() {
           };
         });
         
-        console.log("Usuarios mapeados desde perfiles:", mappedUsers);
+        console.log("Usuarios mapeados desde perfiles con roles correctos:", mappedUsers);
         setUsers(mappedUsers);
       } else {
-        // If we have auth users but no corresponding profiles, create dummy profiles
-        console.log("No profiles found for auth users, creating dummy profiles");
+        // If we have auth users but no corresponding profiles, create users with proper roles
+        console.log("No profiles found for auth users, creating users with roles from userDataMap");
         
-        const dummyUsers: User[] = authUsers.map(authUser => ({
-          id: authUser.id,
-          name: authUser.email.split('@')[0] || 'Usuario',
-          email: authUser.email,
-          role: 'agent',
-          avatar: null,
-          dailyQueryLimit: 100,
-          queriesUsed: 0,
-          language: 'es',
-          created_at: authUser.createdAt,
-          updated_at: null
-        }));
+        const dummyUsers: User[] = authUsers.map(authUser => {
+          const userData = userDataMap[authUser.id] || {};
+          return {
+            id: authUser.id,
+            name: authUser.email.split('@')[0] || 'Usuario',
+            email: authUser.email,
+            role: userData.role || 'agent', // Use role from userDataMap
+            avatar: null,
+            dailyQueryLimit: 100,
+            queriesUsed: 0,
+            language: 'es',
+            created_at: authUser.createdAt,
+            updated_at: null
+          };
+        });
         
-        console.log("Usuarios mapeados desde auth (sin perfiles):", dummyUsers);
+        console.log("Usuarios mapeados desde auth con roles (sin perfiles):", dummyUsers);
         setUsers(dummyUsers);
       }
     } catch (error) {

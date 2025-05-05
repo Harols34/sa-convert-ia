@@ -48,20 +48,54 @@ serve(async (req) => {
 
     console.log(`Found ${authUsers.users.length} auth users`);
     
-    // Create a map of user IDs to emails
+    // Get all profiles to retrieve roles
+    console.log("Fetching profiles for role information...");
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, role');
+    
+    if (profilesError) {
+      console.error("Error fetching profiles:", profilesError);
+      console.log("Continuing with auth data only");
+    }
+    
+    // Create a map of user IDs to roles from profiles
+    const userRolesMap = {};
+    if (profiles && profiles.length > 0) {
+      profiles.forEach((profile) => {
+        userRolesMap[profile.id] = profile.role;
+        console.log(`User ID: ${profile.id}, Role: ${profile.role}`);
+      });
+    }
+    
+    // Create a map of user IDs to emails and roles
     const userEmailMap = {};
+    const userDataMap = {};
+    
     authUsers.users.forEach((user) => {
       userEmailMap[user.id] = user.email;
-      console.log(`User ID: ${user.id}, Email: ${user.email}`);
+      
+      // Get role from profiles if available, otherwise set to default "agent"
+      const role = userRolesMap[user.id] || "agent";
+      
+      userDataMap[user.id] = {
+        email: user.email,
+        role: role,
+        createdAt: user.created_at
+      };
+      
+      console.log(`User ID: ${user.id}, Email: ${user.email}, Role: ${role}`);
     });
 
-    // Return all users data for debugging
+    // Return all users data with role information
     return new Response(JSON.stringify({ 
       userEmails: userEmailMap,
+      userData: userDataMap,
       totalUsers: authUsers.users.length,
       usersData: authUsers.users.map(u => ({ 
         id: u.id, 
         email: u.email,
+        role: userRolesMap[u.id] || "agent",
         createdAt: u.created_at
       }))
     }), {
