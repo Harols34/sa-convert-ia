@@ -278,8 +278,11 @@ export default function SettingsPage() {
       // También actualizar en la tabla profiles para asegurar consistencia
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({
-          full_name: data.name
+        .upsert({
+          id: user?.id,
+          full_name: data.name,
+          role: user?.role || 'agent', // Mantener el rol actual
+          language: user?.language || 'es'
         })
         .eq('id', user?.id);
       
@@ -304,6 +307,63 @@ export default function SettingsPage() {
     } catch (error) {
       console.error("Error al guardar el perfil:", error);
       toast.error("Error al guardar el perfil");
+      setIsSaving(false);
+    }
+  };
+
+  const updatePassword = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    
+    const formData = new FormData(e.currentTarget);
+    const currentPassword = formData.get('current-password') as string;
+    const newPassword = formData.get('new-password') as string;
+    const confirmPassword = formData.get('confirm-password') as string;
+    
+    // Validaciones básicas
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast.error("Todos los campos son requeridos");
+      return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+      toast.error("Las contraseñas no coinciden");
+      return;
+    }
+    
+    setIsSaving(true);
+    
+    try {
+      // Verificar contraseña actual
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user?.email || '',
+        password: currentPassword
+      });
+      
+      if (signInError) {
+        console.error("Error al verificar contraseña actual:", signInError);
+        toast.error("La contraseña actual es incorrecta");
+        setIsSaving(false);
+        return;
+      }
+      
+      // Actualizar contraseña
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+      
+      if (updateError) {
+        console.error("Error al actualizar contraseña:", updateError);
+        throw updateError;
+      }
+      
+      toast.success("Contraseña actualizada exitosamente");
+      
+      // Limpiar el formulario
+      e.currentTarget.reset();
+    } catch (error) {
+      console.error("Error al actualizar contraseña:", error);
+      toast.error("Error al actualizar contraseña");
+    } finally {
       setIsSaving(false);
     }
   };
@@ -422,11 +482,12 @@ export default function SettingsPage() {
 
               <Card className="glass-card dark:glass-card-dark p-6">
                 <h3 className="text-lg font-medium mb-4">{translations.security}</h3>
-                <div className="space-y-4">
+                <form onSubmit={updatePassword} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="current-password">{translations.currentPassword}</Label>
                     <Input
                       id="current-password"
+                      name="current-password"
                       type="password"
                       placeholder={translations.currentPassword}
                     />
@@ -436,6 +497,7 @@ export default function SettingsPage() {
                       <Label htmlFor="new-password">{translations.newPassword}</Label>
                       <Input
                         id="new-password"
+                        name="new-password"
                         type="password"
                         placeholder={translations.newPassword}
                       />
@@ -444,6 +506,7 @@ export default function SettingsPage() {
                       <Label htmlFor="confirm-password">{translations.confirmPassword}</Label>
                       <Input
                         id="confirm-password"
+                        name="confirm-password"
                         type="password"
                         placeholder={translations.confirmPassword}
                       />
@@ -453,8 +516,17 @@ export default function SettingsPage() {
                     <Switch id="2fa" />
                     <Label htmlFor="2fa">{translations.enable2FA}</Label>
                   </div>
-                  <Button>{translations.updatePassword}</Button>
-                </div>
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {translations.saving}
+                      </>
+                    ) : (
+                      translations.updatePassword
+                    )}
+                  </Button>
+                </form>
               </Card>
             </TabsContent>
 

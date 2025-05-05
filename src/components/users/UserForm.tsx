@@ -1,10 +1,8 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -43,7 +41,7 @@ export default function UserForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [profileExists, setProfileExists] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState('');
+  const [retries, setRetries] = useState(0);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -60,7 +58,7 @@ export default function UserForm() {
     if (isEditMode) {
       fetchUserData();
     }
-  }, [id]);
+  }, [id, retries]);
 
   const fetchUserData = async () => {
     setIsLoading(true);
@@ -83,43 +81,48 @@ export default function UserForm() {
         setProfileExists(true);
       }
       
-      // Get user email from auth.users via admin function
+      // Get user email and role from getAllUserEmails function
       try {
-        const { data, error } = await supabase.functions.invoke('getUserEmail', {
-          body: { userId: id }
+        const { data: usersData, error: usersError } = await supabase.functions.invoke('getAllUserEmails', {
+          body: { timestamp: new Date().getTime() }
         });
         
-        if (!error && data?.email) {
-          setUserEmail(data.email);
+        if (usersError) {
+          console.error("Error al obtener datos de usuario:", usersError);
+          throw usersError;
+        }
+        
+        if (usersData?.userData && usersData.userData[id as string]) {
+          const userData = usersData.userData[id as string];
+          console.log("Datos de usuario obtenidos:", userData);
           
-          // Get user data from getAllUserEmails to get the role
-          const { data: userData, error: userDataError } = await supabase.functions.invoke('getAllUserEmails', {
-            body: { timestamp: new Date().getTime() }
+          // Update form with merged data from profile and auth
+          form.reset({
+            email: userData.email || '',
+            password: '',
+            name: profileData?.full_name || userData.email.split('@')[0],
+            role: profileData?.role || userData.role || 'agent',
+            language: profileData?.language || 'es',
           });
-          
-          if (!userDataError && userData?.userData && userData.userData[id]) {
-            const user = userData.userData[id];
-            console.log("Datos de usuario obtenidos del servidor:", user);
-            
-            // Update form with user data
-            form.reset({
-              email: user.email || data.email,
-              password: '',
-              name: profileData?.full_name || user.email.split('@')[0],
-              role: profileData?.role || user.role || 'agent',
-              language: profileData?.language || 'es',
-            });
-          } else {
-            // Only use email if getAllUserEmails failed
-            form.setValue("email", data.email);
-          }
         } else {
-          console.error("No se pudo obtener el email del usuario:", error);
-          setError("No se pudo obtener el email del usuario.");
+          console.error("No se encontraron datos del usuario");
+          setError("No se encontraron datos del usuario. Intente nuevamente.");
+          
+          // If data wasn't found, try fetching user email directly (fallback)
+          if (id) {
+            const { data: emailData, error: emailError } = await supabase.functions.invoke('getUserEmail', {
+              body: { userId: id }
+            });
+            
+            if (!emailError && emailData?.email) {
+              form.setValue("email", emailData.email);
+              form.setValue("name", emailData.email.split('@')[0]);
+            }
+          }
         }
       } catch (e) {
         console.error("Error al conectar con el servidor:", e);
-        setError("Error al conectar con el servidor.");
+        setError("Error al conectar con el servidor. Intente nuevamente.");
       }
     } catch (error) {
       console.error("Error al obtener datos del usuario:", error);
@@ -149,7 +152,7 @@ export default function UserForm() {
           password: values.password,
           fullName: values.name,
           role: values.role,
-          language: 'es'
+          language: values.language || 'es'
         }
       });
       
@@ -185,50 +188,25 @@ export default function UserForm() {
     try {
       console.log("Actualizando usuario:", values);
       
-      if (profileExists) {
-        // Update existing profile
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            full_name: values.name,
+      // Use the updateUserPassword edge function to update user data
+      const { error: updateError } = await supabase.functions.invoke('updateUserPassword', {
+        body: { 
+          userId: id, 
+          password: values.password || null,
+          userData: {
+            name: values.name,
             role: values.role,
-            language: 'es', // Forzar español
-          })
-          .eq('id', id);
-        
-        if (profileError) throw profileError;
-      } else {
-        // Create profile if it doesn't exist
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: id,
-            full_name: values.name,
-            role: values.role,
-            language: 'es', // Forzar español
-          });
-        
-        if (profileError) throw profileError;
-      }
+            language: values.language || 'es'
+          }
+        }
+      });
       
-      // Update password if provided
-      if (values.password) {
-        const { error: passwordError } = await supabase.functions.invoke('updateUserPassword', {
-          body: { userId: id, password: values.password }
-        });
-        
-        if (passwordError) throw passwordError;
-      }
+      if (updateError) throw updateError;
       
       toast.success("Usuario actualizado exitosamente", {
         description: "La información del usuario ha sido actualizada.",
         duration: 3000,
       });
-      
-      // Reload data to show the updated values
-      if (isEditMode) {
-        await fetchUserData();
-      }
       
       navigate('/users');
     } catch (error) {
@@ -254,12 +232,19 @@ export default function UserForm() {
     }
   };
 
+  const handleRetry = () => {
+    setRetries(prev => prev + 1);
+  };
+
   if (error) {
     return (
       <div className="p-8 text-center">
         <p className="text-red-500 mb-4">{error}</p>
-        <Button onClick={() => isEditMode ? fetchUserData() : navigate('/users')}>
-          {isEditMode ? "Intentar de nuevo" : "Volver a la lista"}
+        <Button onClick={handleRetry}>
+          Intentar de nuevo
+        </Button>
+        <Button onClick={() => navigate('/users')} variant="outline" className="ml-2">
+          Volver a la lista
         </Button>
       </div>
     );
