@@ -44,6 +44,9 @@ verify_jwt = true
 [functions."deleteUser"]
 verify_jwt = true
 
+[functions."updateUserPassword"]
+verify_jwt = true
+
 [functions."ai-chat"]
 verify_jwt = true
 
