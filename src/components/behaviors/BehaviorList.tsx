@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Table,
   TableBody,
@@ -22,11 +23,7 @@ export default function BehaviorList() {
   const [isActivating, setIsActivating] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchBehaviors();
-  }, []);
-
-  const fetchBehaviors = async () => {
+  const fetchBehaviors = useCallback(async () => {
     try {
       setIsLoading(true);
       const { data, error } = await supabase
@@ -74,7 +71,11 @@ export default function BehaviorList() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchBehaviors();
+  }, [fetchBehaviors]);
 
   const toggleBehaviorActive = async (id: string, currentState: boolean) => {
     try {

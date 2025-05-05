@@ -1,13 +1,18 @@
 
-/**
- * Hook para obtener el prompt activo de un tipo.
- * Este hook puede usarse dentro de summaryService.ts o feedbackService.ts
- * y hace fallback al prompt codificado si no hay uno activo en la DB.
- */
+import { useEffect, useState } from "react";
 import { usePrompts, PromptType } from "./usePrompts";
 
 export function usePromptLoader(type: PromptType, fallback: string) {
-  const { activePrompt } = usePrompts(type);
+  const { activePrompt, loading } = usePrompts(type);
+  const [loadedPrompt, setLoadedPrompt] = useState<string>(fallback);
+  
+  useEffect(() => {
+    if (!loading && activePrompt) {
+      setLoadedPrompt(activePrompt.content);
+    } else {
+      setLoadedPrompt(fallback);
+    }
+  }, [activePrompt, fallback, loading]);
 
-  return activePrompt?.content || fallback;
+  return loadedPrompt;
 }
