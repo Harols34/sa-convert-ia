@@ -48,8 +48,8 @@ export default function Settings() {
           .eq('id', user.id)
           .single();
         
-        if (!error && data && data.biography) {
-          setBiography(data.biography);
+        if (!error && data) {
+          setBiography(data.biography || "");
         }
       };
       
@@ -264,18 +264,18 @@ export default function Settings() {
                     </div>
 
                     <div className="flex items-center space-x-2">
-                      <Label htmlFor="noise_filter">Filtro de Ruido</Label>
+                      <Label htmlFor="noiseFilter">Filtro de Ruido</Label>
                       <Switch
-                        id="noise_filter"
+                        id="noiseFilter"
                         defaultChecked={settings?.noiseFilter}
                         onCheckedChange={(checked) => updateSetting("noiseFilter", checked)}
                       />
                     </div>
 
                     <div className="flex items-center space-x-2">
-                      <Label htmlFor="normalize">Normalizar Audio</Label>
+                      <Label htmlFor="normalizeAudio">Normalizar Audio</Label>
                       <Switch
-                        id="normalize"
+                        id="normalizeAudio"
                         defaultChecked={settings?.normalizeAudio}
                         onCheckedChange={(checked) => updateSetting("normalizeAudio", checked)}
                       />
@@ -300,18 +300,18 @@ export default function Settings() {
                     </div>
 
                     <div className="flex items-center space-x-2">
-                      <Label htmlFor="speaker_diarization">Diarización del Hablante</Label>
+                      <Label htmlFor="speakerDiarization">Diarización del Hablante</Label>
                       <Switch
-                        id="speaker_diarization"
+                        id="speakerDiarization"
                         defaultChecked={settings?.speakerDiarization}
                         onCheckedChange={(checked) => updateSetting("speakerDiarization", checked)}
                       />
                     </div>
 
                     <div className="flex items-center space-x-2">
-                      <Label htmlFor="speed_detection">Detección de Velocidad del Habla</Label>
+                      <Label htmlFor="speechRateDetection">Detección de Velocidad del Habla</Label>
                       <Switch
-                        id="speed_detection"
+                        id="speechRateDetection"
                         defaultChecked={settings?.speechRateDetection}
                         onCheckedChange={(checked) => updateSetting("speechRateDetection", checked)}
                       />
@@ -320,9 +320,9 @@ export default function Settings() {
                     <Separator />
 
                     <div className="space-y-2">
-                      <Label htmlFor="min_silence_duration">Duración Mínima de Silencio (ms)</Label>
+                      <Label htmlFor="minSilenceDuration">Duración Mínima de Silencio (ms)</Label>
                       <Input
-                        id="min_silence_duration"
+                        id="minSilenceDuration"
                         type="number"
                         defaultValue={settings?.minSilenceDuration?.toString() || "100"}
                         onChange={(e) => updateSetting("minSilenceDuration", parseInt(e.target.value))}
@@ -330,9 +330,9 @@ export default function Settings() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="silence_threshold">Umbral de Silencio</Label>
+                      <Label htmlFor="silenceThreshold">Umbral de Silencio</Label>
                       <Input
-                        id="silence_threshold"
+                        id="silenceThreshold"
                         type="number"
                         defaultValue={settings?.silenceThreshold?.toString() || "-40"}
                         onChange={(e) => updateSetting("silenceThreshold", parseInt(e.target.value))}
@@ -351,7 +351,7 @@ export default function Settings() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="transcription_model">Modelo de Transcripción</Label>
+                    <Label htmlFor="model">Modelo de Transcripción</Label>
                     <Select
                       defaultValue={settings?.model || "whisper-1"}
                       onValueChange={(value) => updateSetting("model", value)}
@@ -394,8 +394,8 @@ export default function Settings() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div>
-                    <Label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed" htmlFor="auto_feedback">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium leading-none" htmlFor="auto_feedback">
                       Recibir feedback automático
                     </Label>
                     <Switch id="auto_feedback"
