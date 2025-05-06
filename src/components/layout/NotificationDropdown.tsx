@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from "react";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -207,12 +208,12 @@ export default function NotificationDropdown() {
               </DialogDescription>
             </DialogHeader>
 
-            {/* Remove the default X button by overriding the DialogContent */}
-            <style jsx>{`
-              [data-radix-dialog-close] {
+            {/* Remove the default X button using regular CSS */}
+            <style>
+              {`[data-radix-dialog-close] {
                 display: none;
-              }
-            `}</style>
+              }`}
+            </style>
 
             <Tabs defaultValue="preferences" className="w-full mt-4">
               <TabsList className="grid grid-cols-3 mb-4">
