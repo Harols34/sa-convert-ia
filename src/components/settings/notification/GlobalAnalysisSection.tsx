@@ -6,6 +6,7 @@ import { DailyReport } from "@/components/settings/notification/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { generateGlobalAnalysis } from "@/utils/feedbackGenerator";
+
 export interface GlobalAnalysisSectionProps {
   reports: DailyReport[];
   loadingReports: boolean;
@@ -15,6 +16,7 @@ export interface GlobalAnalysisSectionProps {
   isDropdown: boolean;
   hasCalls?: boolean;
 }
+
 const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
   reports,
   loadingReports,
