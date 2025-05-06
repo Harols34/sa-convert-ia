@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -411,16 +412,45 @@ export default function useCallUpload() {
         throw new Error(`Error al listar buckets: ${bucketsError.message}`);
       }
       
-      const callsBucketExists = buckets?.some(bucket => bucket.name === 'calls');
+      const callsBucketExists = buckets?.some(bucket => bucket.id === 'calls');
       
       if (!callsBucketExists) {
-        console.log("El bucket 'calls' no existe, usando SQL para crearlo...");
-        // En lugar de intentar crear el bucket aquí, mostrar un mensaje informativo
-        toast.warning("El bucket de almacenamiento no existe", {
-          description: "Contacte al administrador para configurar el almacenamiento"
-        });
-        throw new Error("El bucket 'calls' no está configurado en Supabase");
+        console.log("El bucket 'calls' no existe, verificando SQL migrations...");
+        toast.warning("Verificando configuración de almacenamiento...");
+        
+        // Intentar de todos modos
+        try {
+          // Procesar todos los archivos sin límite fijo
+          const results = await processFileBatch(files);
+          
+          // Contar éxitos, errores y duplicados
+          const successCount = results.filter(r => r.success).length;
+          const errorCount = results.filter(r => !r.success && !r.dupeTitleError).length;
+          const dupeCount = results.filter(r => r.dupeTitleError).length;
+          
+          // Mostrar mensaje según resultados
+          if (successCount > 0) {
+            toast.success(`Carga completa`, {
+              description: `Se ${successCount === 1 ? 'subió 1 archivo' : `subieron ${successCount} archivos`}${errorCount > 0 ? `, ${errorCount} con ${errorCount === 1 ? 'error' : 'errores'}` : ''}${dupeCount > 0 ? `, ${dupeCount} ya ${dupeCount === 1 ? 'existente' : 'existentes'}` : ''}`
+            });
+          } else if (dupeCount === files.length) {
+            toast.warning("Todas las grabaciones ya existen", {
+              description: "No se ha cargado ningún archivo nuevo"
+            });
+          } else {
+            toast.error("Error al subir archivos", {
+              description: "Ningún archivo fue subido correctamente. Intente nuevamente con archivos más pequeños o menos archivos a la vez."
+            });
+          }
+          
+          return;
+        } catch (e) {
+          console.error("Error durante el reintento de carga:", e);
+          throw new Error("El bucket 'calls' no está configurado correctamente en Supabase");
+        }
       }
+      
+      console.log("Bucket 'calls' encontrado, procediendo con la carga...");
       
       // Procesar todos los archivos sin límite fijo
       const results = await processFileBatch(files);
