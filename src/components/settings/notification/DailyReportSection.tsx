@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 
 export interface DailyReportSectionProps {
   reports: DailyReport[];
@@ -53,15 +55,12 @@ const DailyReportSection: React.FC<DailyReportSectionProps> = ({
     { value: "90", label: "90 días" }
   ];
 
-  // Get the latest report if available
-  const latestReport = reports && reports.length > 0 ? reports[0] : null;
-
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between pb-2">
         <div>
           <CardTitle className="text-xl">Reporte Diario</CardTitle>
-          <CardDescription>Resumen de actividad reciente</CardDescription>
+          <CardDescription>Análisis de actividad por fechas</CardDescription>
         </div>
         <div className="flex space-x-2">
           {showDateSelector && (
@@ -129,33 +128,57 @@ const DailyReportSection: React.FC<DailyReportSectionProps> = ({
                       ) : null}
                     </h3>
                     {report.trend === "up" ? (
-                      <span className="text-bright-green text-sm">▲</span>
+                      <Badge className="bg-green-500">Mejora</Badge>
                     ) : report.trend === "down" ? (
-                      <span className="text-destructive text-sm">▼</span>
-                    ) : null}
+                      <Badge className="bg-destructive">Declive</Badge>
+                    ) : (
+                      <Badge className="bg-primary">Estable</Badge>
+                    )}
                   </div>
                   
                   {report.callCount && report.callCount > 0 ? (
                     <>
-                      <h4 className="text-sm font-medium mb-1">Hallazgos principales:</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {/* Insights generados por IA para cada día */}
+                      {report.dailyInsights && report.dailyInsights.length > 0 && (
+                        <div className="mt-2 mb-3 text-sm text-muted-foreground italic">
+                          {report.dailyInsights.map((insight, i) => (
+                            <p key={i}>{insight}</p>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Análisis detallado de hallazgos */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
                         <div>
-                          <h5 className="text-xs font-medium text-muted-foreground">Aspectos positivos:</h5>
-                          <ul className="text-xs list-disc list-inside">
+                          <h5 className="text-xs font-medium text-muted-foreground flex items-center">
+                            <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1.5"></span>
+                            Aspectos positivos:
+                          </h5>
+                          <ul className="text-xs list-disc list-inside ml-1">
                             {report.findings?.positive?.slice(0, 3).map((finding, i) => (
-                              <li key={i}>{finding}</li>
+                              <li key={i} className="text-sm">{finding}</li>
                             ))}
                           </ul>
                         </div>
                         <div>
-                          <h5 className="text-xs font-medium text-muted-foreground">Aspectos negativos:</h5>
-                          <ul className="text-xs list-disc list-inside">
+                          <h5 className="text-xs font-medium text-muted-foreground flex items-center">
+                            <span className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1.5"></span>
+                            Áreas de oportunidad:
+                          </h5>
+                          <ul className="text-xs list-disc list-inside ml-1">
                             {report.findings?.negative?.slice(0, 3).map((finding, i) => (
-                              <li key={i}>{finding}</li>
+                              <li key={i} className="text-sm">{finding}</li>
                             ))}
                           </ul>
                         </div>
                       </div>
+                      
+                      {/* Resumen AI si está disponible */}
+                      {report.aiSummary && (
+                        <div className="mt-3 text-sm">
+                          <p className="bg-muted p-2 rounded-md text-sm italic">{report.aiSummary}</p>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <p className="text-sm text-muted-foreground">

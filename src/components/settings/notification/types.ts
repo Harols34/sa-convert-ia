@@ -33,4 +33,16 @@ export interface DailyReport {
     negative: string[];
     opportunities: string[];
   };
+  aiSummary?: string; // Nuevo campo para resumen generado por IA
+  dailyInsights?: string[]; // Nuevo campo para insights diarios generados por IA
+}
+
+export interface GlobalAnalysisData {
+  aiSummary: string;
+  insights: {
+    positive: string[];
+    negative: string[];
+    recommendations: string[];
+  };
+  trendAnalysis: string;
 }

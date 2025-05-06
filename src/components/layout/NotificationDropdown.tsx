@@ -28,6 +28,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AgentGrouped } from "@/components/settings/notification/types";
 
 export default function NotificationDropdown() {
   const [selectedDays, setSelectedDays] = useState<number>(7);
@@ -43,13 +44,18 @@ export default function NotificationDropdown() {
     fetchReports(days);
   };
 
+  // Check if we have any calls
+  const hasCalls = reports && reports.some(report => report.callCount && report.callCount > 0);
+
   // Create a grouped list of agents from all reports
   const getGroupedAgents = () => {
     if (!reports || reports.length === 0) return [];
     
-    const agentsMap: Record<string, any> = {};
+    const agentsMap: Record<string, AgentGrouped> = {};
     
     reports.forEach(report => {
+      if (!report.agents) return;
+      
       report.agents.forEach(agent => {
         if (!agentsMap[agent.id]) {
           agentsMap[agent.id] = {
@@ -144,7 +150,7 @@ export default function NotificationDropdown() {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-10 w-10 rounded-full">
             <Bell className="h-5 w-5" />
-            {reports && reports.length > 0 && (
+            {reports && reports.length > 0 && reports.some(r => r.callCount > 0) && (
               <span className="absolute top-0 right-0 h-2.5 w-2.5 rounded-full bg-red-600" />
             )}
           </Button>
@@ -168,6 +174,7 @@ export default function NotificationDropdown() {
                 selectedDays={selectedDays}
                 isDropdown={true}
                 showDateSelector={true}
+                hasCalls={hasCalls}
               />
               
               <GlobalAnalysisSection 
@@ -177,6 +184,7 @@ export default function NotificationDropdown() {
                 onChangeDateRange={handleDateRangeChange}
                 selectedDays={selectedDays}
                 isDropdown={true}
+                hasCalls={hasCalls}
               />
             </div>
           </ScrollArea>
@@ -275,6 +283,7 @@ export default function NotificationDropdown() {
                   selectedDays={selectedDays}
                   isDropdown={false}
                   showDateSelector={true}
+                  hasCalls={hasCalls}
                 />
               </TabsContent>
 
@@ -287,6 +296,7 @@ export default function NotificationDropdown() {
                     onChangeDateRange={handleDateRangeChange}
                     selectedDays={selectedDays}
                     isDropdown={false}
+                    hasCalls={hasCalls}
                   />
                   
                   <FeedbackTrainingSection 
@@ -295,6 +305,7 @@ export default function NotificationDropdown() {
                     onGenerateReport={handleGenerateReport}
                     onChangeDateRange={handleDateRangeChange}
                     selectedDays={selectedDays}
+                    hasCalls={hasCalls}
                   />
                 </div>
               </TabsContent>

@@ -1,11 +1,12 @@
+
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AreaChart } from "lucide-react";
 import { DailyReport } from "@/components/settings/notification/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AreaChart as RechartAreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
+import { generateGlobalAnalysis } from "../../../supabase/functions/analyze-call/utils/feedbackGenerator";
 
 export interface GlobalAnalysisSectionProps {
   reports: DailyReport[];
@@ -31,9 +32,7 @@ const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
     if (!reports || reports.length === 0 || !hasCalls) {
       return {
         totalCalls: 0,
-        avgScore: 0,
-        callsWithIssues: 0,
-        issuePercentage: 0
+        avgScore: 0
       };
     }
 
@@ -42,28 +41,24 @@ const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
       sum + ((report.averageScore || 0) * (report.callCount || 0)), 0);
     const avgScore = totalCalls > 0 ? Math.round(weightedScoreSum / totalCalls) : 0;
 
-    // Calculate issues
-    const callsWithIssues = reports.reduce((sum, report) => sum + (report.issuesCount || 0), 0);
-    const issuePercentage = totalCalls > 0 ? Math.round((callsWithIssues / totalCalls) * 100) : 0;
-
     return {
       totalCalls,
-      avgScore,
-      callsWithIssues, 
-      issuePercentage
+      avgScore
     };
   };
 
   const metrics = calculateMetrics();
 
-  // Prepare chart data
-  const chartData = reports && reports.length > 0 
-    ? [...reports].reverse().map(report => ({
-        date: new Date(report.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
-        score: report.averageScore || 0,
-        calls: report.callCount || 0
-      }))
-    : [];
+  // Get consolidated AI feedback
+  const getAIFeedback = () => {
+    if (!reports || reports.length === 0 || !hasCalls || metrics.totalCalls === 0) {
+      return "No hay suficientes datos para generar un análisis en este período.";
+    }
+    
+    return generateGlobalAnalysis(reports, selectedDays);
+  };
+
+  const aiFeedback = getAIFeedback();
 
   // Date range options
   const dateRangeOptions = [
@@ -78,7 +73,7 @@ const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
       <CardHeader className="flex flex-row items-start justify-between pb-2">
         <div>
           <CardTitle className="text-xl">Análisis Global</CardTitle>
-          <CardDescription>Métricas de rendimiento</CardDescription>
+          <CardDescription>Insights consolidados del período</CardDescription>
         </div>
         <div className="flex space-x-2">
           {!isDropdown && (
@@ -107,59 +102,59 @@ const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
       <CardContent>
         {loadingReports ? (
           <div className="space-y-6">
-            <div className="space-y-2">
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-12 w-full" />
-            </div>
-            <Skeleton className="h-[200px] w-full" />
+            <Skeleton className="h-28 w-full" />
+            <Skeleton className="h-20 w-full" />
           </div>
         ) : hasCalls && metrics.totalCalls > 0 ? (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="p-4 bg-card rounded-lg border shadow-sm">
-                <p className="text-sm font-medium text-muted-foreground">Total Llamadas</p>
-                <p className="text-2xl font-bold">{metrics.totalCalls}</p>
-              </div>
-              <div className="p-4 bg-card rounded-lg border shadow-sm">
-                <p className="text-sm font-medium text-muted-foreground">Score Promedio</p>
-                <p className="text-2xl font-bold">{metrics.avgScore}%</p>
-              </div>
-              <div className="p-4 bg-card rounded-lg border shadow-sm">
-                <p className="text-sm font-medium text-muted-foreground">Llamadas con Problemas</p>
-                <p className="text-2xl font-bold">{metrics.callsWithIssues}</p>
-              </div>
-              <div className="p-4 bg-card rounded-lg border shadow-sm">
-                <p className="text-sm font-medium text-muted-foreground">% de Problemas</p>
-                <p className="text-2xl font-bold">{metrics.issuePercentage}%</p>
+            <div className="p-4 bg-muted rounded-lg border border-border">
+              <h3 className="text-sm font-medium mb-2">Análisis consolidado ({selectedDays} días)</h3>
+              <div className="prose prose-sm">
+                <p className="whitespace-pre-line text-sm">{aiFeedback}</p>
               </div>
             </div>
 
-            {chartData.length > 1 && (
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartAreaChart
-                    data={chartData}
-                    margin={{
-                      top: 10,
-                      right: 30,
-                      left: 0,
-                      bottom: 0,
-                    }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis domain={[0, 100]} />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="score" stroke="#03A678" fill="#03A678" fillOpacity={0.2} name="Score" />
-                  </RechartAreaChart>
-                </ResponsiveContainer>
+            {reports.length > 0 && (
+              <div className="grid grid-cols-1 gap-4 mt-4">
+                <div className="p-4 bg-card rounded-lg border shadow-sm">
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="text-sm font-medium">Aspectos destacados del período</h4>
+                    <span className="text-xs font-medium px-2 py-1 bg-primary/20 rounded-full">
+                      {selectedDays} días
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h5 className="text-xs font-medium mb-2 flex items-center">
+                        <span className="h-2 w-2 rounded-full bg-green-500 mr-2"></span>
+                        Fortalezas
+                      </h5>
+                      <ul className="text-sm space-y-1 list-inside list-disc">
+                        {reports[0]?.topFindings?.positive?.slice(0, 3).map((finding, idx) => (
+                          <li key={idx}>{finding}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-medium mb-2 flex items-center">
+                        <span className="h-2 w-2 rounded-full bg-red-500 mr-2"></span>
+                        Oportunidades
+                      </h5>
+                      <ul className="text-sm space-y-1 list-inside list-disc">
+                        {reports[0]?.topFindings?.negative?.slice(0, 3).map((finding, idx) => (
+                          <li key={idx}>{finding}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-8 text-center space-y-4">
             <p className="text-muted-foreground">No hay datos suficientes para mostrar un análisis global.</p>
-            <p className="text-sm">Sube grabaciones de llamadas para comenzar a ver métricas aquí.</p>
+            <p className="text-sm">Sube grabaciones de llamadas para comenzar a ver análisis aquí.</p>
             <Button variant="outline" size="sm" onClick={onViewDetailedAnalysis}>
               Ver Panel de Análisis
             </Button>
