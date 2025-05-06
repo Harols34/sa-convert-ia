@@ -1,87 +1,133 @@
 
-import { corsHeaders } from "../utils/cors.ts";
-import { mapScoreToText } from "../utils/scoring.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.5.0";
+import { generateOpportunities, generatePositives } from "../utils/feedbackGenerator.ts";
 
-// Function to check if feedback already exists
-export async function handleExistingFeedback(supabaseAdmin: any, callId: string) {
-  const { data: existingFeedback, error: feedbackError } = await supabaseAdmin
-    .from('feedback')
-    .select('*')
-    .eq('call_id', callId)
-    .maybeSingle();
-    
-  return { existingFeedback, feedbackError };
+/**
+ * Maneja el caso donde ya existe feedback para una llamada
+ */
+export async function handleExistingFeedback(supabase: any, callId: string) {
+  try {
+    // Verificar si ya existe feedback para la llamada
+    const { data: existingFeedback, error: feedbackError } = await supabase
+      .from('feedback')
+      .select('*')
+      .eq('call_id', callId)
+      .maybeSingle();
+
+    return { existingFeedback, feedbackError };
+  } catch (error) {
+    console.error("Error handling existing feedback:", error);
+    return { existingFeedback: null, feedbackError: error };
+  }
 }
 
-// Function to create or update feedback
+/**
+ * Crea o actualiza el feedback para una llamada en base al análisis de comportamientos
+ */
 export async function createOrUpdateFeedback(
-  supabaseAdmin: any,
+  supabase: any,
   existingFeedback: any,
   callId: string,
-  behaviorsCount: number,
+  totalBehaviors: number,
   behaviorsAnalysis: any[],
   score: number,
   positives: string[],
   opportunities: string[]
 ) {
-  // If feedback exists but without behaviors_analysis, update it
-  if (existingFeedback) {
-    console.log("Updating existing feedback with behaviors analysis for call:", callId);
-    
-    const { data: updatedFeedback, error: updateError } = await supabaseAdmin
-      .from('feedback')
-      .update({
-        behaviors_analysis: behaviorsAnalysis,
-        score: score,
-        positive: positives,
-        opportunities: opportunities
-      })
-      .eq('id', existingFeedback.id)
-      .select()
+  try {
+    // Get call summary to enhance feedback generation
+    const { data: call, error: callError } = await supabase
+      .from('calls')
+      .select('summary')
+      .eq('id', callId)
       .single();
-      
-    if (updateError) {
-      console.error("Error updating feedback:", updateError);
-      throw new Error("Error al actualizar feedback");
+    
+    if (callError) {
+      console.error("Error fetching call summary:", callError);
     }
     
-    return {
-      success: true,
-      message: "Feedback actualizado con análisis de comportamientos",
-      feedback: updatedFeedback,
+    const summary = call?.summary || "";
+    
+    // Enriquecemos los aspectos positivos y oportunidades con el resumen de la llamada
+    const enhancedPositives = generatePositives(behaviorsAnalysis, score, summary);
+    const enhancedOpportunities = generateOpportunities(behaviorsAnalysis, summary);
+    
+    // Lista de aspectos negativos derivados de comportamientos no cumplidos
+    const negatives = behaviorsAnalysis
+      .filter(b => b.evaluation === "no cumple")
+      .map(b => {
+        // Extrae la primera parte del comentario hasta el primer punto o coma
+        const comment = b.comments || "";
+        const firstSentence = comment.split(/[.,]/).filter(Boolean)[0] || "";
+        return firstSentence || `Mejorar en: ${b.name}`;
+      });
+    
+    // Crear o actualizar el feedback
+    const feedbackData = {
+      call_id: callId,
+      score,
+      positive: enhancedPositives,
+      negative: negatives.length > 0 ? negatives.slice(0, 5) : ["Se identificaron oportunidades de mejora"],
+      opportunities: enhancedOpportunities,
       behaviors_analysis: behaviorsAnalysis,
-      score: score,
-      scoreText: mapScoreToText(score)
+      updated_at: new Date().toISOString()
     };
-  } else {
-    // Create new feedback
-    console.log("Creating new feedback with behaviors analysis for call:", callId);
-    
-    const { data: feedbackData, error: saveFeedbackError } = await supabaseAdmin
-      .from('feedback')
-      .insert({
-        call_id: callId,
-        score: score,
-        positive: positives,
-        negative: [],
-        opportunities: opportunities,
-        behaviors_analysis: behaviorsAnalysis
-      })
-      .select()
-      .single();
 
-    if (saveFeedbackError) {
-      console.error("Error saving feedback:", saveFeedbackError);
-      throw new Error("Error al guardar feedback");
+    // If feedback exists, update it, otherwise create new
+    let result;
+    if (existingFeedback) {
+      const { data, error } = await supabase
+        .from('feedback')
+        .update(feedbackData)
+        .eq('call_id', callId)
+        .select('*')
+        .single();
+        
+      if (error) throw new Error(`Error updating feedback: ${error.message || "Unknown error"}`);
+      result = data;
+    } else {
+      const { data, error } = await supabase
+        .from('feedback')
+        .insert({
+          ...feedbackData,
+          created_at: new Date().toISOString()
+        })
+        .select('*')
+        .single();
+        
+      if (error) throw new Error(`Error creating feedback: ${error.message || "Unknown error"}`);
+      result = data;
     }
 
+    // Prepare the success response
     return {
       success: true,
-      message: `Se analizaron ${behaviorsCount} comportamientos`,
-      score: score,
+      message: existingFeedback ? "Feedback actualizado con nuevos análisis" : "Feedback creado exitosamente",
+      feedback: result,
+      behaviors_analysis: behaviorsAnalysis,
+      score,
       scoreText: mapScoreToText(score),
-      behaviors_analysis: behaviorsAnalysis,
-      feedback: feedbackData
+      positive: enhancedPositives,
+      negative: negatives.slice(0, 5),
+      opportunities: enhancedOpportunities,
+      totalBehaviors,
+      behaviorsMet: behaviorsAnalysis.filter(b => b.evaluation === "cumple").length,
+      behaviorsNotMet: behaviorsAnalysis.filter(b => b.evaluation === "no cumple").length
     };
+  } catch (error) {
+    console.error("Error creating/updating feedback:", error);
+    throw error;
   }
+}
+
+/**
+ * Maps a numerical score to a descriptive text
+ */
+function mapScoreToText(score: number): string {
+  if (score >= 90) return "Excelente";
+  if (score >= 80) return "Muy bueno";
+  if (score >= 70) return "Bueno";
+  if (score >= 60) return "Aceptable";
+  if (score >= 50) return "Regular";
+  return "Necesita mejorar";
 }
