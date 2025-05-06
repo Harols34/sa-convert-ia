@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -13,6 +12,7 @@ import { Loader2 } from "lucide-react";
 import DailyReportSection from "@/components/settings/notification/DailyReportSection";
 import GlobalAnalysisSection from "@/components/settings/notification/GlobalAnalysisSection";
 import FeedbackTrainingSection from "@/components/settings/notification/FeedbackTrainingSection";
+import { AgentGrouped } from "@/components/settings/notification/types";
 
 export default function NotificationSettings() {
   // Change initializing from 7 to ensure we always show at least 7 days by default
@@ -29,6 +29,54 @@ export default function NotificationSettings() {
     setSelectedDays(days);
     fetchReports(days);
   };
+
+  // Function to group agents from all reports
+  const getGroupedAgents = (): AgentGrouped[] => {
+    if (!reports || reports.length === 0 || !hasCalls) return [];
+    
+    const agentsMap: Record<string, AgentGrouped> = {};
+    
+    reports.forEach(report => {
+      if (!report.agents || report.agents.length === 0) return;
+      
+      report.agents.forEach(agent => {
+        if (!agentsMap[agent.id]) {
+          agentsMap[agent.id] = {
+            id: agent.id,
+            name: agent.name,
+            totalCalls: agent.callCount,
+            averageScore: agent.averageScore,
+            datePoints: [{
+              date: report.date,
+              score: agent.averageScore,
+              callCount: agent.callCount
+            }]
+          };
+        } else {
+          agentsMap[agent.id].totalCalls += agent.callCount;
+          
+          // Calculate weighted average score
+          const totalScore = agentsMap[agent.id].averageScore * 
+                            (agentsMap[agent.id].totalCalls - agent.callCount);
+          const newTotalScore = totalScore + (agent.averageScore * agent.callCount);
+          agentsMap[agent.id].averageScore = Math.round(
+            newTotalScore / agentsMap[agent.id].totalCalls
+          );
+          
+          agentsMap[agent.id].datePoints.push({
+            date: report.date,
+            score: agent.averageScore,
+            callCount: agent.callCount
+          });
+        }
+      });
+    });
+    
+    // Convert to array and sort by total calls
+    return Object.values(agentsMap).sort((a, b) => b.totalCalls - a.totalCalls);
+  };
+
+  const groupedAgents = getGroupedAgents();
 
   // Handlers for button actions
   const handleViewHistory = () => {
@@ -119,10 +167,13 @@ export default function NotificationSettings() {
       {/* Daily upload summary with date range selector - now showing multiple days */}
       <DailyReportSection 
         reports={reports} 
-        isLoading={loadingReports}
-        error={null}
+        loadingReports={loadingReports}
         onViewHistory={handleViewHistory}
-        onReload={() => fetchReports(selectedDays)}
+        onChangeDateRange={handleDateRangeChange}
+        selectedDays={selectedDays}
+        isDropdown={false}
+        showDateSelector={true}
+        hasCalls={hasCalls}
       />
 
       {/* Global Analysis */}
@@ -138,9 +189,12 @@ export default function NotificationSettings() {
       
       {/* Feedback for Training */}
       <FeedbackTrainingSection 
-        reports={reports}
-        isLoading={loadingReports}
-        onViewHistory={handleViewHistory}
+        groupedAgents={groupedAgents}
+        loadingReports={loadingReports}
+        onGenerateReport={handleGenerateReport}
+        onChangeDateRange={handleDateRangeChange}
+        selectedDays={selectedDays}
+        hasCalls={hasCalls}
       />
     </div>
   );

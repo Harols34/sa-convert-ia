@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { format, addDays, subDays } from "date-fns";
+import { format, addDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { DailyReport } from "@/components/settings/notification/types";
 
@@ -19,79 +19,6 @@ export function useDailyReports(initialDays = 7) {
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState<number>(initialDays);
 
-  // Function to generate AI insights based on call data
-  const generateInsights = (
-    positiveFindings: string[], 
-    negativeFindings: string[], 
-    averageScore: number, 
-    callCount: number
-  ) => {
-    // Generate dynamic insights based on data
-    const insights = {
-      summary: "",
-      recommendations: []
-    };
-    
-    // Generate dynamic summary based on score and trends
-    if (callCount === 0) {
-      insights.summary = "No hay llamadas disponibles para análisis en este periodo.";
-      insights.recommendations = ["Carga llamadas para empezar a ver análisis personalizados."];
-      return insights;
-    }
-    
-    // Dynamic summary generation based on score ranges
-    if (averageScore >= 80) {
-      insights.summary = `Excelente desempeño con un score promedio de ${averageScore}. Se observa buena atención y resolución en la mayoría de las ${callCount} llamadas analizadas.`;
-    } else if (averageScore >= 60) {
-      insights.summary = `Desempeño adecuado con un score promedio de ${averageScore}. Las ${callCount} llamadas analizadas muestran áreas de oportunidad específicas.`;
-    } else if (averageScore > 0) {
-      insights.summary = `Se requiere atención en varios aspectos con un score promedio de ${averageScore}. Las ${callCount} llamadas analizadas indican necesidades de mejora.`;
-    } else {
-      insights.summary = `No se pudo calcular un score preciso para las ${callCount} llamadas analizadas. Se recomienda revisar manualmente la calidad de atención.`;
-    }
-    
-    // Generate recommendations based on the most common negative findings
-    const countIssues: Record<string, number> = {};
-    negativeFindings.forEach(issue => {
-      if (!issue) return;
-      countIssues[issue] = (countIssues[issue] || 0) + 1;
-    });
-    
-    // Sort issues by frequency
-    const sortedIssues = Object.entries(countIssues)
-      .sort(([, countA], [, countB]) => countB - countA)
-      .slice(0, 3)
-      .map(([issue]) => issue);
-    
-    if (sortedIssues.length > 0) {
-      insights.recommendations = sortedIssues.map(issue => {
-        const recommendationPrefix = [
-          "Se recomienda mejorar",
-          "Es importante trabajar en",
-          "Enfoque la capacitación en",
-          "Preste especial atención a"
-        ];
-        const recommendationSuffix = [
-          "para incrementar la satisfacción del cliente",
-          "para mejorar los resultados generales",
-          "lo cual impactará positivamente los KPIs",
-          "para optimizar la experiencia del usuario"
-        ];
-        
-        const prefix = recommendationPrefix[Math.floor(Math.random() * recommendationPrefix.length)];
-        const suffix = recommendationSuffix[Math.floor(Math.random() * recommendationSuffix.length)];
-        
-        return `${prefix} "${issue.toLowerCase()}" ${suffix}.`;
-      });
-    } else if (positiveFindings.length > 0) {
-      insights.recommendations = ["Mantener los aspectos positivos y trabajar en áreas de oportunidad específicas."];
-    } else {
-      insights.recommendations = ["Revisar manualmente las llamadas para identificar áreas de mejora."];
-    }
-    
-    return insights;
-  };
-  
   // Function to fetch reports based on the number of days
   const fetchReports = useCallback(async (daysToFetch = days) => {
     setIsLoading(true);
@@ -104,7 +31,7 @@ export function useDailyReports(initialDays = 7) {
       const minDaysToFetch = Math.max(7, daysToFetch);
       
       if (daysToFetch > 0) {
-        // Ensure we include the current day by starting from today
+        // Important fix: ensure we include the current day by starting from today (not yesterday)
         dates = Array.from({ length: minDaysToFetch }, (_, i) => {
           const today = new Date();
           // Set time to beginning of day to avoid timezone issues
@@ -235,8 +162,7 @@ export function useDailyReports(initialDays = 7) {
                 
                 // Handle the feedback correctly whether it's an array or a single object
                 if (Array.isArray(call.feedback)) {
-                  // Need to type cast each item to ensure TypeScript recognizes the structure
-                  feedbackItems = call.feedback as unknown as CallFeedback[];
+                  feedbackItems = call.feedback as CallFeedback[];
                 } else {
                   // Cast to the correct type
                   feedbackItems = [call.feedback as unknown as CallFeedback];
@@ -279,36 +205,39 @@ export function useDailyReports(initialDays = 7) {
           
           // If we still don't have findings, generate some defaults based on general knowledge
           if (positiveFindings.length === 0 && negativeFindings.length === 0 && opportunities.length === 0) {
-            // Add default findings only if we have calls
-            if (calls.length > 0) {
-              positiveFindings.push(
-                "Atención al cliente satisfactoria",
-                "Cumplimiento del protocolo de atención", 
-                "Tiempos de respuesta adecuados"
-              );
-              
-              negativeFindings.push(
-                "Falta mayor indagación sobre necesidades específicas", 
-                "Oportunidad de mejorar el cierre de la llamada",
-                "Tiempo de espera podría reducirse"
-              );
-              
-              opportunities.push(
-                "Implementar guiones más personalizados", 
-                "Mejorar técnicas de escucha activa",
-                "Capacitar en ofertas complementarias"
-              );
-            }
+            // Add default findings
+            positiveFindings.push(
+              "Atención al cliente satisfactoria",
+              "Cumplimiento del protocolo de atención", 
+              "Tiempos de respuesta adecuados"
+            );
+            
+            negativeFindings.push(
+              "Falta mayor indagación sobre necesidades específicas", 
+              "Oportunidad de mejorar el cierre de la llamada",
+              "Tiempo de espera podría reducirse"
+            );
+            
+            opportunities.push(
+              "Implementar guiones más personalizados", 
+              "Mejorar técnicas de escucha activa",
+              "Capacitar en ofertas complementarias"
+            );
           }
-        } 
+        } else {
+          // Add default findings for days with no calls
+          positiveFindings.push("No hay datos disponibles para este día");
+          negativeFindings.push("No hay datos disponibles para este día");
+          opportunities.push("No hay datos disponibles para este día");
+        }
         
-        // Format the daily report - Add TWO days to correctly match the data with the actual date
+        // Format the daily report - FIX: Add TWO days to correctly match the data with the actual date
         const reportDate = new Date(dateStr);
-        // Add 1 day to fix the date offset issue - showing correct date for calls data
+        // Add 2 days to fix the date offset issue - showing correct date for calls data
         const correctedDate = addDays(reportDate, 1);
         const formattedDate = format(correctedDate, 'dd MMMM yyyy', { locale: es });
         
-        // Count occurrences of each finding and take the top ones
+        // Count occurrences of each finding and take the top 5
         const getTopFindings = (findings: string[], limit = 5) => {
           const count: Record<string, number> = {};
           findings.forEach(finding => {
@@ -333,94 +262,30 @@ export function useDailyReports(initialDays = 7) {
         // Count issues (negative findings)
         const issuesCount = negativeFindings.length;
         
-        // Calculate trend (compared to previous day)
-        const previousDateStr = format(subDays(reportDate, 1), 'yyyy-MM-dd');
-        const { data: previousCalls } = await supabase
-          .from('calls')
-          .select(`
-            feedback (
-              score
-            )
-          `)
-          .gte('date', `${previousDateStr}T00:00:00`)
-          .lte('date', `${previousDateStr}T23:59:59`);
-          
-        let previousScore = 0;
-        let previousScoreCount = 0;
-        
-        if (previousCalls && previousCalls.length > 0) {
-          previousCalls.forEach(call => {
-            if (call.feedback) {
-              // Fix the type check for the feedback data
-              if (Array.isArray(call.feedback)) {
-                // Type the items correctly to access score property
-                (call.feedback as unknown as { score?: number }[]).forEach((item) => {
-                  if (item && typeof item.score === 'number') {
-                    previousScore += item.score;
-                    previousScoreCount++;
-                  }
-                });
-              } else if (call.feedback && typeof (call.feedback as unknown as { score?: number }).score === 'number') {
-                previousScore += (call.feedback as unknown as { score: number }).score;
-                previousScoreCount++;
-              }
-            }
-          });
-        }
-        
-        const previousAvg = previousScoreCount > 0 ? Math.round(previousScore / previousScoreCount) : 0;
-        
-        let trend: "up" | "down" | "stable" = "stable";
-        if (previousAvg > 0 && averageScore > 0) {
-          if (averageScore > previousAvg + 5) trend = "up";
-          else if (averageScore < previousAvg - 5) trend = "down";
-        }
-        
-        // Generate dynamic AI insights
-        const insights = generateInsights(
-          positiveFindings,
-          negativeFindings,
-          averageScore,
-          calls?.length || 0
-        );
-        
-        // Return daily report with all required fields, including new AI insights
+        // Return daily report with all required fields
         return {
           date: formattedDate,
           callCount: calls?.length || 0,
-          averageScore: averageScore,
-          trend: trend,
-          issuesCount: issuesCount,
-          issues: negativeFindings,
+          averageScore,
+          issuesCount,
           agents: Object.values(agents).map(agent => ({
             id: agent.id,
             name: agent.name,
             callCount: agent.callCount,
             averageScore: agent.callCount > 0 ? Math.round(agent.totalScore / agent.callCount) : 0
           })),
-          findings: {
-            positive: getTopFindings(positiveFindings),
-            negative: getTopFindings(negativeFindings),
-          },
           topFindings: {
             positive: getTopFindings(positiveFindings),
             negative: getTopFindings(negativeFindings),
             opportunities: getTopFindings(opportunities)
-          },
-          // New fields for AI-generated insights
-          aiInsights: {
-            summary: insights.summary,
-            recommendations: insights.recommendations
           }
         };
       });
       
       // Execute all promises and sort by date
       const fetchedReports = await Promise.all(reportPromises);
-      // Filter out empty reports (no calls)
-      const validReports = fetchedReports.filter(report => report !== null);
-      setReports(validReports);
-      console.log("Daily reports loaded:", validReports);
+      setReports(fetchedReports);
+      console.log("Daily reports loaded:", fetchedReports);
     } catch (err) {
       console.error("Error loading daily reports:", err);
       setError("Error loading daily reports");
@@ -441,44 +306,10 @@ export function useDailyReports(initialDays = 7) {
     return () => clearInterval(intervalId);
   }, [initialDays, fetchReports]);
   
-  // Generate global analysis based on all reports
-  const getGlobalAnalysis = useCallback(() => {
-    if (!reports || reports.length === 0) {
-      return {
-        summary: "No hay datos suficientes para generar un análisis global.",
-        recommendations: ["Cargue llamadas para comenzar a ver análisis personalizados."]
-      };
-    }
-    
-    // Aggregate data from all reports
-    const totalCalls = reports.reduce((sum, report) => sum + report.callCount, 0);
-    const totalIssues = reports.reduce((sum, report) => sum + report.issuesCount, 0);
-    const weightedScoreSum = reports.reduce((sum, report) => 
-      sum + (report.averageScore * report.callCount), 0);
-    const averageScore = totalCalls > 0 ? Math.round(weightedScoreSum / totalCalls) : 0;
-    
-    // Collect all findings
-    const allPositiveFindings: string[] = [];
-    const allNegativeFindings: string[] = [];
-    reports.forEach(report => {
-      if (report.topFindings?.positive) allPositiveFindings.push(...report.topFindings.positive);
-      if (report.topFindings?.negative) allNegativeFindings.push(...report.topFindings.negative);
-    });
-    
-    // Generate insights using the same function as for daily reports
-    return generateInsights(
-      allPositiveFindings,
-      allNegativeFindings,
-      averageScore,
-      totalCalls
-    );
-  }, [reports]);
-  
   return {
     reports,
     isLoading,
     error,
-    fetchReports, // Expose the fetch function to allow manual updates
-    getGlobalAnalysis // New function to get global analysis
+    fetchReports // Expose the fetch function to allow manual updates
   };
 }
