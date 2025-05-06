@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, BarChart3 } from "lucide-react";
 import { DailyReport } from "@/hooks/useDailyReports";
@@ -22,7 +21,8 @@ interface DailyReportSectionProps {
   showDateSelector?: boolean;
 }
 
-export default function DailyReportSection({
+// Use React.memo to prevent unnecessary re-renders
+const DailyReportSection = React.memo(function DailyReportSection({
   reports,
   loadingReports,
   onViewHistory,
@@ -34,8 +34,10 @@ export default function DailyReportSection({
   const navigate = useNavigate();
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
 
-  // Get reports to display (limit to 7 by default)
-  const displayReports = reports.slice(0, isDropdown ? 3 : 7);
+  // Use useMemo for expensive calculations to improve performance
+  const displayReports = useMemo(() => {
+    return reports.slice(0, isDropdown ? 3 : 7);
+  }, [reports, isDropdown]);
   
   const handleViewHistory = () => {
     if (onViewHistory) {
@@ -141,7 +143,7 @@ export default function DailyReportSection({
     );
   }
   
-  // Regular card layout for settings page
+  // Regular card layout for settings page - with performance optimization
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -225,4 +227,6 @@ export default function DailyReportSection({
       </CardContent>
     </Card>
   );
-}
+});
+
+export default DailyReportSection;

@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, BarChart, LineChart } from "lucide-react";
@@ -15,7 +15,8 @@ interface GlobalAnalysisSectionProps {
   isDropdown?: boolean;
 }
 
-export default function GlobalAnalysisSection({
+// Use React.memo to prevent unnecessary re-renders
+const GlobalAnalysisSection = React.memo(function GlobalAnalysisSection({
   reports,
   loadingReports,
   onViewDetailedAnalysis,
@@ -24,66 +25,71 @@ export default function GlobalAnalysisSection({
   isDropdown = false
 }: GlobalAnalysisSectionProps) {
   
-  // Function to get aggregated findings from all reports
-  const getAggregatedFindings = () => {
-    if (!reports || reports.length === 0) return {
-      positive: ["No hay datos disponibles"],
-      negative: ["No hay datos disponibles"],
-      opportunities: ["No hay datos disponibles"]
-    };
-    
-    // Collect all findings
-    const allPositive: string[] = [];
-    const allNegative: string[] = [];
-    const allOpportunities: string[] = [];
-    
-    reports.forEach(report => {
-      if (report.topFindings.positive && report.topFindings.positive.length > 0 &&
-          report.topFindings.positive[0] !== "No hay datos disponibles para este día") {
-        allPositive.push(...report.topFindings.positive);
-      }
+  // Use useMemo for expensive calculations to improve performance
+  const { aggregatedFindings, totalCalls } = useMemo(() => {
+    // Function to get aggregated findings from all reports
+    const getAggregatedFindings = () => {
+      if (!reports || reports.length === 0) return {
+        positive: ["No hay datos disponibles"],
+        negative: ["No hay datos disponibles"],
+        opportunities: ["No hay datos disponibles"]
+      };
       
-      if (report.topFindings.negative && report.topFindings.negative.length > 0 &&
-          report.topFindings.negative[0] !== "No hay datos disponibles para este día") {
-        allNegative.push(...report.topFindings.negative);
-      }
+      // Collect all findings
+      const allPositive: string[] = [];
+      const allNegative: string[] = [];
+      const allOpportunities: string[] = [];
       
-      if (report.topFindings.opportunities && report.topFindings.opportunities.length > 0 &&
-          report.topFindings.opportunities[0] !== "No hay datos disponibles para este día") {
-        allOpportunities.push(...report.topFindings.opportunities);
-      }
-    });
-    
-    // Count occurrences and get top findings
-    const getTop = (findings: string[], limit = isDropdown ? 3 : 5) => {
-      if (findings.length === 0) return ["No hay datos disponibles"];
-      
-      const count: Record<string, number> = {};
-      findings.forEach(finding => {
-        count[finding] = (count[finding] || 0) + 1;
+      reports.forEach(report => {
+        if (report.topFindings.positive && report.topFindings.positive.length > 0 &&
+            report.topFindings.positive[0] !== "No hay datos disponibles para este día") {
+          allPositive.push(...report.topFindings.positive);
+        }
+        
+        if (report.topFindings.negative && report.topFindings.negative.length > 0 &&
+            report.topFindings.negative[0] !== "No hay datos disponibles para este día") {
+          allNegative.push(...report.topFindings.negative);
+        }
+        
+        if (report.topFindings.opportunities && report.topFindings.opportunities.length > 0 &&
+            report.topFindings.opportunities[0] !== "No hay datos disponibles para este día") {
+          allOpportunities.push(...report.topFindings.opportunities);
+        }
       });
       
-      return Object.entries(count)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, limit)
-        .map(([finding]) => finding);
+      // Count occurrences and get top findings
+      const getTop = (findings: string[], limit = isDropdown ? 3 : 5) => {
+        if (findings.length === 0) return ["No hay datos disponibles"];
+        
+        const count: Record<string, number> = {};
+        findings.forEach(finding => {
+          count[finding] = (count[finding] || 0) + 1;
+        });
+        
+        return Object.entries(count)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, limit)
+          .map(([finding]) => finding);
+      };
+      
+      return {
+        positive: getTop(allPositive),
+        negative: getTop(allNegative),
+        opportunities: getTop(allOpportunities)
+      };
+    };
+    
+    // Calculate total calls across all reports
+    const getTotalCalls = () => {
+      if (!reports || reports.length === 0) return 0;
+      return reports.reduce((total, report) => total + report.callCount, 0);
     };
     
     return {
-      positive: getTop(allPositive),
-      negative: getTop(allNegative),
-      opportunities: getTop(allOpportunities)
+      aggregatedFindings: getAggregatedFindings(),
+      totalCalls: getTotalCalls()
     };
-  };
-  
-  // Calculate total calls across all reports
-  const getTotalCalls = () => {
-    if (!reports || reports.length === 0) return 0;
-    return reports.reduce((total, report) => total + report.callCount, 0);
-  };
-  
-  const totalCalls = getTotalCalls();
-  const aggregatedFindings = getAggregatedFindings();
+  }, [reports, isDropdown]);
 
   // If in dropdown mode, use a simpler layout
   if (isDropdown) {
@@ -235,4 +241,6 @@ export default function GlobalAnalysisSection({
       </CardContent>
     </Card>
   );
-}
+});
+
+export default GlobalAnalysisSection;

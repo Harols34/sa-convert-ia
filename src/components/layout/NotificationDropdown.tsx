@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -26,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -35,6 +35,7 @@ export default function NotificationDropdown() {
   const navigate = useNavigate();
   const { settings, updateSetting, saveSettings } = useAudioSettings();
   const [showFullSettings, setShowFullSettings] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
   
   // Handle date range change
   const handleDateRangeChange = (days: number) => {
@@ -113,23 +114,28 @@ export default function NotificationDropdown() {
     }
   };
 
-  // Show full notification settings dialog - preventing navigation issues
+  // Completely revised dialog handling to fix navigation issues
   const handleViewAllNotifications = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    document.body.style.pointerEvents = ''; // Reset any pointer-events issues
     setShowFullSettings(true);
   };
 
-  // Specifically handle dialog close to prevent navigation issues
-  const handleDialogChange = (open: boolean) => {
-    if (open === false) {
-      // Small delay before updating state to avoid React state update conflicts
+  // Fixed dialog close handler
+  const handleDialogClose = () => {
+    // Close with a more substantial delay to ensure complete cleanup
+    setTimeout(() => {
+      setShowFullSettings(false);
+      // Reset pointer events and styles
+      document.body.style.pointerEvents = '';
+      
+      // Wait a bit longer to ensure React has updated the DOM before enabling navigation
       setTimeout(() => {
-        setShowFullSettings(false);
-      }, 0);
-    } else {
-      setShowFullSettings(true);
-    }
+        const event = new CustomEvent('navigationEnabled');
+        document.dispatchEvent(event);
+      }, 50);
+    }, 100);
   };
 
   return (
@@ -177,104 +183,140 @@ export default function NotificationDropdown() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Using a controlled dialog component with enhanced close handling to prevent navigation issues */}
-      <Dialog 
-        open={showFullSettings} 
-        onOpenChange={handleDialogChange}
-      >
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Configuración de Notificaciones</DialogTitle>
-            <DialogDescription>
-              Administra todas tus preferencias de notificaciones
-            </DialogDescription>
-          </DialogHeader>
+      {/* Completely revised dialog implementation with manual close handling */}
+      {showFullSettings && (
+        <Dialog 
+          open={showFullSettings} 
+          modal={true}
+        >
+          <DialogContent 
+            ref={dialogRef}
+            className="max-w-3xl max-h-[90vh] overflow-y-auto"
+            onInteractOutside={(e) => {
+              e.preventDefault();
+              handleDialogClose();
+            }}
+            onEscapeKeyDown={(e) => {
+              e.preventDefault();
+              handleDialogClose();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Configuración de Notificaciones</DialogTitle>
+              <DialogDescription>
+                Administra todas tus preferencias de notificaciones
+              </DialogDescription>
+            </DialogHeader>
 
-          <Tabs defaultValue="preferences" className="w-full mt-4">
-            <TabsList className="grid grid-cols-3 mb-4">
-              <TabsTrigger value="preferences">Preferencias</TabsTrigger>
-              <TabsTrigger value="reports">Reportes Diarios</TabsTrigger>
-              <TabsTrigger value="analysis">Análisis Global</TabsTrigger>
-            </TabsList>
+            {/* Close button with explicit click handler */}
+            <DialogClose 
+              className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+              onClick={handleDialogClose}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <path d="M18 6 6 18"></path>
+                <path d="m6 6 12 12"></path>
+              </svg>
+              <span className="sr-only">Close</span>
+            </DialogClose>
 
-            <TabsContent value="preferences" className="space-y-4">
-              <div className="space-y-4 rounded-md border p-4">
-                <h3 className="font-medium text-sm">Preferencias de Notificaciones</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium leading-none" htmlFor="auto_feedback">
-                      Recibir feedback automático
-                    </Label>
-                    <Switch 
-                      id="auto_feedback"
-                      checked={settings?.auto_feedback}
-                      onCheckedChange={(checked) => {
-                        updateSetting("auto_feedback", checked);
-                        handleSaveNotificationSettings();
-                      }} 
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium leading-none" htmlFor="daily_summary">
-                      Recibir resumen diario de actividad
-                    </Label>
-                    <Switch 
-                      id="daily_summary" 
-                      defaultChecked={true} 
-                      onCheckedChange={() => handleSaveNotificationSettings()}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium leading-none" htmlFor="agent_notifications">
-                      Notificaciones de rendimiento de agentes
-                    </Label>
-                    <Switch 
-                      id="agent_notifications" 
-                      defaultChecked={true}
-                      onCheckedChange={() => handleSaveNotificationSettings()}
-                    />
+            <Tabs defaultValue="preferences" className="w-full mt-4">
+              <TabsList className="grid grid-cols-3 mb-4">
+                <TabsTrigger value="preferences">Preferencias</TabsTrigger>
+                <TabsTrigger value="reports">Reportes Diarios</TabsTrigger>
+                <TabsTrigger value="analysis">Análisis Global</TabsTrigger>
+              </TabsList>
+
+              {/* Keep the tab content the same */}
+              <TabsContent value="preferences" className="space-y-4">
+                <div className="space-y-4 rounded-md border p-4">
+                  <h3 className="font-medium text-sm">Preferencias de Notificaciones</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium leading-none" htmlFor="auto_feedback">
+                        Recibir feedback automático
+                      </Label>
+                      <Switch 
+                        id="auto_feedback"
+                        checked={settings?.auto_feedback}
+                        onCheckedChange={(checked) => {
+                          updateSetting("auto_feedback", checked);
+                          handleSaveNotificationSettings();
+                        }} 
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium leading-none" htmlFor="daily_summary">
+                        Recibir resumen diario de actividad
+                      </Label>
+                      <Switch 
+                        id="daily_summary" 
+                        defaultChecked={true} 
+                        onCheckedChange={() => handleSaveNotificationSettings()}
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium leading-none" htmlFor="agent_notifications">
+                        Notificaciones de rendimiento de agentes
+                      </Label>
+                      <Switch 
+                        id="agent_notifications" 
+                        defaultChecked={true}
+                        onCheckedChange={() => handleSaveNotificationSettings()}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </TabsContent>
+              </TabsContent>
 
-            <TabsContent value="reports">
-              <DailyReportSection 
-                reports={reports} 
-                loadingReports={loadingReports}
-                onViewHistory={handleViewHistory}
-                onChangeDateRange={handleDateRangeChange}
-                selectedDays={selectedDays}
-                isDropdown={false}
-                showDateSelector={true}
-              />
-            </TabsContent>
-
-            <TabsContent value="analysis">
-              <div className="space-y-6">
-                <GlobalAnalysisSection 
+              <TabsContent value="reports">
+                <DailyReportSection 
                   reports={reports} 
                   loadingReports={loadingReports}
-                  onViewDetailedAnalysis={handleViewDetailedAnalysis}
+                  onViewHistory={handleViewHistory}
                   onChangeDateRange={handleDateRangeChange}
                   selectedDays={selectedDays}
                   isDropdown={false}
+                  showDateSelector={true}
                 />
-                
-                <FeedbackTrainingSection 
-                  groupedAgents={groupedAgents}
-                  loadingReports={loadingReports}
-                  onGenerateReport={handleGenerateReport}
-                  onChangeDateRange={handleDateRangeChange}
-                  selectedDays={selectedDays}
-                />
-              </div>
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
+              </TabsContent>
+
+              <TabsContent value="analysis">
+                <div className="space-y-6">
+                  <GlobalAnalysisSection 
+                    reports={reports} 
+                    loadingReports={loadingReports}
+                    onViewDetailedAnalysis={handleViewDetailedAnalysis}
+                    onChangeDateRange={handleDateRangeChange}
+                    selectedDays={selectedDays}
+                    isDropdown={false}
+                  />
+                  
+                  <FeedbackTrainingSection 
+                    groupedAgents={groupedAgents}
+                    loadingReports={loadingReports}
+                    onGenerateReport={handleGenerateReport}
+                    onChangeDateRange={handleDateRangeChange}
+                    selectedDays={selectedDays}
+                  />
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            {/* Extra button to ensure proper closing */}
+            <div className="mt-6 flex justify-end">
+              <Button 
+                variant="outline" 
+                onClick={handleDialogClose}
+              >
+                Cerrar
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

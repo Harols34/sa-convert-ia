@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Footer from "@/components/layout/Footer";
 import Navbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
@@ -8,7 +8,6 @@ import { useAudioSettings } from "@/hooks/useAudioSettings";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useUser } from "@/hooks/useUser";
-import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 import ProfileSection from "@/components/settings/ProfileSection";
 import PasswordSection from "@/components/settings/PasswordSection";
 import AudioSettings from "@/components/settings/AudioSettings";
@@ -20,18 +19,13 @@ export default function Settings() {
   const { user, isLoading: loadingUser } = useUser();
   const { isAuthenticated, loading: loadingAuth } = useAuth();
   
-  // Activate automatic reload prevention by timeout (30 minutes instead of 60)
-  useSessionTimeout(30); // 30 minutes timeout
+  // We completely remove the useSessionTimeout hook to prevent auto-reloading
 
-  // Create a stable reference for each component to prevent re-renders
-  const settingsComponents = React.useMemo(() => {
-    return {
-      profile: <ProfileSection key="profile-section" />,
-      password: <PasswordSection key="password-section" />,
-      audio: <AudioSettings key="audio-settings" />,
-      notifications: <NotificationSettings key="notification-settings" />
-    };
-  }, []);
+  // Create stable references for components using React.memo to improve performance
+  const MemoizedProfileSection = React.memo(ProfileSection);
+  const MemoizedPasswordSection = React.memo(PasswordSection);
+  const MemoizedAudioSettings = React.memo(AudioSettings);
+  const MemoizedNotificationSettings = React.memo(NotificationSettings);
 
   if (loadingAuth || loadingUser || loadingSettings) {
     return (
@@ -60,16 +54,16 @@ export default function Settings() {
             </TabsList>
 
             <TabsContent value="profile" className="space-y-6">
-              {settingsComponents.profile}
-              {settingsComponents.password}
+              <MemoizedProfileSection />
+              <MemoizedPasswordSection />
             </TabsContent>
             
             <TabsContent value="audio" className="space-y-6">
-              {settingsComponents.audio}
+              <MemoizedAudioSettings />
             </TabsContent>
 
             <TabsContent value="notificaciones" className="space-y-6">
-              {settingsComponents.notifications}
+              <MemoizedNotificationSettings />
             </TabsContent>
           </Tabs>
         </main>
