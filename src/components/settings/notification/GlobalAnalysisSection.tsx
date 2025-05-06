@@ -6,7 +6,7 @@ import { AreaChart } from "lucide-react";
 import { DailyReport } from "@/components/settings/notification/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { generateGlobalAnalysis } from "../../../supabase/functions/analyze-call/utils/feedbackGenerator";
+import { generateGlobalAnalysis } from "@/utils/feedbackGenerator";
 
 export interface GlobalAnalysisSectionProps {
   reports: DailyReport[];

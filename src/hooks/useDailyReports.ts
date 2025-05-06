@@ -1,10 +1,9 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { DailyReport } from "@/components/settings/notification/types";
-import { generateDailyInsights } from "../supabase/functions/analyze-call/utils/feedbackGenerator";
+import { generateDailyInsights } from "@/utils/feedbackGenerator";
 
 // Define the interface for the feedback of a call
 interface CallFeedback {
@@ -267,7 +266,7 @@ export function useDailyReports(initialDays = 7) {
         const callCount = calls?.length || 0;
         
         // Create the daily report
-        const dailyReport = {
+        const dailyReport: DailyReport = {
           date: formattedDate,
           callCount,
           averageScore,
