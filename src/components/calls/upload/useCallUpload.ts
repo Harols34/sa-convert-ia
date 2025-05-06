@@ -319,39 +319,54 @@ export default function useCallUpload() {
     setTotalCount(filesToProcess.length);
     const results = [];
     const total = filesToProcess.length;
-    const batchSize = 2; // Reducir tamaño del lote para evitar sobrecarga
+    const batchSize = 100; // Aumentado a 100 para procesar más archivos a la vez
     
     // Reiniciar contador de procesados
     setProcessedCount(0);
     
-    // Procesar secuencialmente en lotes pequeños para evitar problemas
+    // Procesar en lotes de 100
     for (let i = 0; i < total; i += batchSize) {
       const batch = filesToProcess.slice(i, i + batchSize);
+      console.log(`Procesando lote ${Math.floor(i/batchSize) + 1}, con ${batch.length} archivos`);
       
-      // Procesar lote de forma secuencial para reducir errores
-      const batchResults = [];
-      for (const fileData of batch) {
-        try {
-          const callId = await processCall(fileData);
-          batchResults.push({ id: fileData.id, success: true, callId });
-        } catch (error: any) {
-          batchResults.push({ 
-            id: fileData.id, 
-            success: false, 
-            error,
-            dupeTitleError: error?.dupeTitleError || false 
+      // Procesar cada archivo en el lote en paralelo con límite de concurrencia
+      const promises = batch.map(fileData => processCall(fileData));
+      
+      try {
+        // Ejecutar procesamiento en paralelo con un límite de 10 operaciones concurrentes
+        // para evitar sobrecargar el sistema
+        const batchResults = [];
+        const concurrencyLimit = 10;
+        
+        for (let j = 0; j < batch.length; j += concurrencyLimit) {
+          const concurrentBatch = batch.slice(j, j + concurrencyLimit);
+          const concurrentPromises = concurrentBatch.map(fileData => {
+            return processCall(fileData)
+              .then(callId => ({ id: fileData.id, success: true, callId }))
+              .catch(error => ({ 
+                id: fileData.id, 
+                success: false, 
+                error,
+                dupeTitleError: error?.dupeTitleError || false 
+              }));
           });
+          
+          const concurrentResults = await Promise.all(concurrentPromises);
+          batchResults.push(...concurrentResults);
+          
+          // Actualizar contador después de cada lote concurrente
+          setProcessedCount(prev => prev + concurrentResults.length);
         }
         
-        // Actualizar contador después de cada archivo procesado
-        setProcessedCount(prev => prev + 1);
+        results.push(...batchResults);
+      } catch (error) {
+        console.error("Error en el lote:", error);
+        // Continuar con el siguiente lote incluso si este falla
       }
-      
-      results.push(...batchResults);
       
       // Pequeña pausa entre lotes para evitar sobrecarga
       if (i + batchSize < total) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
     

@@ -49,6 +49,7 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
   const [tipificaciones, setTipificaciones] = useState<Tipificacion[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
   const [activeFilterCount, setActiveFilterCount] = useState(0);
+  const [searchInputValue, setSearchInputValue] = useState(""); // Nuevo estado para controlar el campo de búsqueda
   
   // Load tipificaciones and agents for filters
   useEffect(() => {
@@ -95,6 +96,7 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
     if (filters.tipificacionId) count++;
     if (filters.agentId) count++;
     if (filters.dateRange) count++;
+    if (filters.search) count++;  // Contar la búsqueda como un filtro activo
     setActiveFilterCount(count);
   }, [filters]);
   
@@ -103,8 +105,24 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
     onFilterChange(filters);
   }, [filters, onFilterChange]);
   
+  // Implementar búsqueda con un pequeño retraso para evitar demasiadas búsquedas mientras se escribe
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFilters(prev => ({ ...prev, search: e.target.value }));
+    const newValue = e.target.value;
+    setSearchInputValue(newValue);
+    
+    // Aplicar la búsqueda después de un breve retraso
+    const timer = setTimeout(() => {
+      setFilters(prev => ({ ...prev, search: newValue }));
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  };
+  
+  // Búsqueda inmediata al presionar Enter
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      setFilters(prev => ({ ...prev, search: searchInputValue }));
+    }
   };
   
   const updateFilter = (key: keyof CallFilters, value: any) => {
@@ -113,6 +131,7 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
   
   const clearFilters = () => {
     setFilters(initialFilters);
+    setSearchInputValue(""); // Limpiar también el campo de búsqueda
   };
 
   // Function to get translated status name
@@ -134,8 +153,9 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar por título, nombre de agente o código..."
-            value={filters.search}
+            value={searchInputValue}
             onChange={handleSearchChange}
+            onKeyDown={handleSearchKeyDown}
             className="pl-8"
           />
         </div>
@@ -271,6 +291,19 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
       {/* Active filters display */}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap gap-2">
+          {filters.search && (
+            <Badge variant="secondary" className="flex items-center gap-1">
+              Búsqueda: {filters.search}
+              <X 
+                className="h-3 w-3 ml-1 cursor-pointer" 
+                onClick={() => {
+                  updateFilter('search', '');
+                  setSearchInputValue('');
+                }} 
+              />
+            </Badge>
+          )}
+          
           {filters.status && filters.status !== "all" && (
             <Badge variant="secondary" className="flex items-center gap-1">
               Estado: {getStatusName(filters.status)}
@@ -326,4 +359,3 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
     </div>
   );
 }
-

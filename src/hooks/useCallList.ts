@@ -94,8 +94,13 @@ export function useCallList() {
         }
       }
 
-      if (filters.search) {
-        query = query.or(`title.ilike.%${filters.search}%,agent_name.ilike.%${filters.search}%`);
+      // Corregir la búsqueda para asegurar que funciona correctamente
+      if (filters.search && filters.search.trim() !== '') {
+        // Limpiar y preparar el término de búsqueda
+        const searchTerm = filters.search.trim();
+        // Usar ilike para búsqueda insensible a mayúsculas/minúsculas y comodines %
+        query = query.or(`title.ilike.%${searchTerm}%,filename.ilike.%${searchTerm}%,agent_name.ilike.%${searchTerm}%`);
+        console.log("Buscando por término:", searchTerm);
       }
 
       console.log("Fetching calls with filters:", filters);
