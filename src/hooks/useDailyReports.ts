@@ -20,6 +20,14 @@ export type DailyReport = {
   };
 };
 
+// Define la interfaz para el feedback de la llamada
+interface CallFeedback {
+  score: number;
+  positive: string[];
+  negative: string[];
+  opportunities: string[];
+}
+
 export function useDailyReports(days = 7) {
   const [reports, setReports] = useState<DailyReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,21 +98,24 @@ export function useDailyReports(days = 7) {
               
               agents[call.agent_id].callCount += 1;
               
-              if (call.feedback?.score) {
-                agents[call.agent_id].totalScore += call.feedback.score;
+              // Asegurarse de que feedback existe y tiene score
+              const feedback = call.feedback as CallFeedback | null;
+              if (feedback?.score) {
+                agents[call.agent_id].totalScore += feedback.score;
               }
             }
             
-            // Agregar hallazgos
-            if (call.feedback) {
-              if (call.feedback.positive) {
-                positiveFindings.push(...call.feedback.positive);
+            // Agregar hallazgos con tipado correcto
+            const feedback = call.feedback as CallFeedback | null;
+            if (feedback) {
+              if (feedback.positive) {
+                positiveFindings.push(...feedback.positive);
               }
-              if (call.feedback.negative) {
-                negativeFindings.push(...call.feedback.negative);
+              if (feedback.negative) {
+                negativeFindings.push(...feedback.negative);
               }
-              if (call.feedback.opportunities) {
-                opportunities.push(...call.feedback.opportunities);
+              if (feedback.opportunities) {
+                opportunities.push(...feedback.opportunities);
               }
             }
           });

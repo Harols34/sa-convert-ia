@@ -9,6 +9,19 @@ import { useDailyReports } from "@/hooks/useDailyReports";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 
+// Define tipos para el agente agrupado
+type AgentGrouped = {
+  id: string;
+  name: string;
+  totalCalls: number;
+  averageScore: number;
+  datePoints: {
+    date: string;
+    score: number;
+    callCount: number;
+  }[];
+};
+
 export default function NotificationSettings() {
   const { settings, isLoading, updateSetting } = useAudioSettings();
   const { reports, isLoading: loadingReports } = useDailyReports(7);
@@ -25,6 +38,43 @@ export default function NotificationSettings() {
       </Card>
     );
   }
+
+  // Función para agrupar agentes de todos los reportes
+  const getGroupedAgents = (): AgentGrouped[] => {
+    if (!reports || reports.length === 0) return [];
+    
+    const agentsMap: Record<string, AgentGrouped> = {};
+    
+    reports.forEach(report => {
+      report.agents.forEach(agent => {
+        if (!agentsMap[agent.id]) {
+          agentsMap[agent.id] = {
+            id: agent.id,
+            name: agent.name,
+            totalCalls: agent.callCount,
+            averageScore: agent.averageScore,
+            datePoints: [{
+              date: report.date,
+              score: agent.averageScore,
+              callCount: agent.callCount
+            }]
+          };
+        } else {
+          agentsMap[agent.id].totalCalls += agent.callCount;
+          agentsMap[agent.id].datePoints.push({
+            date: report.date,
+            score: agent.averageScore,
+            callCount: agent.callCount
+          });
+        }
+      });
+    });
+    
+    // Convertir a array y ordenar por total de llamadas
+    return Object.values(agentsMap).sort((a, b) => b.totalCalls - a.totalCalls);
+  };
+
+  const groupedAgents = getGroupedAgents();
 
   return (
     <div className="space-y-6">
@@ -253,10 +303,10 @@ export default function NotificationSettings() {
                       // Combinar todos los aspectos positivos de todos los reportes
                       const allPositives = reports.flatMap(r => r.topFindings.positive);
                       // Contar ocurrencias
-                      const counts = allPositives.reduce((acc, item) => {
-                        acc[item] = (acc[item] || 0) + 1;
-                        return acc;
-                      }, {});
+                      const counts: Record<string, number> = {};
+                      allPositives.forEach(item => {
+                        counts[item] = (counts[item] || 0) + 1;
+                      });
                       // Ordenar y tomar los 5 más frecuentes
                       return Object.entries(counts)
                         .sort((a, b) => b[1] - a[1])
@@ -275,10 +325,10 @@ export default function NotificationSettings() {
                   <ul className="list-disc pl-5 space-y-1 text-sm">
                     {(() => {
                       const allNegatives = reports.flatMap(r => r.topFindings.negative);
-                      const counts = allNegatives.reduce((acc, item) => {
-                        acc[item] = (acc[item] || 0) + 1;
-                        return acc;
-                      }, {});
+                      const counts: Record<string, number> = {};
+                      allNegatives.forEach(item => {
+                        counts[item] = (counts[item] || 0) + 1;
+                      });
                       return Object.entries(counts)
                         .sort((a, b) => b[1] - a[1])
                         .slice(0, 5)
@@ -296,10 +346,10 @@ export default function NotificationSettings() {
                   <ul className="list-disc pl-5 space-y-1 text-sm">
                     {(() => {
                       const allOpportunities = reports.flatMap(r => r.topFindings.opportunities);
-                      const counts = allOpportunities.reduce((acc, item) => {
-                        acc[item] = (acc[item] || 0) + 1;
-                        return acc;
-                      }, {});
+                      const counts: Record<string, number> = {};
+                      allOpportunities.forEach(item => {
+                        counts[item] = (counts[item] || 0) + 1;
+                      });
                       return Object.entries(counts)
                         .sort((a, b) => b[1] - a[1])
                         .slice(0, 5)
@@ -342,83 +392,51 @@ export default function NotificationSettings() {
           ) : (
             <ScrollArea className="h-64">
               <div className="space-y-4">
-                {/* Agrupar todos los agentes de todos los reportes */}
-                {(() => {
-                  // Recopilar datos de todos los agentes
-                  const agentsMap = {};
-                  reports.forEach(report => {
-                    report.agents.forEach(agent => {
-                      if (!agentsMap[agent.id]) {
-                        agentsMap[agent.id] = {
-                          ...agent,
-                          totalCalls: agent.callCount,
-                          datePoints: [{
-                            date: report.date,
-                            score: agent.averageScore,
-                            callCount: agent.callCount
-                          }]
-                        };
-                      } else {
-                        agentsMap[agent.id].totalCalls += agent.callCount;
-                        agentsMap[agent.id].datePoints.push({
-                          date: report.date,
-                          score: agent.averageScore,
-                          callCount: agent.callCount
-                        });
-                      }
-                    });
-                  });
-                  
-                  // Convertir a array y ordenar por total de llamadas
-                  const sortedAgents = Object.values(agentsMap)
-                    .sort((a, b) => b.totalCalls - a.totalCalls);
-                  
-                  return sortedAgents.map((agent, idx) => (
-                    <div key={idx} className="border-b pb-4 last:border-0">
-                      <h4 className="font-medium">{agent.name}</h4>
-                      <div className="flex items-center mt-1 mb-2">
-                        <span className="text-sm text-muted-foreground">{agent.totalCalls} llamadas totales</span>
-                        <span className="mx-2">•</span>
-                        <span className={`px-2 py-0.5 rounded-full text-xs ${
-                          agent.averageScore >= 80 
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
-                            : agent.averageScore >= 60
-                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
-                        }`}>
-                          Promedio: {agent.averageScore}/100
-                        </span>
-                      </div>
-                      
-                      <div className="text-sm">
-                        <h5 className="font-medium mb-1">Áreas de mejora recomendadas:</h5>
-                        <ul className="list-disc pl-5">
-                          {agent.averageScore < 70 ? (
-                            <>
-                              <li>Capacitación en protocolos de atención al cliente</li>
-                              <li>Refuerzo en técnicas de comunicación efectiva</li>
-                              <li>Seguimiento del guion de llamada</li>
-                            </>
-                          ) : agent.averageScore < 85 ? (
-                            <>
-                              <li>Mejora en técnicas de negociación</li>
-                              <li>Refuerzo en conocimiento de productos</li>
-                            </>
-                          ) : (
-                            <>
-                              <li>Desarrollo de habilidades de liderazgo</li>
-                              <li>Capacitación para ser mentor de otros agentes</li>
-                            </>
-                          )}
-                        </ul>
-                      </div>
-                      
-                      <div className="flex justify-end mt-2">
-                        <Button variant="outline" size="sm">Ver plan de formación</Button>
-                      </div>
+                {groupedAgents.map((agent, idx) => (
+                  <div key={idx} className="border-b pb-4 last:border-0">
+                    <h4 className="font-medium">{agent.name}</h4>
+                    <div className="flex items-center mt-1 mb-2">
+                      <span className="text-sm text-muted-foreground">{agent.totalCalls} llamadas totales</span>
+                      <span className="mx-2">•</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs ${
+                        agent.averageScore >= 80 
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
+                          : agent.averageScore >= 60
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100'
+                            : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
+                      }`}>
+                        Promedio: {agent.averageScore}/100
+                      </span>
                     </div>
-                  ));
-                })()}
+                    
+                    <div className="text-sm">
+                      <h5 className="font-medium mb-1">Áreas de mejora recomendadas:</h5>
+                      <ul className="list-disc pl-5">
+                        {agent.averageScore < 70 ? (
+                          <>
+                            <li>Capacitación en protocolos de atención al cliente</li>
+                            <li>Refuerzo en técnicas de comunicación efectiva</li>
+                            <li>Seguimiento del guion de llamada</li>
+                          </>
+                        ) : agent.averageScore < 85 ? (
+                          <>
+                            <li>Mejora en técnicas de negociación</li>
+                            <li>Refuerzo en conocimiento de productos</li>
+                          </>
+                        ) : (
+                          <>
+                            <li>Desarrollo de habilidades de liderazgo</li>
+                            <li>Capacitación para ser mentor de otros agentes</li>
+                          </>
+                        )}
+                      </ul>
+                    </div>
+                    
+                    <div className="flex justify-end mt-2">
+                      <Button variant="outline" size="sm">Ver plan de formación</Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </ScrollArea>
           )}

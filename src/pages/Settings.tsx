@@ -20,8 +20,8 @@ export default function Settings() {
   const { user, isLoading: loadingUser } = useUser();
   const { isAuthenticated, loading: loadingAuth } = useAuth();
   
-  // Activar prevención de recargas automáticas por timeout
-  useSessionTimeout(60); // 60 minutos de timeout
+  // Activar prevención de recargas automáticas por timeout (30 minutos en lugar de 60)
+  useSessionTimeout(30); // 30 minutos de timeout
 
   if (loadingAuth || loadingUser || loadingSettings) {
     return (
