@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -28,9 +28,16 @@ type AgentGrouped = {
 };
 
 export default function NotificationSettings() {
+  const [selectedDays, setSelectedDays] = useState<number>(7);
   const { settings, isLoading, updateSetting, saveSettings } = useAudioSettings();
-  const { reports, isLoading: loadingReports } = useDailyReports(7);
+  const { reports, isLoading: loadingReports, fetchReports } = useDailyReports(selectedDays);
   const navigate = useNavigate();
+
+  // Handle date range change
+  const handleDateRangeChange = (days: number) => {
+    setSelectedDays(days);
+    fetchReports(days);
+  };
 
   // Function to group agents from all reports
   const getGroupedAgents = (): AgentGrouped[] => {
@@ -164,18 +171,22 @@ export default function NotificationSettings() {
         </CardContent>
       </Card>
       
-      {/* Daily upload summary */}
+      {/* Daily upload summary with date range selector */}
       <DailyReportSection 
         reports={reports} 
         loadingReports={loadingReports}
         onViewHistory={handleViewHistory}
+        onChangeDateRange={handleDateRangeChange}
+        selectedDays={selectedDays}
       />
 
       {/* Global Analysis */}
       <GlobalAnalysisSection 
         reports={reports} 
         loadingReports={loadingReports}
-        onViewDetailedAnalysis={handleViewDetailedAnalysis} 
+        onViewDetailedAnalysis={handleViewDetailedAnalysis}
+        onChangeDateRange={handleDateRangeChange}
+        selectedDays={selectedDays} 
       />
       
       {/* Feedback for Training */}
@@ -183,6 +194,8 @@ export default function NotificationSettings() {
         groupedAgents={groupedAgents}
         loadingReports={loadingReports}
         onGenerateReport={handleGenerateReport}
+        onChangeDateRange={handleDateRangeChange}
+        selectedDays={selectedDays}
       />
     </div>
   );

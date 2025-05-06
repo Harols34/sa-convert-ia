@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Users, Download } from "lucide-react";
@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useNavigate } from "react-router-dom";
 
 // Type definition for the grouped agent
 type AgentGrouped = {
@@ -26,17 +28,22 @@ interface FeedbackTrainingSectionProps {
   groupedAgents: AgentGrouped[];
   loadingReports: boolean;
   onGenerateReport: () => void;
+  onChangeDateRange: (days: number) => void;
+  selectedDays: number;
 }
 
 export default function FeedbackTrainingSection({
   groupedAgents,
   loadingReports,
-  onGenerateReport
+  onGenerateReport,
+  onChangeDateRange,
+  selectedDays
 }: FeedbackTrainingSectionProps) {
   const [selectedAgent, setSelectedAgent] = useState<AgentGrouped | null>(null);
   const [planOpen, setPlanOpen] = useState(false);
   const [trainingPlan, setTrainingPlan] = useState("");
   const [generatingPlan, setGeneratingPlan] = useState(false);
+  const navigate = useNavigate();
   
   // Function to generate training recommendations based on score
   const getTrainingRecommendations = (score: number) => {
@@ -95,7 +102,7 @@ Generado el ${new Date().toLocaleDateString()} | ID Plan: TRAINING-${agent.id.su
       
       setTrainingPlan(planText);
       
-      // Save to our new training_plans table
+      // Save to our training_plans table
       const { error } = await supabase
         .from('training_plans')
         .insert({
@@ -137,6 +144,11 @@ Generado el ${new Date().toLocaleDateString()} | ID Plan: TRAINING-${agent.id.su
   
   // Function to generate a complete report for all agents
   const handleGenerateFullReport = async () => {
+    if (groupedAgents.length === 0) {
+      toast.error("No hay datos disponibles para generar un reporte");
+      return;
+    }
+    
     toast.loading("Generando reporte completo", { id: "generate-report" });
     
     try {
@@ -144,6 +156,7 @@ Generado el ${new Date().toLocaleDateString()} | ID Plan: TRAINING-${agent.id.su
       let reportText = `# REPORTE COMPLETO DE FORMACIÓN\n\n`;
       reportText += `Fecha de generación: ${new Date().toLocaleDateString()}\n`;
       reportText += `Total de agentes analizados: ${groupedAgents.length}\n\n`;
+      reportText += `Periodo: ${selectedDays === 0 ? "Todas las llamadas" : `Últimos ${selectedDays} días`}\n\n`;
       
       groupedAgents.forEach(agent => {
         reportText += `## ${agent.name}\n`;
@@ -168,12 +181,11 @@ Generado el ${new Date().toLocaleDateString()} | ID Plan: TRAINING-${agent.id.su
       element.click();
       document.body.removeChild(element);
       
-      // Also save to our new training_reports table
+      // Also save to our training_reports table
       const { error } = await supabase
         .from('training_reports')
         .insert({
           report_content: reportText,
-          created_at: new Date().toISOString(),
           agent_count: groupedAgents.length
         });
         
@@ -188,9 +200,10 @@ Generado el ${new Date().toLocaleDateString()} | ID Plan: TRAINING-${agent.id.su
       toast.error("Error al generar el reporte completo", { id: "generate-report" });
     }
   };
-
-  return (
-    <>
+  
+  // If no data is available, show a message with button to go to calls page
+  if (!loadingReports && groupedAgents.length === 0) {
+    return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -201,15 +214,73 @@ Generado el ${new Date().toLocaleDateString()} | ID Plan: TRAINING-${agent.id.su
             Retroalimentación específica para agentes
           </CardDescription>
         </CardHeader>
+        <CardContent className="flex flex-col items-center justify-center space-y-4 py-8">
+          <p className="text-center text-sm text-muted-foreground">
+            No hay datos de agentes disponibles para este periodo.
+          </p>
+          <p className="text-center text-xs text-muted-foreground">
+            Para generar feedback para formación, necesitas tener llamadas analizadas con agentes asignados.
+          </p>
+          
+          <div className="flex space-x-2">
+            <Select 
+              defaultValue={selectedDays.toString()} 
+              onValueChange={(value) => onChangeDateRange(parseInt(value))}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Periodo de tiempo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">Últimos 7 días</SelectItem>
+                <SelectItem value="15">Últimos 15 días</SelectItem>
+                <SelectItem value="30">Últimos 30 días</SelectItem>
+                <SelectItem value="0">Todas las llamadas</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Button variant="outline" size="sm" onClick={() => navigate('/calls')}>
+              Ver llamadas
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Feedback para Formación
+            </CardTitle>
+            <CardDescription>
+              Retroalimentación específica para agentes
+            </CardDescription>
+          </div>
+          
+          <Select 
+            defaultValue={selectedDays.toString()} 
+            onValueChange={(value) => onChangeDateRange(parseInt(value))}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Periodo de tiempo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Últimos 7 días</SelectItem>
+              <SelectItem value="15">Últimos 15 días</SelectItem>
+              <SelectItem value="30">Últimos 30 días</SelectItem>
+              <SelectItem value="0">Todas las llamadas</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardHeader>
         <CardContent>
           {loadingReports ? (
             <div className="flex justify-center p-4">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
-          ) : groupedAgents.length === 0 ? (
-            <p className="text-center text-sm text-muted-foreground">
-              No hay datos disponibles para mostrar
-            </p>
           ) : (
             <ScrollArea className="h-64">
               <div className="space-y-4">
@@ -255,7 +326,12 @@ Generado el ${new Date().toLocaleDateString()} | ID Plan: TRAINING-${agent.id.su
           )}
           
           <div className="mt-4 flex justify-end">
-            <Button variant="outline" size="sm" onClick={handleGenerateFullReport}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleGenerateFullReport}
+              disabled={groupedAgents.length === 0}
+            >
               Generar reporte completo
             </Button>
           </div>
