@@ -241,9 +241,9 @@ export function useDailyReports(initialDays = 7) {
           opportunities.push("No hay datos disponibles para este día");
         }
         
-        // Format the daily report - FIX: Add one day to correctly match the data with the actual date
+        // Format the daily report - FIX: Add TWO days to correctly match the data with the actual date
         const reportDate = new Date(dateStr);
-        // Add 1 day to fix the date offset issue - showing correct date for calls data
+        // Add 2 days to fix the date offset issue - showing correct date for calls data
         const correctedDate = addDays(reportDate, 1);
         const formattedDate = format(correctedDate, 'dd MMMM yyyy', { locale: es });
         

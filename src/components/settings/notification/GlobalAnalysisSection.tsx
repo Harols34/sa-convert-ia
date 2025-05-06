@@ -12,6 +12,7 @@ interface GlobalAnalysisSectionProps {
   onViewDetailedAnalysis: () => void;
   onChangeDateRange: (days: number) => void;
   selectedDays: number;
+  isDropdown?: boolean;
 }
 
 export default function GlobalAnalysisSection({
@@ -19,7 +20,8 @@ export default function GlobalAnalysisSection({
   loadingReports,
   onViewDetailedAnalysis,
   onChangeDateRange,
-  selectedDays
+  selectedDays,
+  isDropdown = false
 }: GlobalAnalysisSectionProps) {
   
   // Function to get aggregated findings from all reports
@@ -52,8 +54,8 @@ export default function GlobalAnalysisSection({
       }
     });
     
-    // Count occurrences and get top 5
-    const getTop = (findings: string[]) => {
+    // Count occurrences and get top findings
+    const getTop = (findings: string[], limit = isDropdown ? 3 : 5) => {
       if (findings.length === 0) return ["No hay datos disponibles"];
       
       const count: Record<string, number> = {};
@@ -63,7 +65,7 @@ export default function GlobalAnalysisSection({
       
       return Object.entries(count)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
+        .slice(0, limit)
         .map(([finding]) => finding);
     };
     
@@ -83,6 +85,71 @@ export default function GlobalAnalysisSection({
   const totalCalls = getTotalCalls();
   const aggregatedFindings = getAggregatedFindings();
 
+  // If in dropdown mode, use a simpler layout
+  if (isDropdown) {
+    return (
+      <div className="space-y-3 border-t pt-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Análisis Global</h3>
+          
+          <Select 
+            defaultValue={selectedDays.toString()} 
+            onValueChange={(value) => onChangeDateRange(parseInt(value))}
+          >
+            <SelectTrigger className="w-[120px] h-7 text-xs">
+              <SelectValue placeholder="Periodo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">7 días</SelectItem>
+              <SelectItem value="15">15 días</SelectItem>
+              <SelectItem value="30">30 días</SelectItem>
+              <SelectItem value="0">Todo</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        {loadingReports ? (
+          <div className="flex justify-center p-2">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          </div>
+        ) : totalCalls === 0 ? (
+          <p className="text-xs text-muted-foreground">No hay datos disponibles</p>
+        ) : (
+          <div className="space-y-2 text-xs">
+            <div>
+              <p className="font-medium">Total de llamadas: <span className="font-bold">{totalCalls}</span></p>
+            </div>
+            
+            <div>
+              <h5 className="text-muted-foreground mb-0.5">Aspectos positivos:</h5>
+              <ul className="list-disc pl-4 space-y-0.5">
+                {aggregatedFindings.positive.slice(0, 3).map((item, idx) => (
+                  <li key={idx}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            
+            <div>
+              <h5 className="text-muted-foreground mb-0.5">Aspectos negativos:</h5>
+              <ul className="list-disc pl-4 space-y-0.5">
+                {aggregatedFindings.negative.slice(0, 3).map((item, idx) => (
+                  <li key={idx}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            
+            <div className="flex justify-end pt-1">
+              <Button variant="ghost" size="sm" className="text-xs h-7" onClick={onViewDetailedAnalysis}>
+                Ver análisis detallado
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Regular card layout for settings page
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
