@@ -23,11 +23,13 @@ export default function Settings() {
   // Activate automatic reload prevention by timeout (30 minutes instead of 60)
   useSessionTimeout(30); // 30 minutes timeout
 
-  // Prevent automatic reloading of the page
-  useEffect(() => {
-    // This empty useEffect ensures we don't unnecessarily re-render
-    return () => {
-      // Cleanup function to prevent memory leaks
+  // Create a stable reference for each component to prevent re-renders
+  const settingsComponents = React.useMemo(() => {
+    return {
+      profile: <ProfileSection key="profile-section" />,
+      password: <PasswordSection key="password-section" />,
+      audio: <AudioSettings key="audio-settings" />,
+      notifications: <NotificationSettings key="notification-settings" />
     };
   }, []);
 
@@ -58,16 +60,16 @@ export default function Settings() {
             </TabsList>
 
             <TabsContent value="profile" className="space-y-6">
-              <ProfileSection />
-              <PasswordSection />
+              {settingsComponents.profile}
+              {settingsComponents.password}
             </TabsContent>
             
             <TabsContent value="audio" className="space-y-6">
-              <AudioSettings />
+              {settingsComponents.audio}
             </TabsContent>
 
             <TabsContent value="notificaciones" className="space-y-6">
-              <NotificationSettings />
+              {settingsComponents.notifications}
             </TabsContent>
           </Tabs>
         </main>

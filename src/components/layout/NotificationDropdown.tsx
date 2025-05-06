@@ -113,11 +113,23 @@ export default function NotificationDropdown() {
     }
   };
 
-  // Show full notification settings dialog - fixing navigation issue after dialog closes
+  // Show full notification settings dialog - preventing navigation issues
   const handleViewAllNotifications = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setShowFullSettings(true);
+  };
+
+  // Specifically handle dialog close to prevent navigation issues
+  const handleDialogChange = (open: boolean) => {
+    if (open === false) {
+      // Small delay before updating state to avoid React state update conflicts
+      setTimeout(() => {
+        setShowFullSettings(false);
+      }, 0);
+    } else {
+      setShowFullSettings(true);
+    }
   };
 
   return (
@@ -165,10 +177,11 @@ export default function NotificationDropdown() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Using a controlled dialog component to prevent navigation issues */}
-      <Dialog open={showFullSettings} onOpenChange={(open) => {
-        setShowFullSettings(open);
-      }}>
+      {/* Using a controlled dialog component with enhanced close handling to prevent navigation issues */}
+      <Dialog 
+        open={showFullSettings} 
+        onOpenChange={handleDialogChange}
+      >
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Configuración de Notificaciones</DialogTitle>
