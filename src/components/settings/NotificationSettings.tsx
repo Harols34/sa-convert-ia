@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -13,19 +12,7 @@ import { Loader2 } from "lucide-react";
 import DailyReportSection from "@/components/settings/notification/DailyReportSection";
 import GlobalAnalysisSection from "@/components/settings/notification/GlobalAnalysisSection";
 import FeedbackTrainingSection from "@/components/settings/notification/FeedbackTrainingSection";
-
-// Define types for the grouped agent
-type AgentGrouped = {
-  id: string;
-  name: string;
-  totalCalls: number;
-  averageScore: number;
-  datePoints: {
-    date: string;
-    score: number;
-    callCount: number;
-  }[];
-};
+import { AgentGrouped } from "@/components/settings/notification/types";
 
 export default function NotificationSettings() {
   // Change initializing from 7 to ensure we always show at least 7 days by default

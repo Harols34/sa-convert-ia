@@ -1,24 +1,8 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays } from "date-fns";
 import { es } from "date-fns/locale";
-
-export type DailyReport = {
-  date: string;
-  callCount: number;
-  agents: {
-    id: string;
-    name: string;
-    callCount: number;
-    averageScore: number;
-  }[];
-  topFindings: {
-    positive: string[];
-    negative: string[];
-    opportunities: string[];
-  };
-};
+import { DailyReport } from "@/components/settings/notification/types";
 
 // Define the interface for the feedback of a call
 interface CallFeedback {
