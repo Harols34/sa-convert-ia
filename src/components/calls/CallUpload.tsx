@@ -4,6 +4,8 @@ import FileDropzone from "./upload/FileDropzone";
 import FileList from "./upload/FileList";
 import useCallUpload from "./upload/useCallUpload";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 export default function CallUpload() {
   const {
@@ -33,6 +35,16 @@ export default function CallUpload() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Información sobre formato de archivos */}
+      <Alert variant="default" className="bg-muted/50">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Información importante</AlertTitle>
+        <AlertDescription className="text-sm">
+          Se aceptan archivos de audio en formato MP3, WAV o M4A. Tamaño máximo: 100MB por archivo.
+          Cada archivo subido será procesado automáticamente para su transcripción y análisis.
+        </AlertDescription>
+      </Alert>
+      
       <FileDropzone onDrop={onDrop} />
       
       {isProcessing && totalCount > 0 && (

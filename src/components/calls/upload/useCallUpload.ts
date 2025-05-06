@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -405,19 +404,22 @@ export default function useCallUpload() {
       });
       
       // Verificar que el bucket existe
-      let { data: buckets } = await supabase.storage.listBuckets();
+      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+      
+      if (bucketsError) {
+        console.error("Error al listar buckets:", bucketsError);
+        throw new Error(`Error al listar buckets: ${bucketsError.message}`);
+      }
+      
       const callsBucketExists = buckets?.some(bucket => bucket.name === 'calls');
       
       if (!callsBucketExists) {
-        console.log("Creando bucket 'calls'...");
-        const { error: createError } = await supabase.storage.createBucket('calls', {
-          public: true,
-          fileSizeLimit: 104857600 // 100MB in bytes
+        console.log("El bucket 'calls' no existe, usando SQL para crearlo...");
+        // En lugar de intentar crear el bucket aquí, mostrar un mensaje informativo
+        toast.warning("El bucket de almacenamiento no existe", {
+          description: "Contacte al administrador para configurar el almacenamiento"
         });
-        
-        if (createError) {
-          throw new Error(`Error al crear bucket: ${createError.message}`);
-        }
+        throw new Error("El bucket 'calls' no está configurado en Supabase");
       }
       
       // Procesar todos los archivos sin límite fijo
