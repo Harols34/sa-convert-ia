@@ -113,8 +113,10 @@ export default function NotificationDropdown() {
     }
   };
 
-  // Show full notification settings dialog
-  const handleViewAllNotifications = () => {
+  // Show full notification settings dialog - fixing navigation issue after dialog closes
+  const handleViewAllNotifications = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     setShowFullSettings(true);
   };
 
@@ -163,7 +165,10 @@ export default function NotificationDropdown() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Dialog open={showFullSettings} onOpenChange={setShowFullSettings}>
+      {/* Using a controlled dialog component to prevent navigation issues */}
+      <Dialog open={showFullSettings} onOpenChange={(open) => {
+        setShowFullSettings(open);
+      }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Configuración de Notificaciones</DialogTitle>

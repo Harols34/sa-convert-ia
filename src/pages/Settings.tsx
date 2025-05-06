@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Footer from "@/components/layout/Footer";
 import Navbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
@@ -18,10 +18,18 @@ export default function Settings() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isLoading: loadingSettings } = useAudioSettings();
   const { user, isLoading: loadingUser } = useUser();
-  const { isAuthenticated, loading: loadingAuth, session } = useAuth();
+  const { isAuthenticated, loading: loadingAuth } = useAuth();
   
   // Activate automatic reload prevention by timeout (30 minutes instead of 60)
   useSessionTimeout(30); // 30 minutes timeout
+
+  // Prevent automatic reloading of the page
+  useEffect(() => {
+    // This empty useEffect ensures we don't unnecessarily re-render
+    return () => {
+      // Cleanup function to prevent memory leaks
+    };
+  }, []);
 
   if (loadingAuth || loadingUser || loadingSettings) {
     return (

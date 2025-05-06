@@ -150,7 +150,7 @@ export default function DailyReportSection({
             <BarChart3 className="h-5 w-5" />
             Resumen Diario de Cargas
           </CardTitle>
-          <CardDescription>Análisis de las llamadas más recientes (Últimos 7 Días)</CardDescription>
+          <CardDescription>Análisis de las llamadas más recientes (Últimos {selectedDays} Días)</CardDescription>
         </div>
         {showDateSelector && (
           <div>{renderDateRangeSelector()}</div>
