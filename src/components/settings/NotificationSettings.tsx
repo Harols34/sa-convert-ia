@@ -7,6 +7,7 @@ import { useAudioSettings } from "@/hooks/useAudioSettings";
 import { useDailyReports } from "@/hooks/useDailyReports";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 
 // Componentes más pequeños para mejor organización
 import DailyReportSection from "@/components/settings/notification/DailyReportSection";

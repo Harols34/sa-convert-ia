@@ -6,7 +6,7 @@ import { Loader2, Users, Download } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 
 // Type definition for the grouped agent
@@ -95,40 +95,28 @@ Generado el ${new Date().toLocaleDateString()} | ID Plan: TRAINING-${agent.id.su
       
       setTrainingPlan(planText);
       
-      // Save to database (if we had the table)
-      await saveTrainingPlanToDatabase(agent.id, planText);
+      // Save to our new training_plans table
+      const { error } = await supabase
+        .from('training_plans')
+        .insert({
+          agent_id: agent.id,
+          plan_content: planText,
+          created_at: new Date().toISOString(),
+          status: 'active'
+        });
+        
+      if (error) {
+        console.error("Error saving training plan:", error);
+        throw error;
+      } else {
+        toast.success("Plan de formación guardado correctamente");
+      }
       
     } catch (error) {
       console.error("Error generating training plan:", error);
       toast.error("Error al generar el plan de formación");
     } finally {
       setGeneratingPlan(false);
-    }
-  };
-  
-  // Function to save the training plan to the database
-  const saveTrainingPlanToDatabase = async (agentId: string, planText: string) => {
-    try {
-      const { error } = await supabase
-        .from('training_plans')
-        .insert({
-          agent_id: agentId,
-          plan_content: planText,
-          created_at: new Date().toISOString(),
-          status: 'active'
-        })
-        .select();
-        
-      if (error) {
-        if (error.code === '42P01') {
-          console.log("Training plans table doesn't exist yet - this is expected");
-          // Table doesn't exist yet - this is expected for now
-        } else {
-          throw error;
-        }
-      }
-    } catch (error) {
-      console.error("Error saving training plan:", error);
     }
   };
   
@@ -180,17 +168,21 @@ Generado el ${new Date().toLocaleDateString()} | ID Plan: TRAINING-${agent.id.su
       element.click();
       document.body.removeChild(element);
       
-      // Also save to database
-      await supabase
+      // Also save to our new training_reports table
+      const { error } = await supabase
         .from('training_reports')
         .insert({
           report_content: reportText,
           created_at: new Date().toISOString(),
           agent_count: groupedAgents.length
-        })
-        .select();
+        });
         
-      toast.success("Reporte completo generado y descargado", { id: "generate-report" });
+      if (error) {
+        console.error("Error saving training report:", error);
+        throw error;
+      }
+        
+      toast.success("Reporte completo generado y guardado", { id: "generate-report" });
     } catch (error) {
       console.error("Error generating complete report:", error);
       toast.error("Error al generar el reporte completo", { id: "generate-report" });

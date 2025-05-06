@@ -401,6 +401,54 @@ export type Database = {
         }
         Relationships: []
       }
+      training_plans: {
+        Row: {
+          agent_id: string
+          created_at: string
+          id: string
+          plan_content: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          id?: string
+          plan_content: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          id?: string
+          plan_content?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      training_reports: {
+        Row: {
+          agent_count: number
+          created_at: string
+          id: string
+          report_content: string
+        }
+        Insert: {
+          agent_count?: number
+          created_at?: string
+          id?: string
+          report_content: string
+        }
+        Update: {
+          agent_count?: number
+          created_at?: string
+          id?: string
+          report_content?: string
+        }
+        Relationships: []
+      }
       user_settings: {
         Row: {
           analysis_model: string | null

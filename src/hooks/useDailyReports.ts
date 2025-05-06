@@ -59,13 +59,13 @@ export function useDailyReports(days = 7) {
               agent_name,
               agent_id,
               status,
+              summary,
               feedback (
                 score,
                 positive,
                 negative,
                 opportunities
-              ),
-              summary
+              )
             `)
             .gte('date', startOfDay)
             .lte('date', endOfDay);
@@ -121,84 +121,94 @@ export function useDailyReports(days = 7) {
           };
 
           // Process each call
-          calls?.forEach(call => {
-            // Add agent or update counter
-            if (call.agent_id) {
-              if (!agents[call.agent_id]) {
-                agents[call.agent_id] = {
-                  id: call.agent_id,
-                  name: call.agent_name || 'Sin nombre',
-                  callCount: 0,
-                  totalScore: 0
-                };
-              }
-              
-              agents[call.agent_id].callCount += 1;
-              
-              // Check if feedback exists
-              if (call.feedback) {
-                let feedbackItems: CallFeedback[] = [];
-                
-                // Handle the feedback correctly whether it's an array or a single object
-                if (Array.isArray(call.feedback)) {
-                  feedbackItems = call.feedback as CallFeedback[];
-                } else {
-                  // Cast to the correct type
-                  feedbackItems = [call.feedback as unknown as CallFeedback];
+          if (calls && calls.length > 0) {
+            let hasFeedbackData = false;
+            
+            calls.forEach(call => {
+              // Add agent or update counter
+              if (call.agent_id) {
+                if (!agents[call.agent_id]) {
+                  agents[call.agent_id] = {
+                    id: call.agent_id,
+                    name: call.agent_name || 'Sin nombre',
+                    callCount: 0,
+                    totalScore: 0
+                  };
                 }
                 
-                // Process all feedback items
-                feedbackItems.forEach(item => {
-                  if (typeof item.score === 'number') {
-                    agents[call.agent_id].totalScore += item.score;
+                agents[call.agent_id].callCount += 1;
+                
+                // Check if feedback exists
+                if (call.feedback) {
+                  let feedbackItems: CallFeedback[] = [];
+                  
+                  // Handle the feedback correctly whether it's an array or a single object
+                  if (Array.isArray(call.feedback)) {
+                    feedbackItems = call.feedback as CallFeedback[];
+                  } else {
+                    // Cast to the correct type
+                    feedbackItems = [call.feedback as unknown as CallFeedback];
                   }
                   
-                  if (Array.isArray(item.positive)) {
-                    positiveFindings.push(...item.positive);
-                  }
-                  
-                  if (Array.isArray(item.negative)) {
-                    negativeFindings.push(...item.negative);
-                  }
-                  
-                  if (Array.isArray(item.opportunities)) {
-                    opportunities.push(...item.opportunities);
-                  }
-                });
-              } else if (call.summary) {
-                // Extract findings from summary if feedback is missing
-                const extracted = extractPhrasesFromSummary(call.summary);
-                positiveFindings.push(...extracted.positive);
-                negativeFindings.push(...extracted.negative);
-                opportunities.push(...extracted.opportunities);
+                  // Process all feedback items
+                  feedbackItems.forEach(item => {
+                    if (typeof item.score === 'number') {
+                      agents[call.agent_id].totalScore += item.score;
+                    }
+                    
+                    if (Array.isArray(item.positive) && item.positive.length > 0) {
+                      positiveFindings.push(...item.positive);
+                      hasFeedbackData = true;
+                    }
+                    
+                    if (Array.isArray(item.negative) && item.negative.length > 0) {
+                      negativeFindings.push(...item.negative);
+                      hasFeedbackData = true;
+                    }
+                    
+                    if (Array.isArray(item.opportunities) && item.opportunities.length > 0) {
+                      opportunities.push(...item.opportunities);
+                      hasFeedbackData = true;
+                    }
+                  });
+                }
+                
+                // Extract findings from summary if feedback is missing or empty
+                if (call.summary && (!hasFeedbackData || positiveFindings.length === 0)) {
+                  const extracted = extractPhrasesFromSummary(call.summary);
+                  if (extracted.positive.length > 0) positiveFindings.push(...extracted.positive);
+                  if (extracted.negative.length > 0) negativeFindings.push(...extracted.negative);
+                  if (extracted.opportunities.length > 0) opportunities.push(...extracted.opportunities);
+                }
               }
+            });
+            
+            // If we still don't have findings, generate some defaults based on general knowledge
+            if (positiveFindings.length === 0 && negativeFindings.length === 0 && opportunities.length === 0) {
+              // Add default findings
+              positiveFindings.push(
+                "Atención al cliente satisfactoria",
+                "Cumplimiento del protocolo de atención", 
+                "Tiempos de respuesta adecuados"
+              );
+              
+              negativeFindings.push(
+                "Falta mayor indagación sobre necesidades específicas", 
+                "Oportunidad de mejorar el cierre de la llamada",
+                "Tiempo de espera podría reducirse"
+              );
+              
+              opportunities.push(
+                "Implementar guiones más personalizados", 
+                "Mejorar técnicas de escucha activa",
+                "Capacitar en ofertas complementarias"
+              );
             }
-          });
-          
-          // If we still don't have findings, generate some defaults based on calls
-          if (calls && calls.length > 0 && 
-              positiveFindings.length === 0 && 
-              negativeFindings.length === 0 && 
-              opportunities.length === 0) {
-            
-            // Add default findings
-            positiveFindings.push(
-              "Atención al cliente satisfactoria",
-              "Cumplimiento del protocolo de atención", 
-              "Tiempos de respuesta adecuados"
-            );
-            
-            negativeFindings.push(
-              "Falta mayor indagación sobre necesidades específicas", 
-              "Oportunidad de mejorar el cierre de la llamada",
-              "Tiempo de espera podría reducirse"
-            );
-            
-            opportunities.push(
-              "Implementar guiones más personalizados", 
-              "Mejorar técnicas de escucha activa",
-              "Capacitar en ofertas complementarias"
-            );
+          } else {
+            // Add default findings for days with no calls
+            positiveFindings.push("No hay datos disponibles para este día");
+            negativeFindings.push("No hay datos disponibles para este día");
+            opportunities.push("No hay datos disponibles para este día");
           }
           
           // Format the daily report
@@ -211,15 +221,16 @@ export function useDailyReports(days = 7) {
               count[finding] = (count[finding] || 0) + 1;
             });
             
-            // If we don't have findings, return empty array
-            if (findings.length === 0) {
-              return [];
+            // If we have findings, return them sorted
+            if (findings.length > 0 && Object.keys(count).length > 0) {
+              return Object.entries(count)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, limit)
+                .map(([finding]) => finding);
             }
             
-            return Object.entries(count)
-              .sort((a, b) => b[1] - a[1])
-              .slice(0, limit)
-              .map(([finding]) => finding);
+            // Return default message if no findings
+            return ["No hay datos disponibles"];
           };
           
           return {
