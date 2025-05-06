@@ -162,7 +162,8 @@ export function useDailyReports(initialDays = 7) {
                 
                 // Handle the feedback correctly whether it's an array or a single object
                 if (Array.isArray(call.feedback)) {
-                  feedbackItems = call.feedback as CallFeedback[];
+                  // Need to type cast each item to ensure TypeScript recognizes the structure
+                  feedbackItems = call.feedback as unknown as CallFeedback[];
                 } else {
                   // Cast to the correct type
                   feedbackItems = [call.feedback as unknown as CallFeedback];
@@ -279,14 +280,15 @@ export function useDailyReports(initialDays = 7) {
             if (call.feedback) {
               // Fix the type check for the feedback data
               if (Array.isArray(call.feedback)) {
-                call.feedback.forEach((item: any) => {
+                // Type the items correctly to access score property
+                (call.feedback as unknown as { score?: number }[]).forEach((item) => {
                   if (item && typeof item.score === 'number') {
                     previousScore += item.score;
                     previousScoreCount++;
                   }
                 });
-              } else if (call.feedback && typeof call.feedback.score === 'number') {
-                previousScore += call.feedback.score;
+              } else if (call.feedback && typeof (call.feedback as unknown as { score?: number }).score === 'number') {
+                previousScore += (call.feedback as unknown as { score: number }).score;
                 previousScoreCount++;
               }
             }
