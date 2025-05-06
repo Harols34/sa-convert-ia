@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, X, RefreshCcw, Trash2 } from "lucide-react";
@@ -71,12 +72,13 @@ export default function CallList() {
 
   // Modified to ensure search is applied immediately
   const handleFilterChange = useCallback((newFilters: any) => {
-    console.log("Filter change triggered:", newFilters);
+    console.log("Cambio de filtro detectado:", newFilters);
     setFilters(newFilters);
     setCurrentPage(1); // Reset to first page on filter change
     
     // Important: Call fetchCalls right away with new filters
-    fetchCalls(newFilters);
+    // Esta línea es crucial para aplicar los filtros inmediatamente
+    fetchCalls(newFilters, true); // Forzar actualización de datos
   }, [fetchCalls]);
 
   const handlePageSizeChange = useCallback((value: string) => {

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Search, Filter, Calendar, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -102,11 +103,11 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
   
   // Apply filters whenever they change
   useEffect(() => {
-    console.log("Applying filters:", filters);
+    console.log("Aplicando filtros:", filters);
     onFilterChange(filters);
   }, [filters, onFilterChange]);
   
-  // Optimized search with short debounce for responsiveness - 150ms is more responsive than 250ms
+  // Optimized search with even shorter debounce (100ms) para mayor rapidez
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setSearchInputValue(newValue);
@@ -116,11 +117,11 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
       clearTimeout(searchTimeout);
     }
     
-    // Create new timeout with shorter delay (150ms)
+    // Create new timeout with shorter delay (100ms)
     const newTimeout = setTimeout(() => {
-      console.log("Applying search from input:", newValue);
+      console.log("Aplicando búsqueda desde input:", newValue);
       setFilters(prev => ({ ...prev, search: newValue }));
-    }, 150);
+    }, 100);
     
     setSearchTimeout(newTimeout);
   };
@@ -131,7 +132,7 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
       if (searchTimeout) {
         clearTimeout(searchTimeout);
       }
-      console.log("Search on Enter key:", searchInputValue);
+      console.log("Búsqueda inmediata con tecla Enter:", searchInputValue);
       setFilters(prev => ({ ...prev, search: searchInputValue }));
     }
   };

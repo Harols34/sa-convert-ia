@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Call, Feedback, BehaviorAnalysis } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -93,12 +94,13 @@ export function useCallList() {
         }
       }
 
-      // Fixed search implementation - CRITICAL FIX
+      // Implementación corregida del filtro de búsqueda
       if (filters.search && filters.search.trim() !== '') {
         const searchTerm = filters.search.trim().toLowerCase();
-        console.log("Searching for term:", searchTerm);
+        console.log("Buscando por término:", searchTerm);
 
-        // Corrected or() usage - use filter pattern syntax instead of multiple arguments
+        // La forma correcta de usar or() en Supabase es con un string de filtros separados por comas
+        // https://supabase.com/docs/reference/javascript/or
         query = query.or(`title.ilike.%${searchTerm}%,agent_name.ilike.%${searchTerm}%,filename.ilike.%${searchTerm}%`);
       }
 
