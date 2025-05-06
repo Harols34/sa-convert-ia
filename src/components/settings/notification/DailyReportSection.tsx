@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,19 +50,27 @@ const DailyReportSection: React.FC<DailyReportSectionProps> = ({
 
   // Function to get badge variant based on trend
   const getBadgeVariant = (trend: string | undefined) => {
-    switch(trend) {
-      case "up": return "success";
-      case "down": return "destructive";
-      default: return null; // We'll not render a badge for stable
+    switch (trend) {
+      case "up":
+        return "success";
+      case "down":
+        return "destructive";
+      default:
+        return null;
+      // We'll not render a badge for stable
     }
   };
 
   // Function to get trend text
   const getTrendText = (trend: string | undefined) => {
-    switch(trend) {
-      case "up": return "Mejora";
-      case "down": return "Declive";
-      default: return null; // No text for stable
+    switch (trend) {
+      case "up":
+        return "Mejora";
+      case "down":
+        return "Declive";
+      default:
+        return null;
+      // No text for stable
     }
   };
 
@@ -100,9 +107,7 @@ const DailyReportSection: React.FC<DailyReportSectionProps> = ({
                     </DropdownMenuItem>)}
                 </DropdownMenuContent>
               </DropdownMenu> : <Select value={selectedDays.toString()} onValueChange={value => onChangeDateRange(parseInt(value))}>
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="7 días" />
-                </SelectTrigger>
+                
                 <SelectContent>
                   {dateRangeOptions.map(option => <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -130,11 +135,9 @@ const DailyReportSection: React.FC<DailyReportSectionProps> = ({
                         </span> : null}
                     </h3>
                     {/* Show badge only for up or down trends, not for stable */}
-                    {getBadgeVariant(report.trend) && getTrendText(report.trend) && (
-                      <Badge className={`${report.trend === "up" ? "bg-green-500" : "bg-destructive"}`}>
+                    {getBadgeVariant(report.trend) && getTrendText(report.trend) && <Badge className={`${report.trend === "up" ? "bg-green-500" : "bg-destructive"}`}>
                         {getTrendText(report.trend)}
-                      </Badge>
-                    )}
+                      </Badge>}
                   </div>
                   
                   {report.callCount && report.callCount > 0 ? <>
