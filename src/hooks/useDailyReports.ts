@@ -19,6 +19,79 @@ export function useDailyReports(initialDays = 7) {
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState<number>(initialDays);
 
+  // Function to generate AI insights based on call data
+  const generateInsights = (
+    positiveFindings: string[], 
+    negativeFindings: string[], 
+    averageScore: number, 
+    callCount: number
+  ) => {
+    // Generate dynamic insights based on data
+    const insights = {
+      summary: "",
+      recommendations: []
+    };
+    
+    // Generate dynamic summary based on score and trends
+    if (callCount === 0) {
+      insights.summary = "No hay llamadas disponibles para análisis en este periodo.";
+      insights.recommendations = ["Carga llamadas para empezar a ver análisis personalizados."];
+      return insights;
+    }
+    
+    // Dynamic summary generation based on score ranges
+    if (averageScore >= 80) {
+      insights.summary = `Excelente desempeño con un score promedio de ${averageScore}. Se observa buena atención y resolución en la mayoría de las ${callCount} llamadas analizadas.`;
+    } else if (averageScore >= 60) {
+      insights.summary = `Desempeño adecuado con un score promedio de ${averageScore}. Las ${callCount} llamadas analizadas muestran áreas de oportunidad específicas.`;
+    } else if (averageScore > 0) {
+      insights.summary = `Se requiere atención en varios aspectos con un score promedio de ${averageScore}. Las ${callCount} llamadas analizadas indican necesidades de mejora.`;
+    } else {
+      insights.summary = `No se pudo calcular un score preciso para las ${callCount} llamadas analizadas. Se recomienda revisar manualmente la calidad de atención.`;
+    }
+    
+    // Generate recommendations based on the most common negative findings
+    const countIssues: Record<string, number> = {};
+    negativeFindings.forEach(issue => {
+      if (!issue) return;
+      countIssues[issue] = (countIssues[issue] || 0) + 1;
+    });
+    
+    // Sort issues by frequency
+    const sortedIssues = Object.entries(countIssues)
+      .sort(([, countA], [, countB]) => countB - countA)
+      .slice(0, 3)
+      .map(([issue]) => issue);
+    
+    if (sortedIssues.length > 0) {
+      insights.recommendations = sortedIssues.map(issue => {
+        const recommendationPrefix = [
+          "Se recomienda mejorar",
+          "Es importante trabajar en",
+          "Enfoque la capacitación en",
+          "Preste especial atención a"
+        ];
+        const recommendationSuffix = [
+          "para incrementar la satisfacción del cliente",
+          "para mejorar los resultados generales",
+          "lo cual impactará positivamente los KPIs",
+          "para optimizar la experiencia del usuario"
+        ];
+        
+        const prefix = recommendationPrefix[Math.floor(Math.random() * recommendationPrefix.length)];
+        const suffix = recommendationSuffix[Math.floor(Math.random() * recommendationSuffix.length)];
+        
+        return `${prefix} "${issue.toLowerCase()}" ${suffix}.`;
+      });
+    } else if (positiveFindings.length > 0) {
+      insights.recommendations = ["Mantener los aspectos positivos y trabajar en áreas de oportunidad específicas."];
+    } else {
+      insights.recommendations = ["Revisar manualmente las llamadas para identificar áreas de mejora."];
+    }
+    
+    return insights;
+  };
+  
   // Function to fetch reports based on the number of days
   const fetchReports = useCallback(async (daysToFetch = days) => {
     setIsLoading(true);
@@ -303,7 +376,15 @@ export function useDailyReports(initialDays = 7) {
           else if (averageScore < previousAvg - 5) trend = "down";
         }
         
-        // Return daily report with all required fields
+        // Generate dynamic AI insights
+        const insights = generateInsights(
+          positiveFindings,
+          negativeFindings,
+          averageScore,
+          calls?.length || 0
+        );
+        
+        // Return daily report with all required fields, including new AI insights
         return {
           date: formattedDate,
           callCount: calls?.length || 0,
@@ -325,6 +406,11 @@ export function useDailyReports(initialDays = 7) {
             positive: getTopFindings(positiveFindings),
             negative: getTopFindings(negativeFindings),
             opportunities: getTopFindings(opportunities)
+          },
+          // New fields for AI-generated insights
+          aiInsights: {
+            summary: insights.summary,
+            recommendations: insights.recommendations
           }
         };
       });
@@ -355,10 +441,44 @@ export function useDailyReports(initialDays = 7) {
     return () => clearInterval(intervalId);
   }, [initialDays, fetchReports]);
   
+  // Generate global analysis based on all reports
+  const getGlobalAnalysis = useCallback(() => {
+    if (!reports || reports.length === 0) {
+      return {
+        summary: "No hay datos suficientes para generar un análisis global.",
+        recommendations: ["Cargue llamadas para comenzar a ver análisis personalizados."]
+      };
+    }
+    
+    // Aggregate data from all reports
+    const totalCalls = reports.reduce((sum, report) => sum + report.callCount, 0);
+    const totalIssues = reports.reduce((sum, report) => sum + report.issuesCount, 0);
+    const weightedScoreSum = reports.reduce((sum, report) => 
+      sum + (report.averageScore * report.callCount), 0);
+    const averageScore = totalCalls > 0 ? Math.round(weightedScoreSum / totalCalls) : 0;
+    
+    // Collect all findings
+    const allPositiveFindings: string[] = [];
+    const allNegativeFindings: string[] = [];
+    reports.forEach(report => {
+      if (report.topFindings?.positive) allPositiveFindings.push(...report.topFindings.positive);
+      if (report.topFindings?.negative) allNegativeFindings.push(...report.topFindings.negative);
+    });
+    
+    // Generate insights using the same function as for daily reports
+    return generateInsights(
+      allPositiveFindings,
+      allNegativeFindings,
+      averageScore,
+      totalCalls
+    );
+  }, [reports]);
+  
   return {
     reports,
     isLoading,
     error,
-    fetchReports // Expose the fetch function to allow manual updates
+    fetchReports, // Expose the fetch function to allow manual updates
+    getGlobalAnalysis // New function to get global analysis
   };
 }

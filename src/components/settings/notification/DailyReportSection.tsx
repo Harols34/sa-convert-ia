@@ -1,191 +1,294 @@
-
-import React from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { BarChart, Calendar, ChevronDown } from "lucide-react";
+import React, { useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { ArrowDown, ArrowUp, MessageSquare, Minus, Calendar, Phone } from "lucide-react";
 import { DailyReport } from "@/components/settings/notification/types";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export interface DailyReportSectionProps {
+interface DailyReportSectionProps {
   reports: DailyReport[];
-  loadingReports: boolean;
-  onViewHistory: () => void;
-  onChangeDateRange: (days: number) => void;
-  selectedDays: number;
-  isDropdown: boolean;
-  showDateSelector?: boolean;
-  hasCalls?: boolean;
+  isLoading: boolean;
+  error: string | null;
+  onReload?: () => void;
+  onViewHistory?: () => void;
 }
 
-const DailyReportSection: React.FC<DailyReportSectionProps> = ({
-  reports,
-  loadingReports,
-  onViewHistory,
-  onChangeDateRange,
-  selectedDays,
-  isDropdown,
-  showDateSelector = true,
-  hasCalls = true // Default to true to show data
-}) => {
-  // Get today's date for display
-  const today = new Date();
-  const formattedDate = format(today, "dd MMMM yyyy", { locale: es });
-
-  // Format date for daily reports
-  const formatReportDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return format(date, "dd MMM yyyy", { locale: es });
-    } catch (error) {
-      console.error("Error formatting date:", error);
-      return dateString || "Fecha desconocida";
+const formatReportDate = (dateStr: string) => {
+  try {
+    // Check if the date is already in the format "dd MMMM yyyy"
+    if (dateStr.match(/^\d{2} [a-zA-Z]+ \d{4}$/)) {
+      return dateStr;
     }
-  };
+    
+    // Otherwise, parse the date and format it
+    const date = new Date(dateStr);
+    return format(date, 'dd MMMM yyyy', { locale: es });
+  } catch (err) {
+    console.error("Error formatting date:", err);
+    return dateStr;
+  }
+};
 
-  // Date range options
-  const dateRangeOptions = [
-    { value: "7", label: "7 días" },
-    { value: "15", label: "15 días" },
-    { value: "30", label: "30 días" },
-    { value: "90", label: "90 días" }
-  ];
-
-  // Get the latest report if available
-  const latestReport = reports && reports.length > 0 ? reports[0] : null;
+const DailyReportSection: React.FC<DailyReportSectionProps> = ({ 
+  reports, 
+  isLoading, 
+  error, 
+  onReload, 
+  onViewHistory 
+}) => {
+  const [expandedReportIndex, setExpandedReportIndex] = useState<number | null>(null);
   
-  // Check if we have any data with calls
-  const hasAnyCallData = reports && reports.some(report => report.callCount && report.callCount > 0);
+  const toggleReport = (index: number) => {
+    setExpandedReportIndex(expandedReportIndex === index ? null : index);
+  };
+  
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle>Reportes Diarios</CardTitle>
+          <CardDescription>Análisis de los últimos 7 días</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {Array(3).fill(0).map((_, i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-6 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  if (error) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle>Reportes Diarios</CardTitle>
+          <CardDescription>Análisis de los últimos 7 días</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="p-4 border border-red-200 bg-red-50 text-red-700 rounded-md">
+            {error}
+            {onReload && (
+              <Button 
+                variant="outline" 
+                onClick={onReload}
+                className="mt-2"
+              >
+                Reintentar
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  if (!reports || reports.length === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle>Reportes Diarios</CardTitle>
+          <CardDescription>Análisis de los últimos 7 días</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center p-6 text-center">
+            <Calendar className="h-10 w-10 text-muted-foreground mb-2" />
+            <h3 className="font-medium text-lg mb-2">No hay reportes disponibles</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              No hay llamadas analizadas en los últimos días.
+            </p>
+            {onReload && (
+              <Button 
+                variant="outline" 
+                onClick={onReload}
+              >
+                Actualizar
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between pb-2">
         <div>
-          <CardTitle className="text-xl">Reporte Diario</CardTitle>
-          <CardDescription>Resumen de actividad reciente</CardDescription>
+          <CardTitle>Reportes Diarios</CardTitle>
+          <CardDescription>Análisis de los últimos {reports.length} días</CardDescription>
         </div>
         <div className="flex space-x-2">
-          {showDateSelector && (
-            isDropdown ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    {selectedDays} días <ChevronDown className="ml-1 h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {dateRangeOptions.map((option) => (
-                    <DropdownMenuItem 
-                      key={option.value}
-                      onClick={() => onChangeDateRange(parseInt(option.value))}
-                    >
-                      {option.label}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <Select 
-                value={selectedDays.toString()} 
-                onValueChange={(value) => onChangeDateRange(parseInt(value))}
-              >
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="7 días" />
-                </SelectTrigger>
-                <SelectContent>
-                  {dateRangeOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )
+          {onReload && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={onReload}
+            >
+              Actualizar
+            </Button>
           )}
-          <Button variant="outline" size="sm" onClick={onViewHistory}>
-            <BarChart className="mr-2 h-4 w-4" />
-            Ver Historial
-          </Button>
+          {onViewHistory && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={onViewHistory}
+            >
+              Ver Historial
+            </Button>
+          )}
         </div>
       </CardHeader>
-      <CardContent>
-        {loadingReports ? (
-          <div className="space-y-4">
-            <Skeleton className="w-full h-6" />
-            <Skeleton className="w-full h-24" />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {reports && reports.length > 0 ? (
-              reports.filter(report => report.callCount > 0).length > 0 ? (
-                reports.filter(report => report.callCount > 0).map((report, index) => (
-                  <div key={index} className="pb-4 border-b last:border-0">
-                    <div className="flex justify-between items-center mb-2">
-                      <h3 className="font-medium flex items-center">
-                        <Calendar className="mr-2 h-4 w-4" />
-                        {formatReportDate(report.date)} 
-                        <span className="text-sm font-normal text-muted-foreground ml-2">
-                          - {report.callCount} llamada{report.callCount !== 1 ? 's' : ''}
-                        </span>
-                      </h3>
-                      {report.trend === "up" ? (
-                        <span className="text-green-600 text-sm">▲ Mejora</span>
-                      ) : report.trend === "down" ? (
-                        <span className="text-destructive text-sm">▼ Retroceso</span>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">• Estable</span>
-                      )}
+      <CardContent className="space-y-4">
+        {reports.map((report, index) => (
+          <div 
+            key={index} 
+            className="border rounded-lg overflow-hidden"
+          >
+            <div 
+              className="flex justify-between items-center p-4 cursor-pointer hover:bg-muted/50"
+              onClick={() => toggleReport(index)}
+            >
+              <div className="flex items-center space-x-4">
+                <div className="flex flex-col">
+                  <span className="font-medium">{formatReportDate(report.date)}</span>
+                  <span className="text-sm text-muted-foreground flex items-center">
+                    <Phone className="h-3 w-3 mr-1" />
+                    {report.callCount} llamadas
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="flex flex-col items-end">
+                  <div className="flex items-center">
+                    <span className="font-semibold">
+                      {report.averageScore ? `${report.averageScore}%` : 'N/A'}
+                    </span>
+                    <div className="ml-2">
+                      {report.trend === "up" && <ArrowUp className="text-green-500 h-4 w-4" />}
+                      {report.trend === "down" && <ArrowDown className="text-red-500 h-4 w-4" />}
+                      {report.trend === "stable" && <Minus className="text-amber-500 h-4 w-4" />}
                     </div>
-                    
-                    <h4 className="text-sm font-medium mb-1">Hallazgos principales:</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <div>
-                        <h5 className="text-xs font-medium text-muted-foreground">Aspectos positivos:</h5>
-                        <ul className="text-xs list-disc list-inside">
-                          {report.topFindings?.positive?.slice(0, 3).map((finding, i) => (
-                            <li key={i}>{finding}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <h5 className="text-xs font-medium text-muted-foreground">Aspectos negativos:</h5>
-                        <ul className="text-xs list-disc list-inside">
-                          {report.topFindings?.negative?.slice(0, 3).map((finding, i) => (
-                            <li key={i}>{finding}</li>
-                          ))}
-                        </ul>
-                      </div>
+                  </div>
+                  <Badge 
+                    variant={report.issuesCount > 0 ? "destructive" : "default"} 
+                    className="text-xs"
+                  >
+                    {report.issuesCount} problemas
+                  </Badge>
+                </div>
+                <Button variant="ghost" size="icon">
+                  {expandedReportIndex === index ? (
+                    <ArrowUp className="h-4 w-4" />
+                  ) : (
+                    <ArrowDown className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+            
+            {expandedReportIndex === index && (
+              <div className="p-4 border-t bg-muted/20">
+                {/* AI-generated insights section */}
+                <div className="mb-4 p-3 bg-primary/5 rounded-md">
+                  <div className="flex items-start mb-2">
+                    <MessageSquare className="h-5 w-5 text-primary mr-2 mt-1" />
+                    <div>
+                      <h4 className="font-medium text-sm">Análisis Personalizado por IA</h4>
+                      <p className="text-sm mt-1">{report.aiInsights?.summary || "No hay análisis disponible para este día."}</p>
                     </div>
-                    
-                    <div className="mt-2">
-                      <h5 className="text-xs font-medium text-muted-foreground">Oportunidades de mejora:</h5>
-                      <ul className="text-xs list-disc list-inside">
-                        {report.topFindings?.opportunities?.slice(0, 2).map((opportunity, i) => (
-                          <li key={i}>{opportunity}</li>
+                  </div>
+                  
+                  {report.aiInsights?.recommendations && report.aiInsights.recommendations.length > 0 && (
+                    <div className="mt-3">
+                      <h5 className="text-sm font-medium mb-1">Recomendaciones:</h5>
+                      <ul className="space-y-1">
+                        {report.aiInsights.recommendations.map((recommendation, i) => (
+                          <li key={i} className="text-sm pl-4 relative before:content-['•'] before:absolute before:left-0 before:top-0">
+                            {recommendation}
+                          </li>
                         ))}
                       </ul>
                     </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-6">
-                  <p className="text-muted-foreground">No hay llamadas registradas en el período seleccionado.</p>
-                  <p className="text-sm text-muted-foreground mt-1">Sube grabaciones para empezar a ver análisis diarios.</p>
+                  )}
                 </div>
-              )
-            ) : (
-              <div className="text-center py-6">
-                <p className="text-muted-foreground">No hay datos disponibles para el período seleccionado.</p>
-                <Button variant="outline" size="sm" className="mt-4" onClick={onViewHistory}>
-                  Explorar historial completo
-                </Button>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">Aspectos Positivos</h4>
+                    <ul className="space-y-1">
+                      {report.topFindings?.positive.map((finding, i) => (
+                        <li key={i} className="text-sm text-green-600 pl-4 relative before:content-['✓'] before:absolute before:left-0 before:top-0">
+                          {finding}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">Aspectos Negativos</h4>
+                    <ul className="space-y-1">
+                      {report.topFindings?.negative.map((finding, i) => (
+                        <li key={i} className="text-sm text-red-600 pl-4 relative before:content-['✗'] before:absolute before:left-0 before:top-0">
+                          {finding}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                
+                {report.callCount > 0 && report.agents && report.agents.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="font-medium text-sm mb-2">Agentes</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {report.agents.slice(0, 4).map((agent, i) => (
+                        <div key={i} className="flex justify-between items-center text-sm p-2 bg-background rounded border">
+                          <span>{agent.name}</span>
+                          <div className="flex items-center">
+                            <span className="text-muted-foreground mr-2">{agent.callCount} llamadas</span>
+                            <Badge variant={agent.averageScore >= 70 ? "default" : "outline"}>
+                              {agent.averageScore}%
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {report.agents.length > 4 && (
+                      <p className="text-xs text-center mt-1 text-muted-foreground">
+                        Y {report.agents.length - 4} agentes más
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                {report.topFindings?.opportunities && report.topFindings.opportunities.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="font-medium text-sm mb-2">Oportunidades de Mejora</h4>
+                    <ul className="space-y-1">
+                      {report.topFindings.opportunities.map((opportunity, i) => (
+                        <li key={i} className="text-sm text-amber-600 pl-4 relative before:content-['→'] before:absolute before:left-0 before:top-0">
+                          {opportunity}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
+        ))}
       </CardContent>
     </Card>
   );

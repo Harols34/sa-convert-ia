@@ -2,7 +2,7 @@
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AreaChart } from "lucide-react";
+import { AreaChart, MessageSquare } from "lucide-react";
 import { DailyReport } from "@/components/settings/notification/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AreaChart as RechartAreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -16,6 +16,10 @@ export interface GlobalAnalysisSectionProps {
   selectedDays: number;
   isDropdown: boolean;
   hasCalls?: boolean;
+  globalInsights?: {
+    summary: string;
+    recommendations: string[];
+  };
 }
 
 const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
@@ -25,7 +29,8 @@ const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
   onChangeDateRange,
   selectedDays,
   isDropdown,
-  hasCalls = true // Default to true to show data
+  hasCalls = true,
+  globalInsights
 }) => {
   // Calculate global metrics from reports
   const calculateMetrics = () => {
@@ -117,6 +122,32 @@ const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
           </div>
         ) : hasCallData ? (
           <div className="space-y-6">
+            {/* AI Insights Section for Global Analysis */}
+            {globalInsights && (
+              <div className="p-4 bg-primary/5 rounded-md border mb-4">
+                <div className="flex items-start mb-3">
+                  <MessageSquare className="h-5 w-5 text-primary mr-2 mt-1" />
+                  <div>
+                    <h4 className="font-medium">Análisis de IA para el periodo de {selectedDays} días</h4>
+                    <p className="text-sm mt-1">{globalInsights.summary}</p>
+                  </div>
+                </div>
+                
+                {globalInsights.recommendations && globalInsights.recommendations.length > 0 && (
+                  <div className="mt-3">
+                    <h5 className="text-sm font-medium mb-1">Recomendaciones:</h5>
+                    <ul className="space-y-1">
+                      {globalInsights.recommendations.map((recommendation, i) => (
+                        <li key={i} className="text-sm pl-4 relative before:content-['•'] before:absolute before:left-0 before:top-0">
+                          {recommendation}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="p-4 bg-card rounded-lg border shadow-sm">
                 <p className="text-sm font-medium text-muted-foreground">Total Llamadas</p>
@@ -155,6 +186,45 @@ const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
                     <Area type="monotone" dataKey="score" stroke="#03A678" fill="#03A678" fillOpacity={0.2} name="Score" />
                   </RechartAreaChart>
                 </ResponsiveContainer>
+              </div>
+            )}
+            
+            {/* Positive and negative findings summary */}
+            {reports.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div className="border rounded-md p-4">
+                  <h4 className="font-medium mb-2">Principales Aspectos Positivos</h4>
+                  <ul className="space-y-1">
+                    {Array.from(new Set(reports.flatMap(r => r.topFindings?.positive || [])
+                      .filter(item => item !== "No hay datos disponibles")))
+                      .slice(0, 5)
+                      .map((finding, i) => (
+                        <li key={i} className="text-sm text-green-600 pl-4 relative before:content-['✓'] before:absolute before:left-0 before:top-0">
+                          {finding}
+                        </li>
+                      ))}
+                    {reports.flatMap(r => r.topFindings?.positive || []).filter(item => item !== "No hay datos disponibles").length === 0 && (
+                      <li className="text-sm text-muted-foreground">No hay datos suficientes</li>
+                    )}
+                  </ul>
+                </div>
+                
+                <div className="border rounded-md p-4">
+                  <h4 className="font-medium mb-2">Principales Aspectos a Mejorar</h4>
+                  <ul className="space-y-1">
+                    {Array.from(new Set(reports.flatMap(r => r.topFindings?.negative || [])
+                      .filter(item => item !== "No hay datos disponibles")))
+                      .slice(0, 5)
+                      .map((finding, i) => (
+                        <li key={i} className="text-sm text-red-600 pl-4 relative before:content-['✗'] before:absolute before:left-0 before:top-0">
+                          {finding}
+                        </li>
+                      ))}
+                    {reports.flatMap(r => r.topFindings?.negative || []).filter(item => item !== "No hay datos disponibles").length === 0 && (
+                      <li className="text-sm text-muted-foreground">No hay datos suficientes</li>
+                    )}
+                  </ul>
+                </div>
               </div>
             )}
           </div>
