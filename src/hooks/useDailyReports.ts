@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays } from "date-fns";
@@ -240,8 +241,9 @@ export function useDailyReports(initialDays = 7) {
           opportunities.push("No hay datos disponibles para este día");
         }
         
-        // Format the daily report
-        const formattedDate = format(new Date(dateStr), 'dd MMMM yyyy', { locale: es });
+        // Format the daily report - Use the actual date value for the formatted date
+        const reportDate = new Date(dateStr);
+        const formattedDate = format(reportDate, 'dd MMMM yyyy', { locale: es });
         
         // Count occurrences of each finding and take the top 5
         const getTopFindings = (findings: string[], limit = 5) => {
