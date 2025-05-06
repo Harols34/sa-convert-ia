@@ -1,10 +1,8 @@
 
 import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Loader2, BarChart3 } from "lucide-react";
 import { DailyReport } from "@/hooks/useDailyReports";
-import { useNavigate } from "react-router-dom";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface DailyReportSectionProps {
@@ -22,19 +20,10 @@ export default function DailyReportSection({
   onChangeDateRange,
   selectedDays
 }: DailyReportSectionProps) {
-  const navigate = useNavigate();
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
   
   // Get reports to display (limit to 7 by default)
   const displayReports = reports.slice(0, 7);
-  
-  const handleViewHistory = () => {
-    if (onViewHistory) {
-      onViewHistory();
-    } else {
-      navigate("/calls");
-    }
-  };
   
   const toggleExpandReport = (date: string) => {
     if (expandedReport === date) {
@@ -133,12 +122,6 @@ export default function DailyReportSection({
                 )}
               </div>
             ))}
-            
-            <div className="flex justify-end pt-2">
-              <Button variant="outline" size="sm" onClick={handleViewHistory}>
-                Ver historial completo
-              </Button>
-            </div>
           </div>
         )}
       </CardContent>

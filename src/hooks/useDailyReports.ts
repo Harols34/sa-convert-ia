@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays } from "date-fns";
@@ -51,8 +50,8 @@ export function useDailyReports(initialDays = 7) {
           const today = new Date();
           // Set time to beginning of day to avoid timezone issues
           today.setHours(0, 0, 0, 0);
-          // Start from current day and go back
-          const date = addDays(today, -i);
+          // Add +1 day to fix date offset issue and show the current day correctly
+          const date = addDays(today, 1 - i);
           return format(date, 'yyyy-MM-dd');
         });
       } else {
@@ -241,7 +240,7 @@ export function useDailyReports(initialDays = 7) {
           opportunities.push("No hay datos disponibles para este día");
         }
         
-        // Format the daily report - Use the actual date value for the formatted date
+        // Format the daily report - Use the actual date value for the formatted date with +1 day
         const reportDate = new Date(dateStr);
         const formattedDate = format(reportDate, 'dd MMMM yyyy', { locale: es });
         
