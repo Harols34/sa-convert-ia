@@ -131,16 +131,43 @@ export function useAudioSettings() {
         auto_feedback: newSettings.auto_feedback,
         updated_at: new Date().toISOString()
       };
-      const { error } = await supabase
+      
+      console.log("Guardando configuraciones:", dbData);
+      
+      // Primero, verifica si ya existe una configuración para este usuario
+      const { data: existingSettings } = await supabase
         .from('user_settings')
-        .upsert(dbData, { onConflict: 'user_id' });
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+        
+      let error;
+        
+      if (existingSettings) {
+        // Si existe, actualízala
+        const result = await supabase
+          .from('user_settings')
+          .update(dbData)
+          .eq('user_id', user.id);
+          
+        error = result.error;
+      } else {
+        // Si no existe, créala
+        const result = await supabase
+          .from('user_settings')
+          .insert([dbData]);
+          
+        error = result.error;
+      }
+      
       if (error) {
         throw error;
       }
+      
       setSettings(newSettings);
       localStorage.setItem('audio-settings', JSON.stringify(newSettings));
       toast.success("Configuraciones guardadas correctamente");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al guardar configuraciones:", error);
       toast.error("Error al guardar configuraciones");
     } finally {
@@ -157,6 +184,7 @@ export function useAudioSettings() {
   
   const resetSettings = useCallback(() => {
     setSettings(defaultSettings);
+    toast.info("Configuraciones restablecidas a los valores predeterminados");
   }, []);
   
   return {

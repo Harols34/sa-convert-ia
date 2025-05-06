@@ -9,9 +9,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useUser } from "@/hooks/useUser";
+import { useAuth } from "@/context/AuthContext";
 
 export default function ProfileSection() {
   const { user, isLoading: loadingUser } = useUser();
+  const { session } = useAuth();
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const [profileData, setProfileData] = useState({
@@ -23,11 +25,11 @@ export default function ProfileSection() {
   // Cargar datos del perfil
   useEffect(() => {
     if (user) {
-      // Actualizar datos básicos
+      // Actualizar datos básicos - usar el correo electrónico de la sesión si está disponible
       setProfileData(prev => ({
         ...prev,
         fullName: user.full_name || "",
-        email: user.email || "",
+        email: session?.user?.email || user.email || "",
       }));
 
       // Cargar biografía
@@ -50,7 +52,7 @@ export default function ProfileSection() {
       
       fetchBiography();
     }
-  }, [user]);
+  }, [user, session]);
 
   // Función para guardar perfil
   const saveProfile = async () => {

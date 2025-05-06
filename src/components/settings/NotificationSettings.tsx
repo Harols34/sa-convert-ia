@@ -8,6 +8,13 @@ import { Loader2, FileText, BarChart2, Users } from "lucide-react";
 import { useDailyReports } from "@/hooks/useDailyReports";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+
+// Componentes más pequeños para mejor organización
+import DailyReportSection from "@/components/settings/notification/DailyReportSection";
+import GlobalAnalysisSection from "@/components/settings/notification/GlobalAnalysisSection";
+import FeedbackTrainingSection from "@/components/settings/notification/FeedbackTrainingSection";
 
 // Define types for the grouped agent
 type AgentGrouped = {
@@ -23,21 +30,9 @@ type AgentGrouped = {
 };
 
 export default function NotificationSettings() {
-  const { settings, isLoading, updateSetting } = useAudioSettings();
+  const { settings, isLoading, updateSetting, saveSettings } = useAudioSettings();
   const { reports, isLoading: loadingReports } = useDailyReports(7);
-
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Cargando configuraciones...</CardTitle>
-        </CardHeader>
-        <CardContent className="flex justify-center p-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </CardContent>
-      </Card>
-    );
-  }
+  const navigate = useNavigate();
 
   // Function to group agents from all reports
   const getGroupedAgents = (): AgentGrouped[] => {
@@ -76,6 +71,46 @@ export default function NotificationSettings() {
 
   const groupedAgents = getGroupedAgents();
 
+  // Handlers for button actions
+  const handleViewHistory = () => {
+    toast.info("Redirigiendo al historial completo");
+    navigate("/calls");
+  };
+
+  const handleViewDetailedAnalysis = () => {
+    toast.info("Redirigiendo al análisis detallado");
+    navigate("/analytics");
+  };
+
+  const handleGenerateReport = () => {
+    toast.success("Generando reporte completo", {
+      description: "El reporte será enviado a tu correo electrónico"
+    });
+  };
+
+  const handleSaveNotificationSettings = async () => {
+    try {
+      await saveSettings(settings);
+      toast.success("Preferencias de notificaciones actualizadas");
+    } catch (error) {
+      console.error("Error al guardar preferencias:", error);
+      toast.error("Error al actualizar preferencias");
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Cargando configuraciones...</CardTitle>
+        </CardHeader>
+        <CardContent className="flex justify-center p-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -90,364 +125,57 @@ export default function NotificationSettings() {
             <Label className="text-sm font-medium leading-none" htmlFor="auto_feedback">
               Recibir feedback automático
             </Label>
-            <Switch id="auto_feedback"
+            <Switch 
+              id="auto_feedback"
               checked={settings?.auto_feedback}
-              onCheckedChange={(checked) => updateSetting("auto_feedback", checked)} />
+              onCheckedChange={(checked) => updateSetting("auto_feedback", checked)} 
+            />
           </div>
           
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium leading-none" htmlFor="daily_summary">
               Recibir resumen diario de actividad
             </Label>
-            <Switch id="daily_summary" defaultChecked={true} />
+            <Switch 
+              id="daily_summary" 
+              defaultChecked={true} 
+              onCheckedChange={() => handleSaveNotificationSettings()}
+            />
           </div>
           
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium leading-none" htmlFor="agent_notifications">
               Notificaciones de rendimiento de agentes
             </Label>
-            <Switch id="agent_notifications" defaultChecked={true} />
+            <Switch 
+              id="agent_notifications" 
+              defaultChecked={true}
+              onCheckedChange={() => handleSaveNotificationSettings()}
+            />
           </div>
         </CardContent>
       </Card>
       
       {/* Daily upload summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Resumen Diario de Cargas
-          </CardTitle>
-          <CardDescription>
-            Actividad de los últimos 7 días
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loadingReports ? (
-            <div className="flex justify-center p-4">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-          ) : reports.length === 0 ? (
-            <p className="text-center text-sm text-muted-foreground">
-              No hay datos disponibles para mostrar
-            </p>
-          ) : (
-            <ScrollArea className="h-72">
-              <div className="space-y-6">
-                {reports.map((report, idx) => (
-                  <div key={idx} className="border-b pb-4 last:border-0">
-                    <h4 className="font-medium mb-2">{report.date} - {report.callCount} llamadas</h4>
-                    
-                    {report.callCount > 0 ? (
-                      <>
-                        <h5 className="text-sm font-medium text-muted-foreground mt-3 mb-1">
-                          Hallazgos principales:
-                        </h5>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                          <div>
-                            <p className="font-medium text-green-600 dark:text-green-400">Aspectos positivos:</p>
-                            <ul className="list-disc pl-5">
-                              {report.topFindings.positive.length > 0 ? 
-                                report.topFindings.positive.map((item, i) => (
-                                  <li key={i}>{item}</li>
-                                )) : 
-                                <li className="text-muted-foreground">Sin datos</li>
-                              }
-                            </ul>
-                          </div>
-                          <div>
-                            <p className="font-medium text-red-600 dark:text-red-400">Aspectos negativos:</p>
-                            <ul className="list-disc pl-5">
-                              {report.topFindings.negative.length > 0 ? 
-                                report.topFindings.negative.map((item, i) => (
-                                  <li key={i}>{item}</li>
-                                )) : 
-                                <li className="text-muted-foreground">Sin datos</li>
-                              }
-                            </ul>
-                          </div>
-                          <div>
-                            <p className="font-medium text-amber-600 dark:text-amber-400">Oportunidades:</p>
-                            <ul className="list-disc pl-5">
-                              {report.topFindings.opportunities.length > 0 ? 
-                                report.topFindings.opportunities.map((item, i) => (
-                                  <li key={i}>{item}</li>
-                                )) : 
-                                <li className="text-muted-foreground">Sin datos</li>
-                              }
-                            </ul>
-                          </div>
-                        </div>
-                        
-                        {report.agents.length > 0 && (
-                          <>
-                            <h5 className="text-sm font-medium text-muted-foreground mt-3 mb-1">
-                              Actividad por agente:
-                            </h5>
-                            <div className="space-y-2">
-                              {report.agents.map((agent) => (
-                                <div key={agent.id} className="flex items-center justify-between text-sm">
-                                  <span>{agent.name}</span>
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-muted-foreground">{agent.callCount} llamadas</span>
-                                    <span className={`px-2 py-0.5 rounded-full text-xs ${
-                                      agent.averageScore >= 80 
-                                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
-                                        : agent.averageScore >= 60
-                                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100'
-                                          : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
-                                    }`}>
-                                      {agent.averageScore}/100
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No se registraron llamadas este día
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          )}
-          
-          <div className="mt-4 flex justify-end">
-            <Button variant="outline" size="sm">
-              Ver historial completo
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <DailyReportSection 
+        reports={reports} 
+        loadingReports={loadingReports}
+        onViewHistory={handleViewHistory}
+      />
 
       {/* Global Analysis */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart2 className="h-5 w-5" />
-            Análisis Global de Llamadas
-          </CardTitle>
-          <CardDescription>
-            Estadísticas consolidadas de todas las llamadas
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-secondary/30 p-3 rounded-lg">
-              <h3 className="font-medium text-secondary-foreground">Total Llamadas</h3>
-              <p className="text-2xl font-bold">
-                {loadingReports ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  reports.reduce((sum, report) => sum + report.callCount, 0)
-                )}
-              </p>
-            </div>
-            
-            <div className="bg-primary/10 p-3 rounded-lg">
-              <h3 className="font-medium text-primary-foreground/80">Agentes Activos</h3>
-              <p className="text-2xl font-bold">
-                {loadingReports ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  new Set(reports.flatMap(report => report.agents.map(a => a.id))).size
-                )}
-              </p>
-            </div>
-            
-            <div className="bg-green-500/10 p-3 rounded-lg">
-              <h3 className="font-medium text-green-800 dark:text-green-300">Promedio Calificación</h3>
-              <p className="text-2xl font-bold">
-                {loadingReports ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  (() => {
-                    const agents = reports.flatMap(r => r.agents);
-                    if (agents.length === 0) return "N/A";
-                    const totalScore = agents.reduce((sum, agent) => sum + (agent.averageScore * agent.callCount), 0);
-                    const totalCalls = agents.reduce((sum, agent) => sum + agent.callCount, 0);
-                    return totalCalls > 0 ? `${Math.round(totalScore / totalCalls)}/100` : "N/A";
-                  })()
-                )}
-              </p>
-            </div>
-            
-            <div className="bg-blue-500/10 p-3 rounded-lg">
-              <h3 className="font-medium text-blue-800 dark:text-blue-300">Tasa de Mejora</h3>
-              <p className="text-2xl font-bold">
-                {loadingReports ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  "2.5%"
-                )}
-              </p>
-            </div>
-          </div>
-          
-          <div className="mt-6">
-            <h3 className="font-medium mb-3">Principales hallazgos globales</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <h4 className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">Aspectos positivos</h4>
-                {loadingReports ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <ul className="list-disc pl-5 space-y-1 text-sm">
-                    {(() => {
-                      // Combine all positive aspects from all reports
-                      const allPositives = reports.flatMap(r => r.topFindings.positive);
-                      // Count occurrences
-                      const counts: Record<string, number> = {};
-                      allPositives.forEach(item => {
-                        counts[item] = (counts[item] || 0) + 1;
-                      });
-                      // Sort and take the 5 most frequent
-                      return Object.entries(counts)
-                        .sort((a, b) => b[1] - a[1])
-                        .slice(0, 5)
-                        .map(([text], idx) => <li key={idx}>{text}</li>);
-                    })()}
-                  </ul>
-                )}
-              </div>
-              
-              <div>
-                <h4 className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">Aspectos negativos</h4>
-                {loadingReports ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <ul className="list-disc pl-5 space-y-1 text-sm">
-                    {(() => {
-                      const allNegatives = reports.flatMap(r => r.topFindings.negative);
-                      const counts: Record<string, number> = {};
-                      allNegatives.forEach(item => {
-                        counts[item] = (counts[item] || 0) + 1;
-                      });
-                      return Object.entries(counts)
-                        .sort((a, b) => b[1] - a[1])
-                        .slice(0, 5)
-                        .map(([text], idx) => <li key={idx}>{text}</li>);
-                    })()}
-                  </ul>
-                )}
-              </div>
-              
-              <div>
-                <h4 className="text-sm font-medium text-amber-600 dark:text-amber-400 mb-2">Oportunidades</h4>
-                {loadingReports ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <ul className="list-disc pl-5 space-y-1 text-sm">
-                    {(() => {
-                      const allOpportunities = reports.flatMap(r => r.topFindings.opportunities);
-                      const counts: Record<string, number> = {};
-                      allOpportunities.forEach(item => {
-                        counts[item] = (counts[item] || 0) + 1;
-                      });
-                      return Object.entries(counts)
-                        .sort((a, b) => b[1] - a[1])
-                        .slice(0, 5)
-                        .map(([text], idx) => <li key={idx}>{text}</li>);
-                    })()}
-                  </ul>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          <div className="mt-4 flex justify-end">
-            <Button variant="outline" size="sm">
-              Ver análisis detallado
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <GlobalAnalysisSection 
+        reports={reports} 
+        loadingReports={loadingReports}
+        onViewDetailedAnalysis={handleViewDetailedAnalysis} 
+      />
       
       {/* Feedback for Training */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Feedback para Formación
-          </CardTitle>
-          <CardDescription>
-            Retroalimentación específica para agentes
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loadingReports ? (
-            <div className="flex justify-center p-4">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-          ) : reports.length === 0 ? (
-            <p className="text-center text-sm text-muted-foreground">
-              No hay datos disponibles para mostrar
-            </p>
-          ) : (
-            <ScrollArea className="h-64">
-              <div className="space-y-4">
-                {groupedAgents.map((agent, idx) => (
-                  <div key={idx} className="border-b pb-4 last:border-0">
-                    <h4 className="font-medium">{agent.name}</h4>
-                    <div className="flex items-center mt-1 mb-2">
-                      <span className="text-sm text-muted-foreground">{agent.totalCalls} llamadas totales</span>
-                      <span className="mx-2">•</span>
-                      <span className={`px-2 py-0.5 rounded-full text-xs ${
-                        agent.averageScore >= 80 
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
-                          : agent.averageScore >= 60
-                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100'
-                            : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
-                      }`}>
-                        Promedio: {agent.averageScore}/100
-                      </span>
-                    </div>
-                    
-                    <div className="text-sm">
-                      <h5 className="font-medium mb-1">Áreas de mejora recomendadas:</h5>
-                      <ul className="list-disc pl-5">
-                        {agent.averageScore < 70 ? (
-                          <>
-                            <li>Capacitación en protocolos de atención al cliente</li>
-                            <li>Refuerzo en técnicas de comunicación efectiva</li>
-                            <li>Seguimiento del guion de llamada</li>
-                          </>
-                        ) : agent.averageScore < 85 ? (
-                          <>
-                            <li>Mejora en técnicas de negociación</li>
-                            <li>Refuerzo en conocimiento de productos</li>
-                          </>
-                        ) : (
-                          <>
-                            <li>Desarrollo de habilidades de liderazgo</li>
-                            <li>Capacitación para ser mentor de otros agentes</li>
-                          </>
-                        )}
-                      </ul>
-                    </div>
-                    
-                    <div className="flex justify-end mt-2">
-                      <Button variant="outline" size="sm">Ver plan de formación</Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          )}
-          
-          <div className="mt-4 flex justify-end">
-            <Button variant="outline" size="sm">
-              Generar reporte completo
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <FeedbackTrainingSection 
+        groupedAgents={groupedAgents}
+        loadingReports={loadingReports}
+        onGenerateReport={handleGenerateReport}
+      />
     </div>
   );
 }

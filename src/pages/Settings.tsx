@@ -18,7 +18,7 @@ export default function Settings() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isLoading: loadingSettings } = useAudioSettings();
   const { user, isLoading: loadingUser } = useUser();
-  const { isAuthenticated, loading: loadingAuth } = useAuth();
+  const { isAuthenticated, loading: loadingAuth, session } = useAuth();
   
   // Activate automatic reload prevention by timeout (30 minutes instead of 60)
   useSessionTimeout(30); // 30 minutes timeout
