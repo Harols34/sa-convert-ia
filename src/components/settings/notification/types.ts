@@ -27,3 +27,16 @@ export interface DailyReport {
     recommendations: string[];
   };
 }
+
+// Add the AgentGrouped interface that was missing
+export interface AgentGrouped {
+  id: string;
+  name: string;
+  totalCalls: number;
+  averageScore: number;
+  datePoints: {
+    date: string;
+    score: number;
+    callCount: number;
+  }[];
+}
