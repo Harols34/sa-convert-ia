@@ -28,4 +28,9 @@ export interface DailyReport {
     callCount: number;
     averageScore: number;
   }[];
+  topFindings?: {
+    positive: string[];
+    negative: string[];
+    opportunities: string[];
+  };
 }

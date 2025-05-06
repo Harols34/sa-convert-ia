@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays } from "date-fns";
@@ -135,6 +136,9 @@ export function useDailyReports(initialDays = 7) {
         };
 
         // Process each call
+        let totalScore = 0;
+        let scoreCount = 0;
+        
         if (calls && calls.length > 0) {
           let hasFeedbackData = false;
           
@@ -168,6 +172,8 @@ export function useDailyReports(initialDays = 7) {
                 feedbackItems.forEach(item => {
                   if (typeof item.score === 'number') {
                     agents[call.agent_id].totalScore += item.score;
+                    totalScore += item.score;
+                    scoreCount++;
                   }
                   
                   if (Array.isArray(item.positive) && item.positive.length > 0) {
@@ -250,9 +256,18 @@ export function useDailyReports(initialDays = 7) {
           return ["No hay datos disponibles"];
         };
         
+        // Calculate average score
+        const averageScore = scoreCount > 0 ? Math.round(totalScore / scoreCount) : 0;
+        
+        // Count issues (negative findings)
+        const issuesCount = negativeFindings.length;
+        
+        // Return daily report with all required fields
         return {
           date: formattedDate,
           callCount: calls?.length || 0,
+          averageScore,
+          issuesCount,
           agents: Object.values(agents).map(agent => ({
             id: agent.id,
             name: agent.name,
