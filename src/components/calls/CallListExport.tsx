@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import * as XLSX from 'xlsx';
-import { downloadAudio } from "../calls/detail/audio/audioUtils";
+import { downloadAudio, getFilenameWithFormat } from "../calls/detail/audio/audioUtils";
 
 interface CallListExportProps {
   selectedCalls?: Call[];
@@ -148,7 +148,10 @@ const CallListExport = memo(({ selectedCalls, filteredCalls }: CallListExportPro
       const url = URL.createObjectURL(blob);
       const callCount = exportRows.length;
       const timestamp = new Date().toISOString().slice(0,10);
-      downloadAudio(url, `llamadas_${callCount}_registros_${timestamp}`, 'txt');
+      
+      // Fixed function call - using the correct number of arguments
+      const filename = `llamadas_${callCount}_registros_${timestamp}.txt`;
+      downloadAudio(url, filename);
       
       toast.success(`Exportación completada: ${callCount} registros`, { id: "export" });
     } catch (error) {
