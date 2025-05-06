@@ -105,17 +105,20 @@ export function useDailyReports(days = 7) {
               }
             }
             
-            // Add findings with correct typing
-            const feedback = call.feedback as CallFeedback | null;
-            if (feedback) {
-              if (feedback.positive) {
-                positiveFindings.push(...feedback.positive);
+            // Extract feedback data correctly - fixing the TypeScript error
+            if (call.feedback) {
+              // First make sure it's not an array by checking if it exists
+              const feedbackItem = call.feedback as unknown as CallFeedback;
+              
+              // Now safely access the properties
+              if (feedbackItem.positive) {
+                positiveFindings.push(...feedbackItem.positive);
               }
-              if (feedback.negative) {
-                negativeFindings.push(...feedback.negative);
+              if (feedbackItem.negative) {
+                negativeFindings.push(...feedbackItem.negative);
               }
-              if (feedback.opportunities) {
-                opportunities.push(...feedback.opportunities);
+              if (feedbackItem.opportunities) {
+                opportunities.push(...feedbackItem.opportunities);
               }
             }
           });
