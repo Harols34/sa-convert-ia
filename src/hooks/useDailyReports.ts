@@ -98,27 +98,43 @@ export function useDailyReports(days = 7) {
               
               agents[call.agent_id].callCount += 1;
               
-              // Make sure feedback exists and has a score
-              const feedback = call.feedback as CallFeedback | null;
-              if (feedback?.score) {
-                agents[call.agent_id].totalScore += feedback.score;
-              }
-            }
-            
-            // Extract feedback data correctly - fixing the TypeScript error
-            if (call.feedback) {
-              // First make sure it's not an array by checking if it exists
-              const feedbackItem = call.feedback as unknown as CallFeedback;
+              // Check if feedback exists and has a score
+              const feedbackData = call.feedback as unknown;
               
-              // Now safely access the properties
-              if (feedbackItem.positive) {
-                positiveFindings.push(...feedbackItem.positive);
-              }
-              if (feedbackItem.negative) {
-                negativeFindings.push(...feedbackItem.negative);
-              }
-              if (feedbackItem.opportunities) {
-                opportunities.push(...feedbackItem.opportunities);
+              // Handle the feedback correctly whether it's an array or a single object
+              if (Array.isArray(feedbackData) && feedbackData.length > 0) {
+                // If it's an array, use the first item
+                const firstFeedback = feedbackData[0];
+                if (firstFeedback && typeof firstFeedback.score === 'number') {
+                  agents[call.agent_id].totalScore += firstFeedback.score;
+                }
+                
+                // Process findings
+                feedbackData.forEach(item => {
+                  if (item.positive && Array.isArray(item.positive)) {
+                    positiveFindings.push(...item.positive);
+                  }
+                  if (item.negative && Array.isArray(item.negative)) {
+                    negativeFindings.push(...item.negative);
+                  }
+                  if (item.opportunities && Array.isArray(item.opportunities)) {
+                    opportunities.push(...item.opportunities);
+                  }
+                });
+              } else if (feedbackData && typeof (feedbackData as any).score === 'number') {
+                // If it's a single object
+                const singleFeedback = feedbackData as CallFeedback;
+                agents[call.agent_id].totalScore += singleFeedback.score;
+                
+                if (singleFeedback.positive) {
+                  positiveFindings.push(...singleFeedback.positive);
+                }
+                if (singleFeedback.negative) {
+                  negativeFindings.push(...singleFeedback.negative);
+                }
+                if (singleFeedback.opportunities) {
+                  opportunities.push(...singleFeedback.opportunities);
+                }
               }
             }
           });
