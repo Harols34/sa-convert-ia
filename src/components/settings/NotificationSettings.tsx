@@ -9,7 +9,7 @@ import { useDailyReports } from "@/hooks/useDailyReports";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 
-// Define tipos para el agente agrupado
+// Define types for the grouped agent
 type AgentGrouped = {
   id: string;
   name: string;
@@ -39,7 +39,7 @@ export default function NotificationSettings() {
     );
   }
 
-  // Función para agrupar agentes de todos los reportes
+  // Function to group agents from all reports
   const getGroupedAgents = (): AgentGrouped[] => {
     if (!reports || reports.length === 0) return [];
     
@@ -70,7 +70,7 @@ export default function NotificationSettings() {
       });
     });
     
-    // Convertir a array y ordenar por total de llamadas
+    // Convert to array and sort by total calls
     return Object.values(agentsMap).sort((a, b) => b.totalCalls - a.totalCalls);
   };
 
@@ -111,7 +111,7 @@ export default function NotificationSettings() {
         </CardContent>
       </Card>
       
-      {/* Resumen diario de cargas */}
+      {/* Daily upload summary */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -225,7 +225,7 @@ export default function NotificationSettings() {
         </CardContent>
       </Card>
 
-      {/* Análisis Global */}
+      {/* Global Analysis */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -300,14 +300,14 @@ export default function NotificationSettings() {
                 ) : (
                   <ul className="list-disc pl-5 space-y-1 text-sm">
                     {(() => {
-                      // Combinar todos los aspectos positivos de todos los reportes
+                      // Combine all positive aspects from all reports
                       const allPositives = reports.flatMap(r => r.topFindings.positive);
-                      // Contar ocurrencias
+                      // Count occurrences
                       const counts: Record<string, number> = {};
                       allPositives.forEach(item => {
                         counts[item] = (counts[item] || 0) + 1;
                       });
-                      // Ordenar y tomar los 5 más frecuentes
+                      // Sort and take the 5 most frequent
                       return Object.entries(counts)
                         .sort((a, b) => b[1] - a[1])
                         .slice(0, 5)
@@ -369,7 +369,7 @@ export default function NotificationSettings() {
         </CardContent>
       </Card>
       
-      {/* Feedback para Formación */}
+      {/* Feedback for Training */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

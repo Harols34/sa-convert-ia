@@ -20,7 +20,7 @@ export type DailyReport = {
   };
 };
 
-// Define la interfaz para el feedback de la llamada
+// Define the interface for the feedback of a call
 interface CallFeedback {
   score: number;
   positive: string[];
@@ -39,16 +39,16 @@ export function useDailyReports(days = 7) {
       setError(null);
       
       try {
-        // Obtener fechas para el rango solicitado
+        // Get dates for the requested range
         const dates = Array.from({ length: days }, (_, i) => {
           const date = new Date();
           date.setDate(date.getDate() - i);
           return format(date, 'yyyy-MM-dd');
         });
         
-        // Para cada fecha, obtener los datos
+        // For each date, fetch the data
         const reportPromises = dates.map(async (dateStr) => {
-          // Obtener llamadas de ese día
+          // Get calls for that day
           const startOfDay = `${dateStr}T00:00:00`;
           const endOfDay = `${dateStr}T23:59:59`;
           
@@ -71,7 +71,7 @@ export function useDailyReports(days = 7) {
             
           if (callsError) throw callsError;
           
-          // Agrupar por agente
+          // Group by agent
           const agents: Record<string, {
             id: string;
             name: string;
@@ -79,13 +79,13 @@ export function useDailyReports(days = 7) {
             totalScore: number;
           }> = {};
           
-          // Agregar puntos positivos/negativos/oportunidades
+          // Add positive/negative/opportunity points
           const positiveFindings: string[] = [];
           const negativeFindings: string[] = [];
           const opportunities: string[] = [];
           
           calls?.forEach(call => {
-            // Agregar agente o actualizar contador
+            // Add agent or update counter
             if (call.agent_id) {
               if (!agents[call.agent_id]) {
                 agents[call.agent_id] = {
@@ -98,14 +98,14 @@ export function useDailyReports(days = 7) {
               
               agents[call.agent_id].callCount += 1;
               
-              // Asegurarse de que feedback existe y tiene score
+              // Make sure feedback exists and has a score
               const feedback = call.feedback as CallFeedback | null;
               if (feedback?.score) {
                 agents[call.agent_id].totalScore += feedback.score;
               }
             }
             
-            // Agregar hallazgos con tipado correcto
+            // Add findings with correct typing
             const feedback = call.feedback as CallFeedback | null;
             if (feedback) {
               if (feedback.positive) {
@@ -120,10 +120,10 @@ export function useDailyReports(days = 7) {
             }
           });
           
-          // Formatear el reporte diario
+          // Format the daily report
           const formattedDate = format(new Date(dateStr), 'dd MMMM yyyy', { locale: es });
           
-          // Contar ocurrencias de cada hallazgo y tomar los 5 más comunes
+          // Count occurrences of each finding and take the top 5
           const getTopFindings = (findings: string[], limit = 5) => {
             const count: Record<string, number> = {};
             findings.forEach(finding => {
@@ -153,12 +153,12 @@ export function useDailyReports(days = 7) {
           };
         });
         
-        // Ejecutar todas las promesas y ordenar por fecha
+        // Execute all promises and sort by date
         const fetchedReports = await Promise.all(reportPromises);
         setReports(fetchedReports);
       } catch (err) {
-        console.error("Error al cargar los reportes diarios:", err);
-        setError("Error al cargar los reportes diarios");
+        console.error("Error loading daily reports:", err);
+        setError("Error loading daily reports");
       } finally {
         setIsLoading(false);
       }
@@ -166,7 +166,7 @@ export function useDailyReports(days = 7) {
     
     fetchReports();
     
-    // Configurar actualización automática cada 30 minutos
+    // Set up automatic updates every 30 minutes
     const intervalId = setInterval(() => fetchReports(), 30 * 60 * 1000);
     
     return () => clearInterval(intervalId);
