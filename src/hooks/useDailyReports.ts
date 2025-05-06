@@ -1,7 +1,6 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { es } from "date-fns/locale";
 
 export type DailyReport = {
@@ -46,9 +45,13 @@ export function useDailyReports(initialDays = 7) {
       const minDaysToFetch = Math.max(7, daysToFetch);
       
       if (daysToFetch > 0) {
+        // Important fix: ensure we include the current day by starting from today (not yesterday)
         dates = Array.from({ length: minDaysToFetch }, (_, i) => {
-          const date = new Date();
-          date.setDate(date.getDate() - i);
+          const today = new Date();
+          // Set time to beginning of day to avoid timezone issues
+          today.setHours(0, 0, 0, 0);
+          // Start from current day and go back
+          const date = addDays(today, -i);
           return format(date, 'yyyy-MM-dd');
         });
       } else {
