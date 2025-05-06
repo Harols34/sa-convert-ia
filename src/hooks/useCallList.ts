@@ -94,13 +94,14 @@ export function useCallList() {
         }
       }
 
-      // Corregir la búsqueda para asegurar que funciona correctamente
+      // Mejorar la búsqueda para que funcione con coincidencias parciales
       if (filters.search && filters.search.trim() !== '') {
-        // Limpiar y preparar el término de búsqueda
-        const searchTerm = filters.search.trim();
-        // Usar ilike para búsqueda insensible a mayúsculas/minúsculas y comodines %
-        query = query.or(`title.ilike.%${searchTerm}%,filename.ilike.%${searchTerm}%,agent_name.ilike.%${searchTerm}%`);
+        const searchTerm = filters.search.trim().toLowerCase();
         console.log("Buscando por término:", searchTerm);
+        
+        // Usar ILIKE para búsqueda insensible a mayúsculas/minúsculas con comodines %
+        // Colocar % antes y después del término para buscar coincidencias parciales en cualquier parte
+        query = query.or(`title.ilike.%${searchTerm}%,filename.ilike.%${searchTerm}%,agent_name.ilike.%${searchTerm}%`);
       }
 
       console.log("Fetching calls with filters:", filters);

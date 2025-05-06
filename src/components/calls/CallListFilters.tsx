@@ -49,7 +49,8 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
   const [tipificaciones, setTipificaciones] = useState<Tipificacion[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
   const [activeFilterCount, setActiveFilterCount] = useState(0);
-  const [searchInputValue, setSearchInputValue] = useState(""); // Nuevo estado para controlar el campo de búsqueda
+  const [searchInputValue, setSearchInputValue] = useState(""); // Estado para controlar el campo de búsqueda
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null); // Control de tiempo para búsqueda
   
   // Load tipificaciones and agents for filters
   useEffect(() => {
@@ -96,7 +97,7 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
     if (filters.tipificacionId) count++;
     if (filters.agentId) count++;
     if (filters.dateRange) count++;
-    if (filters.search) count++;  // Contar la búsqueda como un filtro activo
+    if (filters.search) count++;
     setActiveFilterCount(count);
   }, [filters]);
   
@@ -105,22 +106,32 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
     onFilterChange(filters);
   }, [filters, onFilterChange]);
   
-  // Implementar búsqueda con un pequeño retraso para evitar demasiadas búsquedas mientras se escribe
+  // Mejorar la búsqueda con debounce para mejor rendimiento
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setSearchInputValue(newValue);
     
-    // Aplicar la búsqueda después de un breve retraso
-    const timer = setTimeout(() => {
-      setFilters(prev => ({ ...prev, search: newValue }));
-    }, 300);
+    // Limpiar timeout anterior si existe
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
     
-    return () => clearTimeout(timer);
+    // Crear nuevo timeout para aplicar la búsqueda después de un breve retraso (250ms)
+    const newTimeout = setTimeout(() => {
+      console.log("Applying search:", newValue);
+      setFilters(prev => ({ ...prev, search: newValue }));
+    }, 250);
+    
+    setSearchTimeout(newTimeout);
   };
   
   // Búsqueda inmediata al presionar Enter
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+      console.log("Search on Enter:", searchInputValue);
       setFilters(prev => ({ ...prev, search: searchInputValue }));
     }
   };
@@ -158,6 +169,17 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
             onKeyDown={handleSearchKeyDown}
             className="pl-8"
           />
+          {searchInputValue && (
+            <button 
+              className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setSearchInputValue('');
+                setFilters(prev => ({ ...prev, search: '' }));
+              }}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
         
         <div className="flex gap-2">
