@@ -28,6 +28,7 @@ type AgentGrouped = {
 };
 
 export default function NotificationSettings() {
+  // Change initializing from 7 to ensure we always show at least 7 days by default
   const [selectedDays, setSelectedDays] = useState<number>(7);
   const { settings, isLoading, updateSetting, saveSettings } = useAudioSettings();
   const { reports, isLoading: loadingReports, fetchReports } = useDailyReports(selectedDays);
@@ -171,7 +172,7 @@ export default function NotificationSettings() {
         </CardContent>
       </Card>
       
-      {/* Daily upload summary with date range selector */}
+      {/* Daily upload summary with date range selector - now showing multiple days */}
       <DailyReportSection 
         reports={reports} 
         loadingReports={loadingReports}

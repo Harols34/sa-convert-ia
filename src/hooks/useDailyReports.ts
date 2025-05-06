@@ -41,11 +41,12 @@ export function useDailyReports(initialDays = 7) {
     setDays(daysToFetch);
     
     try {
-      // Get dates for the requested range
+      // Get dates for the requested range - always fetch at least 7 days
       let dates: string[] = [];
+      const minDaysToFetch = Math.max(7, daysToFetch);
       
       if (daysToFetch > 0) {
-        dates = Array.from({ length: daysToFetch }, (_, i) => {
+        dates = Array.from({ length: minDaysToFetch }, (_, i) => {
           const date = new Date();
           date.setDate(date.getDate() - i);
           return format(date, 'yyyy-MM-dd');
@@ -68,6 +69,8 @@ export function useDailyReports(initialDays = 7) {
         
         dates = Array.from(uniqueDates);
       }
+      
+      console.log(`Fetching reports for ${dates.length} days: `, dates);
       
       // For each date, fetch the data
       const reportPromises = dates.map(async (dateStr) => {
@@ -285,9 +288,11 @@ export function useDailyReports(initialDays = 7) {
     }
   }, [days]);
   
-  // Initial fetch on component mount
+  // Initial fetch on component mount - ensure we always load at least 7 days
   useEffect(() => {
-    fetchReports(initialDays);
+    // Make sure initialDays is at least 7
+    const minDays = Math.max(7, initialDays);
+    fetchReports(minDays);
     
     // Set up automatic updates every 30 minutes
     const intervalId = setInterval(() => fetchReports(days), 30 * 60 * 1000);

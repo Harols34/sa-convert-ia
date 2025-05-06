@@ -23,12 +23,10 @@ export default function DailyReportSection({
   selectedDays
 }: DailyReportSectionProps) {
   const navigate = useNavigate();
+  const [expandedReport, setExpandedReport] = useState<string | null>(null);
   
-  const getMostRecentReport = () => {
-    if (!reports || reports.length === 0) return null;
-    // The most recent report should be the first in the array
-    return reports[0];
-  };
+  // Get reports to display (limit to 7 by default)
+  const displayReports = reports.slice(0, 7);
   
   const handleViewHistory = () => {
     if (onViewHistory) {
@@ -38,7 +36,13 @@ export default function DailyReportSection({
     }
   };
   
-  const mostRecentReport = getMostRecentReport();
+  const toggleExpandReport = (date: string) => {
+    if (expandedReport === date) {
+      setExpandedReport(null);
+    } else {
+      setExpandedReport(date);
+    }
+  };
 
   return (
     <Card>
@@ -73,52 +77,64 @@ export default function DailyReportSection({
           <div className="flex justify-center p-4">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
-        ) : !mostRecentReport ? (
+        ) : !displayReports || displayReports.length === 0 ? (
           <p className="text-center text-sm text-muted-foreground">
             No hay reportes disponibles
           </p>
         ) : (
           <div className="space-y-4">
-            <div className="border-b pb-3">
-              <h4 className="text-sm font-semibold">
-                {mostRecentReport.date} - {mostRecentReport.callCount} llamadas
-              </h4>
-            </div>
+            {displayReports.map((report, index) => (
+              <div key={report.date} className={`border-b ${index === displayReports.length - 1 ? '' : 'pb-3'} ${index > 0 ? 'pt-3' : ''}`}>
+                <div 
+                  className="cursor-pointer font-semibold flex items-center justify-between" 
+                  onClick={() => toggleExpandReport(report.date)}
+                >
+                  <h4 className="text-sm">
+                    {report.date} - {report.callCount} llamadas
+                  </h4>
+                  <span className="text-xs text-muted-foreground">
+                    {expandedReport === report.date ? '▲ Contraer' : '▼ Expandir'}
+                  </span>
+                </div>
+
+                {expandedReport === report.date && (
+                  <div className="space-y-4 mt-3">
+                    <div>
+                      <h5 className="text-sm font-medium">Hallazgos principales:</h5>
+                    </div>
+                    
+                    <div>
+                      <h6 className="text-sm text-muted-foreground mb-1">Aspectos positivos:</h6>
+                      <ul className="list-disc pl-5 text-sm space-y-1">
+                        {report.topFindings.positive.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    
+                    <div>
+                      <h6 className="text-sm text-muted-foreground mb-1">Aspectos negativos:</h6>
+                      <ul className="list-disc pl-5 text-sm space-y-1">
+                        {report.topFindings.negative.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    
+                    <div>
+                      <h6 className="text-sm text-muted-foreground mb-1">Oportunidades:</h6>
+                      <ul className="list-disc pl-5 text-sm space-y-1">
+                        {report.topFindings.opportunities.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
             
-            <div className="space-y-4">
-              <div>
-                <h5 className="text-sm font-medium">Hallazgos principales:</h5>
-              </div>
-              
-              <div>
-                <h6 className="text-sm text-muted-foreground mb-1">Aspectos positivos:</h6>
-                <ul className="list-disc pl-5 text-sm space-y-1">
-                  {mostRecentReport.topFindings.positive.map((item, idx) => (
-                    <li key={idx}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-              
-              <div>
-                <h6 className="text-sm text-muted-foreground mb-1">Aspectos negativos:</h6>
-                <ul className="list-disc pl-5 text-sm space-y-1">
-                  {mostRecentReport.topFindings.negative.map((item, idx) => (
-                    <li key={idx}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-              
-              <div>
-                <h6 className="text-sm text-muted-foreground mb-1">Oportunidades:</h6>
-                <ul className="list-disc pl-5 text-sm space-y-1">
-                  {mostRecentReport.topFindings.opportunities.map((item, idx) => (
-                    <li key={idx}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-            
-            <div className="flex justify-end">
+            <div className="flex justify-end pt-2">
               <Button variant="outline" size="sm" onClick={handleViewHistory}>
                 Ver historial completo
               </Button>
