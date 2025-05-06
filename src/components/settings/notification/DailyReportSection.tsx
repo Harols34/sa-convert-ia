@@ -173,21 +173,12 @@ const DailyReportSection: React.FC<DailyReportSectionProps> = ({
               <div className="flex items-center space-x-3">
                 <div className="flex flex-col items-end">
                   <div className="flex items-center">
-                    <span className="font-semibold">
-                      {report.averageScore ? `${report.averageScore}%` : 'N/A'}
-                    </span>
                     <div className="ml-2">
                       {report.trend === "up" && <ArrowUp className="text-green-500 h-4 w-4" />}
                       {report.trend === "down" && <ArrowDown className="text-red-500 h-4 w-4" />}
                       {report.trend === "stable" && <Minus className="text-amber-500 h-4 w-4" />}
                     </div>
                   </div>
-                  <Badge 
-                    variant={report.issuesCount > 0 ? "destructive" : "default"} 
-                    className="text-xs"
-                  >
-                    {report.issuesCount} problemas
-                  </Badge>
                 </div>
                 <Button variant="ghost" size="icon">
                   {expandedReportIndex === index ? (
@@ -248,30 +239,6 @@ const DailyReportSection: React.FC<DailyReportSectionProps> = ({
                     </ul>
                   </div>
                 </div>
-                
-                {report.callCount > 0 && report.agents && report.agents.length > 0 && (
-                  <div className="mt-4">
-                    <h4 className="font-medium text-sm mb-2">Agentes</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {report.agents.slice(0, 4).map((agent, i) => (
-                        <div key={i} className="flex justify-between items-center text-sm p-2 bg-background rounded border">
-                          <span>{agent.name}</span>
-                          <div className="flex items-center">
-                            <span className="text-muted-foreground mr-2">{agent.callCount} llamadas</span>
-                            <Badge variant={agent.averageScore >= 70 ? "default" : "outline"}>
-                              {agent.averageScore}%
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {report.agents.length > 4 && (
-                      <p className="text-xs text-center mt-1 text-muted-foreground">
-                        Y {report.agents.length - 4} agentes más
-                      </p>
-                    )}
-                  </div>
-                )}
                 
                 {report.topFindings?.opportunities && report.topFindings.opportunities.length > 0 && (
                   <div className="mt-4">

@@ -2,10 +2,9 @@
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AreaChart, MessageSquare } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import { DailyReport } from "@/components/settings/notification/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AreaChart as RechartAreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export interface GlobalAnalysisSectionProps {
@@ -32,45 +31,8 @@ const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
   hasCalls = true,
   globalInsights
 }) => {
-  // Calculate global metrics from reports
-  const calculateMetrics = () => {
-    if (!reports || reports.length === 0) {
-      return {
-        totalCalls: 0,
-        avgScore: 0,
-        callsWithIssues: 0,
-        issuePercentage: 0
-      };
-    }
-
-    const totalCalls = reports.reduce((sum, report) => sum + (report.callCount || 0), 0);
-    const weightedScoreSum = reports.reduce((sum, report) => 
-      sum + ((report.averageScore || 0) * (report.callCount || 0)), 0);
-    const avgScore = totalCalls > 0 ? Math.round(weightedScoreSum / totalCalls) : 0;
-
-    // Calculate issues
-    const callsWithIssues = reports.reduce((sum, report) => sum + (report.issuesCount || 0), 0);
-    const issuePercentage = totalCalls > 0 ? Math.round((callsWithIssues / totalCalls) * 100) : 0;
-
-    return {
-      totalCalls,
-      avgScore,
-      callsWithIssues, 
-      issuePercentage
-    };
-  };
-
-  const metrics = calculateMetrics();
-  const hasCallData = metrics.totalCalls > 0;
-
-  // Prepare chart data
-  const chartData = reports && reports.length > 0 
-    ? [...reports].reverse().map(report => ({
-        date: report.date ? new Date(report.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : '',
-        score: report.averageScore || 0,
-        calls: report.callCount || 0
-      }))
-    : [];
+  // Simple check to see if we have call data
+  const hasCallData = reports.some(r => r.callCount > 0);
 
   // Date range options
   const dateRangeOptions = [
@@ -85,7 +47,7 @@ const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
       <CardHeader className="flex flex-row items-start justify-between pb-2">
         <div>
           <CardTitle className="text-xl">Análisis Global</CardTitle>
-          <CardDescription>Métricas de rendimiento</CardDescription>
+          <CardDescription>Feedback personalizado</CardDescription>
         </div>
         <div className="flex space-x-2">
           {!isDropdown && (
@@ -106,7 +68,7 @@ const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
             </Select>
           )}
           <Button variant="outline" size="sm" onClick={onViewDetailedAnalysis}>
-            <AreaChart className="mr-2 h-4 w-4" />
+            <MessageSquare className="mr-2 h-4 w-4" />
             Análisis Detallado
           </Button>
         </div>
@@ -118,7 +80,6 @@ const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
               <Skeleton className="h-5 w-40" />
               <Skeleton className="h-12 w-full" />
             </div>
-            <Skeleton className="h-[200px] w-full" />
           </div>
         ) : hasCallData ? (
           <div className="space-y-6">
@@ -145,47 +106,6 @@ const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
                     </ul>
                   </div>
                 )}
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="p-4 bg-card rounded-lg border shadow-sm">
-                <p className="text-sm font-medium text-muted-foreground">Total Llamadas</p>
-                <p className="text-2xl font-bold">{metrics.totalCalls}</p>
-              </div>
-              <div className="p-4 bg-card rounded-lg border shadow-sm">
-                <p className="text-sm font-medium text-muted-foreground">Score Promedio</p>
-                <p className="text-2xl font-bold">{metrics.avgScore}%</p>
-              </div>
-              <div className="p-4 bg-card rounded-lg border shadow-sm">
-                <p className="text-sm font-medium text-muted-foreground">Llamadas con Problemas</p>
-                <p className="text-2xl font-bold">{metrics.callsWithIssues}</p>
-              </div>
-              <div className="p-4 bg-card rounded-lg border shadow-sm">
-                <p className="text-sm font-medium text-muted-foreground">% de Problemas</p>
-                <p className="text-2xl font-bold">{metrics.issuePercentage}%</p>
-              </div>
-            </div>
-
-            {chartData.length > 1 && (
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartAreaChart
-                    data={chartData}
-                    margin={{
-                      top: 10,
-                      right: 30,
-                      left: 0,
-                      bottom: 0,
-                    }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis domain={[0, 100]} />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="score" stroke="#03A678" fill="#03A678" fillOpacity={0.2} name="Score" />
-                  </RechartAreaChart>
-                </ResponsiveContainer>
               </div>
             )}
             

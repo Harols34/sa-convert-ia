@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from "react";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,7 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function NotificationDropdown() {
   const [selectedDays, setSelectedDays] = useState<number>(7);
-  const { reports, isLoading: loadingReports, fetchReports } = useDailyReports(selectedDays);
+  const { reports, isLoading, error, fetchReports } = useDailyReports(selectedDays);
   const navigate = useNavigate();
   const { settings, updateSetting, saveSettings } = useAudioSettings();
   const [showFullSettings, setShowFullSettings] = useState(false);
@@ -46,54 +45,6 @@ export default function NotificationDropdown() {
     fetchReports(days);
   };
 
-  // Create a grouped list of agents from all reports
-  const getGroupedAgents = () => {
-    if (!reports || reports.length === 0) return [];
-    
-    const agentsMap: Record<string, any> = {};
-    
-    reports.forEach(report => {
-      if (!report.agents || report.agents.length === 0) return;
-      
-      report.agents.forEach(agent => {
-        if (!agentsMap[agent.id]) {
-          agentsMap[agent.id] = {
-            id: agent.id,
-            name: agent.name,
-            totalCalls: agent.callCount,
-            averageScore: agent.averageScore,
-            datePoints: [{
-              date: report.date,
-              score: agent.averageScore,
-              callCount: agent.callCount
-            }]
-          };
-        } else {
-          agentsMap[agent.id].totalCalls += agent.callCount;
-          
-          // Calculate weighted average score
-          const totalScore = agentsMap[agent.id].averageScore * 
-                          (agentsMap[agent.id].totalCalls - agent.callCount);
-          const newTotalScore = totalScore + (agent.averageScore * agent.callCount);
-          agentsMap[agent.id].averageScore = Math.round(
-            newTotalScore / agentsMap[agent.id].totalCalls
-          );
-          
-          agentsMap[agent.id].datePoints.push({
-            date: report.date,
-            score: agent.averageScore,
-            callCount: agent.callCount
-          });
-        }
-      });
-    });
-    
-    // Convert to array and sort by total calls
-    return Object.values(agentsMap).sort((a: any, b: any) => b.totalCalls - a.totalCalls);
-  };
-
-  const groupedAgents = getGroupedAgents();
-
   // Handle button actions
   const handleViewHistory = () => {
     navigate("/calls");
@@ -101,12 +52,6 @@ export default function NotificationDropdown() {
 
   const handleViewDetailedAnalysis = () => {
     navigate("/analytics");
-  };
-
-  const handleGenerateReport = () => {
-    toast.success("Generando reporte completo", {
-      description: "El reporte será enviado a tu correo electrónico"
-    });
   };
 
   const handleSaveNotificationSettings = async () => {
@@ -167,18 +112,14 @@ export default function NotificationDropdown() {
             <div className="p-2 space-y-4">
               <DailyReportSection 
                 reports={reports.slice(0, 3)} 
-                loadingReports={loadingReports}
+                isLoading={isLoading}
+                error={error}
                 onViewHistory={handleViewHistory}
-                onChangeDateRange={handleDateRangeChange}
-                selectedDays={selectedDays}
-                isDropdown={true}
-                showDateSelector={true}
-                hasCalls={hasCalls}
               />
               
               <GlobalAnalysisSection 
                 reports={reports} 
-                loadingReports={loadingReports}
+                loadingReports={isLoading}
                 onViewDetailedAnalysis={handleViewDetailedAnalysis}
                 onChangeDateRange={handleDateRangeChange}
                 selectedDays={selectedDays}
@@ -275,13 +216,9 @@ export default function NotificationDropdown() {
               <TabsContent value="reports">
                 <DailyReportSection 
                   reports={reports} 
-                  loadingReports={loadingReports}
+                  isLoading={isLoading}
+                  error={error}
                   onViewHistory={handleViewHistory}
-                  onChangeDateRange={handleDateRangeChange}
-                  selectedDays={selectedDays}
-                  isDropdown={false}
-                  showDateSelector={true}
-                  hasCalls={hasCalls}
                 />
               </TabsContent>
 
@@ -289,7 +226,7 @@ export default function NotificationDropdown() {
                 <div className="space-y-6">
                   <GlobalAnalysisSection 
                     reports={reports} 
-                    loadingReports={loadingReports}
+                    loadingReports={isLoading}
                     onViewDetailedAnalysis={handleViewDetailedAnalysis}
                     onChangeDateRange={handleDateRangeChange}
                     selectedDays={selectedDays}
@@ -298,12 +235,9 @@ export default function NotificationDropdown() {
                   />
                   
                   <FeedbackTrainingSection 
-                    groupedAgents={groupedAgents}
-                    loadingReports={loadingReports}
-                    onGenerateReport={handleGenerateReport}
-                    onChangeDateRange={handleDateRangeChange}
-                    selectedDays={selectedDays}
-                    hasCalls={hasCalls}
+                    reports={reports}
+                    isLoading={isLoading}
+                    onViewHistory={handleViewHistory}
                   />
                 </div>
               </TabsContent>
