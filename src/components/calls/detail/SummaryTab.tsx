@@ -38,7 +38,7 @@ export default function SummaryTab({ call }: SummaryTabProps) {
         {call.summary ? (
           <div>
             <h3 className="text-lg font-medium mb-2">Resumen de la llamada</h3>
-            <p className="text-sm">
+            <p className="text-sm whitespace-pre-line">
               {call.summary}
             </p>
           </div>

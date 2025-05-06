@@ -1,318 +1,174 @@
 
 import React from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Activity, BarChart, TrendingUp, TrendingDown } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { AreaChart } from "lucide-react";
+import { DailyReport } from "@/lib/types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AreaChart as RechartAreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Skeleton } from "@/components/ui/skeleton";
 
-// Componente para visualizar tendencias e insights
-const InsightItem = ({ 
-  text, 
-  type, 
-  trend 
-}: { 
-  text: string, 
-  type: "positive" | "negative" | "neutral",
-  trend?: "up" | "down" | "stable" 
-}) => {
-  const getIcon = () => {
-    if (trend === "up") return <TrendingUp className="h-4 w-4 mr-2 text-green-500" />;
-    if (trend === "down") return <TrendingDown className="h-4 w-4 mr-2 text-red-500" />;
-    if (type === "positive") return <Activity className="h-4 w-4 mr-2 text-green-500" />;
-    if (type === "negative") return <Activity className="h-4 w-4 mr-2 text-amber-500" />;
-    return <Activity className="h-4 w-4 mr-2 text-blue-500" />;
-  };
-  
-  return (
-    <div className="flex items-start mb-3">
-      {getIcon()}
-      <span className="text-sm">{text}</span>
-    </div>
-  );
-};
-
-interface GlobalAnalysisSectionProps {
-  reports: any[];
+export interface GlobalAnalysisSectionProps {
+  reports: DailyReport[];
   loadingReports: boolean;
   onViewDetailedAnalysis: () => void;
   onChangeDateRange: (days: number) => void;
   selectedDays: number;
   isDropdown: boolean;
+  hasCalls?: boolean;
 }
 
-export default function GlobalAnalysisSection({
+const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
   reports,
   loadingReports,
   onViewDetailedAnalysis,
   onChangeDateRange,
   selectedDays,
-  isDropdown
-}: GlobalAnalysisSectionProps) {
+  isDropdown,
+  hasCalls = false
+}) => {
+  // Calculate global metrics from reports
+  const calculateMetrics = () => {
+    if (!reports || reports.length === 0 || !hasCalls) {
+      return {
+        totalCalls: 0,
+        avgScore: 0,
+        callsWithIssues: 0,
+        issuePercentage: 0
+      };
+    }
 
-  // Función para analizar tendencias y generar insights personalizados
-  const generateInsights = (reports: any[]) => {
-    if (!reports || reports.length === 0) return {
-      positives: [],
-      negatives: [],
-      trends: { score: "stable", volume: "stable" }
-    };
-    
-    // Ordenar por fecha para analizar correctamente
-    const sortedReports = [...reports].sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
-    
-    // Calcular métricas globales
-    const totalCalls = sortedReports.reduce((sum, r) => sum + r.callCount, 0);
-    const avgScore = Math.round(
-      sortedReports.reduce((sum, r) => sum + r.averageScore, 0) / sortedReports.length
-    );
-    
-    // Analizar tendencias
-    let scoreTrend = "stable";
-    let volumeTrend = "stable";
-    
-    if (sortedReports.length > 1) {
-      const firstHalf = sortedReports.slice(0, Math.floor(sortedReports.length / 2));
-      const secondHalf = sortedReports.slice(Math.floor(sortedReports.length / 2));
-      
-      const avgScoreFirstHalf = firstHalf.reduce((sum, r) => sum + r.averageScore, 0) / firstHalf.length;
-      const avgScoreSecondHalf = secondHalf.reduce((sum, r) => sum + r.averageScore, 0) / secondHalf.length;
-      
-      const avgVolumeFirstHalf = firstHalf.reduce((sum, r) => sum + r.callCount, 0) / firstHalf.length;
-      const avgVolumeSecondHalf = secondHalf.reduce((sum, r) => sum + r.callCount, 0) / secondHalf.length;
-      
-      // Determinar tendencias
-      if (avgScoreSecondHalf - avgScoreFirstHalf > 3) scoreTrend = "up";
-      else if (avgScoreFirstHalf - avgScoreSecondHalf > 3) scoreTrend = "down";
-      
-      if (avgVolumeSecondHalf - avgVolumeFirstHalf > 1) volumeTrend = "up";
-      else if (avgVolumeFirstHalf - avgVolumeSecondHalf > 1) volumeTrend = "down";
-    }
-    
-    // Identificar agentes destacados y con oportunidades
-    const allAgents = [];
-    for (const report of sortedReports) {
-      for (const agent of report.agents) {
-        const existingAgent = allAgents.find(a => a.id === agent.id);
-        if (existingAgent) {
-          existingAgent.totalCalls += agent.callCount;
-          existingAgent.scoreSum += agent.averageScore * agent.callCount;
-        } else {
-          allAgents.push({
-            id: agent.id,
-            name: agent.name,
-            totalCalls: agent.callCount,
-            scoreSum: agent.averageScore * agent.callCount
-          });
-        }
-      }
-    }
-    
-    // Calcular score promedio por agente
-    allAgents.forEach(agent => {
-      agent.averageScore = Math.round(agent.scoreSum / agent.totalCalls);
-    });
-    
-    // Ordenar por score
-    allAgents.sort((a, b) => b.averageScore - a.averageScore);
-    const topAgent = allAgents.length > 0 ? allAgents[0] : null;
-    const bottomAgent = allAgents.length > 1 ? allAgents[allAgents.length - 1] : null;
-    
-    // Generar insights personalizados basados en los datos
-    const positives = [];
-    const negatives = [];
-    
-    // Insights sobre calidad
-    if (avgScore >= 85) {
-      positives.push("Excelente nivel de calidad general en atención al cliente");
-    } else if (avgScore >= 75) {
-      positives.push("Nivel satisfactorio de calidad en servicio al cliente");
-    } else if (avgScore >= 65) {
-      positives.push("Calidad de atención aceptable con margen de mejora");
-    } else {
-      negatives.push("Nivel de calidad por debajo del estándar esperado");
-    }
-    
-    // Insights sobre tendencias
-    if (scoreTrend === "up") {
-      positives.push("Tendencia positiva en calidad de atención");
-    } else if (scoreTrend === "down") {
-      negatives.push("Tendencia preocupante: disminución en calidad de servicio");
-    } else {
-      positives.push("Consistencia en mantener estándares de calidad");
-    }
-    
-    // Insights sobre volumen
-    if (volumeTrend === "up") {
-      if (scoreTrend === "up" || scoreTrend === "stable") {
-        positives.push("Aumento de volumen gestionado sin sacrificar calidad");
-      } else {
-        negatives.push("El aumento de volumen está afectando la calidad de atención");
-      }
-    } else if (volumeTrend === "down" && scoreTrend !== "up") {
-      negatives.push("Reducción de volumen sin mejora proporcional en calidad");
-    }
-    
-    // Insights sobre agentes
-    if (topAgent && bottomAgent && topAgent.averageScore - bottomAgent.averageScore > 20) {
-      negatives.push("Alta disparidad en desempeño entre agentes requiere homogeneización");
-    }
-    
-    if (topAgent && topAgent.averageScore > 85) {
-      positives.push(`Destaca ${topAgent.name} con excelente desempeño consistente`);
-    }
-    
-    if (bottomAgent && bottomAgent.averageScore < 65) {
-      negatives.push(`Oportunidad de desarrollo para agente con menor desempeño`);
-    }
-    
-    // Insights basados en volumen
-    if (totalCalls < 10 && reports.length >= 7) {
-      negatives.push("Volumen bajo de llamadas sugiere revisar capacidad operativa");
-    } else if (totalCalls > 50 && reports.length <= 7) {
-      positives.push("Alta capacidad de gestión de volumen demostrada");
-    }
-    
-    // Asegurar suficientes insights
-    if (positives.length < 3) {
-      const additionalPositives = [
-        "Cumplimiento de protocolos básicos de atención",
-        "Gestión efectiva de casos según prioridades",
-        "Comunicación profesional con los clientes",
-        "Base sólida para desarrollo de mejoras continuas",
-        "Potencial para implementación de técnicas avanzadas"
-      ];
-      
-      for (const insight of additionalPositives) {
-        if (positives.length >= 3) break;
-        positives.push(insight);
-      }
-    }
-    
-    if (negatives.length < 3) {
-      const additionalNegatives = [
-        "Oportunidad de mejorar técnicas de indagación de necesidades",
-        "Potencial para optimizar tiempos de respuesta",
-        "Posibilidad de incrementar ofertas complementarias",
-        "Margen para perfeccionar técnicas de cierre y seguimiento",
-        "Área de mejora en personalización de propuestas"
-      ];
-      
-      for (const insight of additionalNegatives) {
-        if (negatives.length >= 3) break;
-        negatives.push(insight);
-      }
-    }
-    
+    const totalCalls = reports.reduce((sum, report) => sum + (report.callCount || 0), 0);
+    const weightedScoreSum = reports.reduce((sum, report) => 
+      sum + ((report.averageScore || 0) * (report.callCount || 0)), 0);
+    const avgScore = totalCalls > 0 ? Math.round(weightedScoreSum / totalCalls) : 0;
+
+    // Calculate issues
+    const callsWithIssues = reports.reduce((sum, report) => sum + (report.issuesCount || 0), 0);
+    const issuePercentage = totalCalls > 0 ? Math.round((callsWithIssues / totalCalls) * 100) : 0;
+
     return {
-      positives: positives.slice(0, 3),
-      negatives: negatives.slice(0, 3),
-      trends: { score: scoreTrend, volume: volumeTrend }
+      totalCalls,
+      avgScore,
+      callsWithIssues, 
+      issuePercentage
     };
   };
-  
-  // Generar insights basados en los reportes
-  const insights = React.useMemo(() => generateInsights(reports), [reports]);
 
-  if (loadingReports) {
-    return (
-      <Card className="w-full">
-        <CardContent className="pt-6">
-          <div className="flex flex-col items-center justify-center py-8">
-            <div className="mb-4 h-6 w-6 animate-spin rounded-full border-b-2 border-primary"></div>
-            <p className="text-sm text-muted-foreground">Cargando análisis global...</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const metrics = calculateMetrics();
 
-  if (!reports || reports.length === 0) {
-    return (
-      <Card className="w-full">
-        <CardContent className="pt-6">
-          <div className="flex flex-col items-center justify-center py-6">
-            <BarChart className="mb-2 h-10 w-10 text-muted-foreground" />
-            <h3 className="font-medium">No hay datos para análisis</h3>
-            <p className="text-sm text-muted-foreground mt-1 mb-4">
-              No se encontraron datos suficientes para el análisis global.
-            </p>
-            <Button onClick={onViewDetailedAnalysis} variant="outline" size="sm">
-              Ver análisis detallado <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Prepare chart data
+  const chartData = reports && reports.length > 0 
+    ? [...reports].reverse().map(report => ({
+        date: new Date(report.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
+        score: report.averageScore || 0,
+        calls: report.callCount || 0
+      }))
+    : [];
+
+  // Date range options
+  const dateRangeOptions = [
+    { value: "7", label: "7 días" },
+    { value: "15", label: "15 días" },
+    { value: "30", label: "30 días" },
+    { value: "90", label: "90 días" }
+  ];
 
   return (
-    <Card className="w-full">
-      <CardContent className={`${isDropdown ? "pt-4" : "pt-6"}`}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-medium text-lg">Análisis Global</h3>
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between pb-2">
+        <div>
+          <CardTitle className="text-xl">Análisis Global</CardTitle>
+          <CardDescription>Métricas de rendimiento</CardDescription>
+        </div>
+        <div className="flex space-x-2">
           {!isDropdown && (
-            <Select
-              defaultValue={selectedDays.toString()}
+            <Select 
+              value={selectedDays.toString()} 
               onValueChange={(value) => onChangeDateRange(parseInt(value))}
             >
-              <SelectTrigger className="w-[130px]">
-                <SelectValue placeholder="Últimos días" />
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="7 días" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="7">Últimos 7 días</SelectItem>
-                <SelectItem value="15">Últimos 15 días</SelectItem>
-                <SelectItem value="30">Últimos 30 días</SelectItem>
+                {dateRangeOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           )}
+          <Button variant="outline" size="sm" onClick={onViewDetailedAnalysis}>
+            <AreaChart className="mr-2 h-4 w-4" />
+            Análisis Detallado
+          </Button>
         </div>
-        
-        <div className="space-y-4">
-          <div>
-            <h4 className="text-sm font-medium mb-2">Aspectos positivos:</h4>
-            <div className="space-y-1">
-              {insights.positives.map((positive, i) => (
-                <InsightItem 
-                  key={`positive-${i}`} 
-                  text={positive} 
-                  type="positive" 
-                  trend={positive.includes("Tendencia positiva") ? "up" : undefined}
-                />
-              ))}
+      </CardHeader>
+      <CardContent>
+        {loadingReports ? (
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-12 w-full" />
             </div>
+            <Skeleton className="h-[200px] w-full" />
           </div>
-          
-          <div>
-            <h4 className="text-sm font-medium mb-2">Aspectos a mejorar:</h4>
-            <div className="space-y-1">
-              {insights.negatives.map((negative, i) => (
-                <InsightItem 
-                  key={`negative-${i}`} 
-                  text={negative} 
-                  type="negative" 
-                  trend={negative.includes("Tendencia preocupante") ? "down" : undefined}
-                />
-              ))}
+        ) : hasCalls && metrics.totalCalls > 0 ? (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 bg-card rounded-lg border shadow-sm">
+                <p className="text-sm font-medium text-muted-foreground">Total Llamadas</p>
+                <p className="text-2xl font-bold">{metrics.totalCalls}</p>
+              </div>
+              <div className="p-4 bg-card rounded-lg border shadow-sm">
+                <p className="text-sm font-medium text-muted-foreground">Score Promedio</p>
+                <p className="text-2xl font-bold">{metrics.avgScore}%</p>
+              </div>
+              <div className="p-4 bg-card rounded-lg border shadow-sm">
+                <p className="text-sm font-medium text-muted-foreground">Llamadas con Problemas</p>
+                <p className="text-2xl font-bold">{metrics.callsWithIssues}</p>
+              </div>
+              <div className="p-4 bg-card rounded-lg border shadow-sm">
+                <p className="text-sm font-medium text-muted-foreground">% de Problemas</p>
+                <p className="text-2xl font-bold">{metrics.issuePercentage}%</p>
+              </div>
             </div>
+
+            {chartData.length > 1 && (
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartAreaChart
+                    data={chartData}
+                    margin={{
+                      top: 10,
+                      right: 30,
+                      left: 0,
+                      bottom: 0,
+                    }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip />
+                    <Area type="monotone" dataKey="score" stroke="#03A678" fill="#03A678" fillOpacity={0.2} name="Score" />
+                  </RechartAreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
-        </div>
-        
-        <Button 
-          onClick={onViewDetailedAnalysis} 
-          variant="outline" 
-          className="w-full mt-6"
-        >
-          Ver análisis detallado <ArrowRight className="ml-2 h-4 w-4" />
-        </Button>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-8 text-center space-y-4">
+            <p className="text-muted-foreground">No hay datos suficientes para mostrar un análisis global.</p>
+            <p className="text-sm">Sube grabaciones de llamadas para comenzar a ver métricas aquí.</p>
+            <Button variant="outline" size="sm" onClick={onViewDetailedAnalysis}>
+              Ver Panel de Análisis
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
-}
+};
+
+export default GlobalAnalysisSection;

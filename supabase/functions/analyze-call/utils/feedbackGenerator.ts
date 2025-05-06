@@ -7,7 +7,7 @@ export const generateOpportunities = (behaviorsAnalysis: any[], summary: string 
   
   if (notMet.length === 0 && !summary) return ["No se identificaron oportunidades de mejora significativas"];
   
-  // Análisis de palabras clave en el resumen para generar recomendaciones más específicas
+  // Analyze keywords in the summary to generate more specific recommendations
   const summaryKeywords = {
     precio: ["Perfeccionar argumentación sobre valor vs precio", "Preparar comparativas de costo-beneficio", "Desarrollar técnicas para vencer objeciones de precio"],
     cobertura: ["Mejorar conocimiento sobre áreas de cobertura", "Manejar proactivamente objeciones sobre cobertura", "Ofrecer alternativas para zonas con cobertura limitada"],
@@ -21,7 +21,7 @@ export const generateOpportunities = (behaviorsAnalysis: any[], summary: string 
   
   let specificOpportunities = [];
   
-  // Analizar el resumen para encontrar oportunidades específicas
+  // Analyze the summary to find specific opportunities
   if (summary) {
     const lowerSummary = summary.toLowerCase();
     Object.entries(summaryKeywords).forEach(([keyword, suggestions]) => {
@@ -31,7 +31,7 @@ export const generateOpportunities = (behaviorsAnalysis: any[], summary: string 
     });
   }
   
-  // Combinar oportunidades específicas con las derivadas del análisis de comportamientos
+  // Combine specific opportunities with those derived from behavior analysis
   const behaviorOpportunities = notMet.map(b => {
     // Extract keywords and generate specific suggestions with variability
     const behavior = b.name.toLowerCase();
@@ -68,21 +68,21 @@ export const generateOpportunities = (behaviorsAnalysis: any[], summary: string 
       ],
     };
     
-    // Buscar coincidencias con palabras clave y elegir una variación aleatoria
+    // Find matches with keywords and choose a random variation
     for (const [key, options] of Object.entries(variations)) {
       if (behavior.includes(key)) {
         return options[Math.floor(Math.random() * options.length)];
       }
     }
     
-    // Si no hay coincidencia específica, retornar una sugerencia general
+    // If there's no specific match, return a general suggestion
     return `Mejorar en: ${b.name}`;
   });
   
-  // Combinar y eliminar duplicados
+  // Combine and remove duplicates
   let allOpportunities = [...new Set([...specificOpportunities, ...behaviorOpportunities])];
   
-  // Si no hay suficientes oportunidades específicas, agregar algunas generales basadas en el análisis
+  // If there aren't enough specific opportunities, add some general ones based on the analysis
   if (allOpportunities.length < 3) {
     const generalOpportunities = [
       "Implementar buenas prácticas en manejo del tiempo de la llamada",
@@ -92,7 +92,7 @@ export const generateOpportunities = (behaviorsAnalysis: any[], summary: string 
       "Ampliar conocimiento sobre productos complementarios"
     ];
     
-    // Agregar oportunidades generales sin duplicar hasta tener al menos 3
+    // Add general opportunities without duplicates until we have at least 3
     for (const opp of generalOpportunities) {
       if (allOpportunities.length >= 3) break;
       if (!allOpportunities.includes(opp)) {
@@ -101,7 +101,7 @@ export const generateOpportunities = (behaviorsAnalysis: any[], summary: string 
     }
   }
   
-  return allOpportunities.slice(0, 5); // Limitar a 5 oportunidades
+  return allOpportunities.slice(0, 5); // Limit to 5 opportunities
 };
 
 // Function to generate positive aspects based on behavior analysis and call summary
@@ -112,7 +112,7 @@ export const generatePositives = (behaviorsAnalysis: any[], score: number, summa
     return ["Se identificaron oportunidades de mejora"];
   }
   
-  // Detectar aspectos positivos basados en palabras clave del resumen
+  // Detect positive aspects based on summary keywords
   const summaryStrengths = [];
   if (summary) {
     const lowerSummary = summary.toLowerCase();
@@ -130,14 +130,14 @@ export const generatePositives = (behaviorsAnalysis: any[], score: number, summa
       "escuchó atentamente": "Escucha activa efectivamente aplicada"
     };
     
-    // Buscar patrones de fortalezas en el resumen
+    // Look for strength patterns in the summary
     Object.entries(strengthPatterns).forEach(([pattern, strength]) => {
       if (lowerSummary.includes(pattern)) {
         summaryStrengths.push(strength);
       }
     });
     
-    // Identificar si hubo venta u ofrecimiento cruzado exitoso
+    // Identify if there was a successful sale or cross-selling
     if (lowerSummary.includes("venta exitosa") || lowerSummary.includes("aceptó la oferta")) {
       summaryStrengths.push("Efectividad en el cierre de venta");
     }
@@ -146,10 +146,10 @@ export const generatePositives = (behaviorsAnalysis: any[], score: number, summa
     }
   }
   
-  // Generar aspectos positivos basados en los comportamientos cumplidos
+  // Generate positive aspects based on the behaviors met
   let behaviorStrengths = [];
   
-  // Si hay comportamientos cumplidos, generar fortalezas específicas
+  // If there are behaviors met, generate specific strengths
   if (score > 50) {
     behaviorStrengths = met.map(b => {
       const behavior = b.name.toLowerCase();
@@ -191,7 +191,7 @@ export const generatePositives = (behaviorsAnalysis: any[], score: number, summa
         ]
       };
       
-      // Buscar coincidencias con palabras clave y elegir una variación aleatoria
+      // Look for matches with keywords and choose a random variation
       for (const [key, options] of Object.entries(variations)) {
         if (behavior.includes(key)) {
           return options[Math.floor(Math.random() * options.length)];
@@ -202,10 +202,10 @@ export const generatePositives = (behaviorsAnalysis: any[], score: number, summa
     });
   }
   
-  // Combinar fortalezas del resumen y comportamientos
+  // Combine strengths from summary and behaviors
   const allStrengths = [...summaryStrengths, ...behaviorStrengths];
   
-  // Asegurar variedad según puntuación
+  // Ensure variety based on score
   const commonPositives = [
     "Mantuvo tono profesional durante toda la llamada",
     "Identificación y presentación corporativa correcta",
@@ -217,12 +217,12 @@ export const generatePositives = (behaviorsAnalysis: any[], score: number, summa
     "Ofreció alternativas viables según el contexto"
   ];
   
-  // Si no hay suficientes fortalezas específicas, agregar algunas genéricas
+  // If there aren't enough specific strengths, add some generic ones
   if (allStrengths.length < 3) {
-    // Seleccionar aleatoriamente de commonPositives sin repeticiones
+    // Randomly select from commonPositives without repetitions
     const shuffledCommon = commonPositives.sort(() => 0.5 - Math.random());
     
-    // Agregar fortalezas genéricas hasta tener al menos 3
+    // Add generic strengths until we have at least 3
     for (const pos of shuffledCommon) {
       if (allStrengths.length >= 3) break;
       if (!allStrengths.includes(pos)) {
@@ -231,30 +231,31 @@ export const generatePositives = (behaviorsAnalysis: any[], score: number, summa
     }
   }
   
-  // Limitar y devolver aspectos positivos
+  // Limit and return positive aspects
   return [...new Set(allStrengths)].slice(0, 5);
 };
 
-// Nueva función para generar análisis diario personalizado
-export const generateDailyAnalysis = (reports: any[]) => {
-  if (!reports || reports.length === 0) return null;
+// New function to generate daily analysis with OpenAI
+export const generateDailyAnalysis = async (reports: any[], hasCalls: boolean) => {
+  // If there are no calls, return null to prevent generating empty analysis
+  if (!reports || reports.length === 0 || !hasCalls) return null;
   
-  // Calcular métricas generales
+  // Calculate general metrics
   const totalCalls = reports.reduce((sum, report) => sum + (report.callCount || 0), 0);
   const avgScore = Math.round(reports.reduce((sum, report) => sum + (report.averageScore || 0), 0) / reports.length);
   
-  // Analizar tendencias
+  // Analyze trends
   const trend = reports.length > 1 ? 
     (reports[0].averageScore > reports[reports.length-1].averageScore ? "descendente" : "ascendente") : 
     "estable";
   
-  // Identificar agentes destacados
+  // Identify top agents
   const topAgents = reports
     .flatMap(r => r.agents || [])
     .sort((a, b) => b.averageScore - a.averageScore)
     .slice(0, 3);
     
-  // Identificar áreas de mejora más comunes
+  // Identify most common improvement areas
   const commonIssues = reports
     .flatMap(r => r.issues || [])
     .reduce((acc, issue) => {
@@ -266,12 +267,12 @@ export const generateDailyAnalysis = (reports: any[]) => {
     .sort(([, a], [, b]) => (b as number) - (a as number))
     .map(([issue]) => issue)
     .slice(0, 3);
-    
-  // Generar hallazgos personalizados basados en los datos reales
+
+  // Generate personalized findings based on real data
   const findings = {
     positive: [
       `Promedio de calidad de atención: ${avgScore}%`,
-      topAgents.length ? `Agente destacado: ${topAgents[0].name}` : "Rendimiento consistente del equipo",
+      topAgents.length ? `Agente destacado: ${topAgents[0]?.name || 'N/A'}` : "Rendimiento consistente del equipo",
       `Tendencia de calidad ${trend} en el período analizado`,
       totalCalls > 10 ? "Volumen de llamadas gestionado eficientemente" : "Atención personalizada en cada interacción",
       avgScore > 75 ? "Alto nivel de satisfacción en protocolos de atención" : "Cumplimiento aceptable de estándares básicos"
@@ -292,4 +293,3 @@ export const generateDailyAnalysis = (reports: any[]) => {
     findings
   };
 };
-

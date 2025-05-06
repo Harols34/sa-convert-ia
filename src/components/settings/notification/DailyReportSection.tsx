@@ -1,289 +1,183 @@
 
 import React from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, ChevronDown, ChevronUp, Activity, AlertTriangle, AlertCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { BarChart, Calendar, ChevronDown } from "lucide-react";
+import { DailyReport } from "@/lib/types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { Skeleton } from "@/components/ui/skeleton";
 
-// Componente para visualizar puntos destacados con variación
-const HighlightPoint = ({ text, type }: { text: string, type: "positive" | "negative" | "warning" }) => {
-  const icons = {
-    positive: <Activity className="h-4 w-4 mr-2 text-green-500" />,
-    negative: <AlertTriangle className="h-4 w-4 mr-2 text-amber-500" />,
-    warning: <AlertCircle className="h-4 w-4 mr-2 text-red-500" />
-  };
-  
-  return (
-    <div className="flex items-start mb-2">
-      {icons[type]}
-      <span className="text-sm">{text}</span>
-    </div>
-  );
-};
-
-interface DailyReportSectionProps {
-  reports: any[];
+export interface DailyReportSectionProps {
+  reports: DailyReport[];
   loadingReports: boolean;
   onViewHistory: () => void;
   onChangeDateRange: (days: number) => void;
   selectedDays: number;
   isDropdown: boolean;
   showDateSelector?: boolean;
+  hasCalls?: boolean;
 }
 
-export default function DailyReportSection({
+const DailyReportSection: React.FC<DailyReportSectionProps> = ({
   reports,
   loadingReports,
   onViewHistory,
   onChangeDateRange,
   selectedDays,
   isDropdown,
-  showDateSelector = false
-}: DailyReportSectionProps) {
-  const [expandedDays, setExpandedDays] = React.useState<Record<string, boolean>>({});
-  
-  // Toggle expanded state for a specific date
-  const toggleExpanded = (date: string) => {
-    setExpandedDays(prev => ({
-      ...prev,
-      [date]: !prev[date]
-    }));
+  showDateSelector = true,
+  hasCalls = false
+}) => {
+  // Get today's date for display
+  const today = new Date();
+  const formattedDate = format(today, "dd MMMM yyyy", { locale: es });
+
+  // Format date for daily reports
+  const formatReportDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return format(date, "dd MMM yyyy", { locale: es });
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return dateString || "Fecha desconocida";
+    }
   };
-  
-  // Group reports by date and calculate metrics
-  const reportsByDate = React.useMemo(() => {
-    if (!reports || reports.length === 0) return [];
-    
-    const grouped: Record<string, any> = {};
-    reports.forEach(report => {
-      const date = report.date.split('T')[0];
-      if (!grouped[date]) {
-        grouped[date] = {
-          date,
-          callCount: 0,
-          averageScore: 0,
-          totalCalls: 0,
-          agents: [],
-          positiveHighlights: [],
-          negativeHighlights: []
-        };
-      }
-      
-      grouped[date].callCount += report.callCount;
-      grouped[date].totalCalls += report.callCount;
-      
-      // Track unique agents
-      report.agents.forEach((agent: any) => {
-        const existingAgent = grouped[date].agents.find((a: any) => a.id === agent.id);
-        if (!existingAgent) {
-          grouped[date].agents.push({
-            id: agent.id,
-            name: agent.name,
-            callCount: agent.callCount,
-            averageScore: agent.averageScore
-          });
-        } else {
-          existingAgent.callCount += agent.callCount;
-          existingAgent.averageScore = ((existingAgent.averageScore * existingAgent.callCount) + 
-                                      (agent.averageScore * agent.callCount)) / 
-                                      (existingAgent.callCount + agent.callCount);
-        }
-      });
-      
-      // Calculate average score
-      const totalScore = grouped[date].agents.reduce(
-        (sum: number, agent: any) => sum + agent.averageScore * agent.callCount, 0
-      );
-      grouped[date].averageScore = Math.round(totalScore / grouped[date].totalCalls);
-      
-      // Generate highlights dynamically based on data
-      // Highlights vary based on actual data, not repetitive templates
-      if (grouped[date].averageScore > 80) {
-        grouped[date].positiveHighlights.push("Alto nivel de efectividad en gestión de llamadas");
-      } else if (grouped[date].averageScore > 70) {
-        grouped[date].positiveHighlights.push("Nivel satisfactorio en calidad de interacciones");
-      } else {
-        grouped[date].positiveHighlights.push("Cumplimiento básico de estándares de atención");
-      }
-      
-      if (grouped[date].totalCalls > 10) {
-        grouped[date].positiveHighlights.push("Volumen significativo de llamadas gestionado");
-      } else if (grouped[date].totalCalls > 5) {
-        grouped[date].positiveHighlights.push("Gestión efectiva de volumen medio de llamadas");
-      } else {
-        grouped[date].positiveHighlights.push("Atención personalizada en cada interacción");
-      }
-      
-      // Negative highlights based on score patterns
-      if (grouped[date].averageScore < 70) {
-        grouped[date].negativeHighlights.push("Necesidad de reforzar estándares básicos de calidad");
-      } else if (grouped[date].averageScore < 80) {
-        grouped[date].negativeHighlights.push("Oportunidad de mejora en técnicas avanzadas de atención");
-      } else {
-        grouped[date].negativeHighlights.push("Perfeccionar detalles para alcanzar excelencia");
-      }
-      
-      // Add highlight based on agent performance variation
-      const scores = grouped[date].agents.map((a: any) => a.averageScore);
-      const maxScore = Math.max(...scores);
-      const minScore = Math.min(...scores);
-      
-      if (maxScore - minScore > 20 && grouped[date].agents.length > 1) {
-        grouped[date].negativeHighlights.push("Alta variabilidad en desempeño entre agentes");
-      }
-    });
-    
-    // Convert to array and sort by date (newest first)
-    return Object.values(grouped).sort((a: any, b: any) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-  }, [reports]);
 
-  if (loadingReports) {
-    return (
-      <Card className="w-full">
-        <CardContent className="pt-6">
-          <div className="flex flex-col items-center justify-center py-8">
-            <div className="mb-4 h-6 w-6 animate-spin rounded-full border-b-2 border-primary"></div>
-            <p className="text-sm text-muted-foreground">Cargando reportes diarios...</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Date range options
+  const dateRangeOptions = [
+    { value: "7", label: "7 días" },
+    { value: "15", label: "15 días" },
+    { value: "30", label: "30 días" },
+    { value: "90", label: "90 días" }
+  ];
 
-  if (!reports || reports.length === 0) {
-    return (
-      <Card className="w-full">
-        <CardContent className="pt-6">
-          <div className="flex flex-col items-center justify-center py-6">
-            <Activity className="mb-2 h-10 w-10 text-muted-foreground" />
-            <h3 className="font-medium">No hay reportes disponibles</h3>
-            <p className="text-sm text-muted-foreground mt-1 mb-4">
-              No se encontraron reportes diarios para el período seleccionado.
-            </p>
-            <Button onClick={onViewHistory} variant="outline" size="sm">
-              Ver historial completo <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Get the latest report if available
+  const latestReport = reports && reports.length > 0 ? reports[0] : null;
 
   return (
-    <Card className="w-full">
-      <CardContent className={`${isDropdown ? "pt-4" : "pt-6"}`}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-medium text-lg">Reportes Diarios</h3>
-          
-          {showDateSelector && (
-            <Select
-              defaultValue={selectedDays.toString()}
-              onValueChange={(value) => onChangeDateRange(parseInt(value))}
-            >
-              <SelectTrigger className="w-[130px]">
-                <SelectValue placeholder="Últimos días" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7">Últimos 7 días</SelectItem>
-                <SelectItem value="15">Últimos 15 días</SelectItem>
-                <SelectItem value="30">Últimos 30 días</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between pb-2">
+        <div>
+          <CardTitle className="text-xl">Reporte Diario</CardTitle>
+          <CardDescription>Resumen de actividad reciente</CardDescription>
         </div>
-        
-        {reportsByDate.map((dayReport: any, i: number) => {
-          const isExpanded = expandedDays[dayReport.date] || false;
-          const dateObj = new Date(dayReport.date);
-          const formattedDate = dateObj.toLocaleDateString('es-ES', { 
-            day: '2-digit', 
-            month: 'long', 
-            year: 'numeric' 
-          });
-          
-          return (
-            <div key={dayReport.date} className={`${i > 0 ? "mt-6" : ""}`}>
-              <div 
-                className="flex justify-between items-center cursor-pointer" 
-                onClick={() => toggleExpanded(dayReport.date)}
-              >
-                <div>
-                  <span className="font-medium">{formattedDate}</span>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="secondary" className="text-xs">
-                      {dayReport.callCount} llamadas
-                    </Badge>
-                    <Badge 
-                      variant={dayReport.averageScore >= 80 ? "success" : dayReport.averageScore >= 70 ? "outline" : "destructive"} 
-                      className="text-xs"
+        <div className="flex space-x-2">
+          {showDateSelector && (
+            isDropdown ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    {selectedDays} días <ChevronDown className="ml-1 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {dateRangeOptions.map((option) => (
+                    <DropdownMenuItem 
+                      key={option.value}
+                      onClick={() => onChangeDateRange(parseInt(option.value))}
                     >
-                      {dayReport.averageScore}% calidad
-                    </Badge>
-                  </div>
-                </div>
-                <Button variant="ghost" size="icon">
-                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </Button>
-              </div>
-              
-              {isExpanded && (
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">Hallazgos principales:</h4>
-                    <div className="space-y-1">
-                      {dayReport.positiveHighlights.map((item: string, j: number) => (
-                        <HighlightPoint key={`pos-${j}`} text={item} type="positive" />
-                      ))}
-                      {dayReport.negativeHighlights.map((item: string, j: number) => (
-                        <HighlightPoint key={`neg-${j}`} text={item} type="negative" />
-                      ))}
-                    </div>
+                      {option.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Select 
+                value={selectedDays.toString()} 
+                onValueChange={(value) => onChangeDateRange(parseInt(value))}
+              >
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue placeholder="7 días" />
+                </SelectTrigger>
+                <SelectContent>
+                  {dateRangeOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )
+          )}
+          <Button variant="outline" size="sm" onClick={onViewHistory}>
+            <BarChart className="mr-2 h-4 w-4" />
+            Ver Historial
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loadingReports ? (
+          <div className="space-y-4">
+            <Skeleton className="w-full h-6" />
+            <Skeleton className="w-full h-24" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {reports && reports.length > 0 ? (
+              reports.map((report, index) => (
+                <div key={index} className="pb-4 border-b last:border-0">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-medium flex items-center">
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {formatReportDate(report.date)} 
+                      {report.callCount ? (
+                        <span className="text-sm font-normal text-muted-foreground ml-2">
+                          - {report.callCount} llamada{report.callCount !== 1 ? 's' : ''}
+                        </span>
+                      ) : null}
+                    </h3>
+                    {report.trend === "up" ? (
+                      <span className="text-bright-green text-sm">▲</span>
+                    ) : report.trend === "down" ? (
+                      <span className="text-destructive text-sm">▼</span>
+                    ) : null}
                   </div>
                   
-                  {dayReport.agents.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium mb-2">Desempeño de agentes:</h4>
-                      <div className="space-y-2">
-                        {dayReport.agents
-                          .sort((a: any, b: any) => b.averageScore - a.averageScore)
-                          .slice(0, 3)
-                          .map((agent: any, j: number) => (
-                            <div key={`agent-${j}`} className="flex items-center justify-between">
-                              <span className="text-sm">{agent.name}</span>
-                              <Badge 
-                                variant={agent.averageScore >= 80 ? "success" : agent.averageScore >= 70 ? "outline" : "destructive"} 
-                                className="text-xs"
-                              >
-                                {agent.averageScore}%
-                              </Badge>
-                            </div>
-                          ))}
+                  {report.callCount && report.callCount > 0 ? (
+                    <>
+                      <h4 className="text-sm font-medium mb-1">Hallazgos principales:</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div>
+                          <h5 className="text-xs font-medium text-muted-foreground">Aspectos positivos:</h5>
+                          <ul className="text-xs list-disc list-inside">
+                            {report.findings?.positive?.slice(0, 3).map((finding, i) => (
+                              <li key={i}>{finding}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <h5 className="text-xs font-medium text-muted-foreground">Aspectos negativos:</h5>
+                          <ul className="text-xs list-disc list-inside">
+                            {report.findings?.negative?.slice(0, 3).map((finding, i) => (
+                              <li key={i}>{finding}</li>
+                            ))}
+                          </ul>
+                        </div>
                       </div>
-                    </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No hay llamadas registradas en esta fecha.
+                    </p>
                   )}
                 </div>
-              )}
-            </div>
-          );
-        })}
-        
-        <Button 
-          onClick={onViewHistory} 
-          variant="outline" 
-          className="w-full mt-6"
-        >
-          Ver historial completo <ArrowRight className="ml-2 h-4 w-4" />
-        </Button>
+              ))
+            ) : (
+              <div className="text-center py-6">
+                <p className="text-muted-foreground">No hay datos disponibles para el período seleccionado.</p>
+                <Button variant="outline" size="sm" className="mt-4" onClick={onViewHistory}>
+                  Explorar historial completo
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
-}
+};
+
+export default DailyReportSection;

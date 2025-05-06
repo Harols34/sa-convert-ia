@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
-// Componentes más pequeños para mejor organización
+// Smaller components for better organization
 import DailyReportSection from "@/components/settings/notification/DailyReportSection";
 import GlobalAnalysisSection from "@/components/settings/notification/GlobalAnalysisSection";
 import FeedbackTrainingSection from "@/components/settings/notification/FeedbackTrainingSection";
@@ -34,6 +34,9 @@ export default function NotificationSettings() {
   const { reports, isLoading: loadingReports, fetchReports } = useDailyReports(selectedDays);
   const navigate = useNavigate();
 
+  // Check if we actually have calls to analyze
+  const hasCalls = reports && reports.some(report => report.callCount && report.callCount > 0);
+
   // Handle date range change
   const handleDateRangeChange = (days: number) => {
     setSelectedDays(days);
@@ -42,11 +45,13 @@ export default function NotificationSettings() {
 
   // Function to group agents from all reports
   const getGroupedAgents = (): AgentGrouped[] => {
-    if (!reports || reports.length === 0) return [];
+    if (!reports || reports.length === 0 || !hasCalls) return [];
     
     const agentsMap: Record<string, AgentGrouped> = {};
     
     reports.forEach(report => {
+      if (!report.agents || report.agents.length === 0) return;
+      
       report.agents.forEach(agent => {
         if (!agentsMap[agent.id]) {
           agentsMap[agent.id] = {
@@ -181,6 +186,7 @@ export default function NotificationSettings() {
         selectedDays={selectedDays}
         isDropdown={false}
         showDateSelector={true}
+        hasCalls={hasCalls}
       />
 
       {/* Global Analysis */}
@@ -190,7 +196,8 @@ export default function NotificationSettings() {
         onViewDetailedAnalysis={handleViewDetailedAnalysis}
         onChangeDateRange={handleDateRangeChange}
         selectedDays={selectedDays}
-        isDropdown={false} 
+        isDropdown={false}
+        hasCalls={hasCalls}
       />
       
       {/* Feedback for Training */}
@@ -200,6 +207,7 @@ export default function NotificationSettings() {
         onGenerateReport={handleGenerateReport}
         onChangeDateRange={handleDateRangeChange}
         selectedDays={selectedDays}
+        hasCalls={hasCalls}
       />
     </div>
   );
