@@ -5,7 +5,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -183,7 +182,7 @@ export default function NotificationDropdown() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Completely revised dialog implementation with manual close handling */}
+      {/* Modified dialog implementation with only the Cerrar button */}
       {showFullSettings && (
         <Dialog 
           open={showFullSettings} 
@@ -208,17 +207,12 @@ export default function NotificationDropdown() {
               </DialogDescription>
             </DialogHeader>
 
-            {/* Close button with explicit click handler */}
-            <DialogClose 
-              className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
-              onClick={handleDialogClose}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                <path d="M18 6 6 18"></path>
-                <path d="m6 6 12 12"></path>
-              </svg>
-              <span className="sr-only">Close</span>
-            </DialogClose>
+            {/* Remove the default X button by overriding the DialogContent */}
+            <style jsx>{`
+              [data-radix-dialog-close] {
+                display: none;
+              }
+            `}</style>
 
             <Tabs defaultValue="preferences" className="w-full mt-4">
               <TabsList className="grid grid-cols-3 mb-4">
@@ -305,7 +299,7 @@ export default function NotificationDropdown() {
               </TabsContent>
             </Tabs>
 
-            {/* Extra button to ensure proper closing */}
+            {/* Keep only the Cerrar button */}
             <div className="mt-6 flex justify-end">
               <Button 
                 variant="outline" 

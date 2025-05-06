@@ -11,7 +11,6 @@ import { useUser } from "@/hooks/useUser";
 import ProfileSection from "@/components/settings/ProfileSection";
 import PasswordSection from "@/components/settings/PasswordSection";
 import AudioSettings from "@/components/settings/AudioSettings";
-import NotificationSettings from "@/components/settings/NotificationSettings";
 
 export default function Settings() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -25,7 +24,6 @@ export default function Settings() {
   const MemoizedProfileSection = React.memo(ProfileSection);
   const MemoizedPasswordSection = React.memo(PasswordSection);
   const MemoizedAudioSettings = React.memo(AudioSettings);
-  const MemoizedNotificationSettings = React.memo(NotificationSettings);
 
   if (loadingAuth || loadingUser || loadingSettings) {
     return (
@@ -47,10 +45,9 @@ export default function Settings() {
           <h2 className="text-3xl font-bold tracking-tight mb-6">Configuración</h2>
 
           <Tabs defaultValue="profile" className="space-y-6">
-            <TabsList className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            <TabsList className="grid grid-cols-2 gap-2">
               <TabsTrigger value="profile">Perfil</TabsTrigger>
               <TabsTrigger value="audio">Procesamiento de Audio</TabsTrigger>
-              <TabsTrigger value="notificaciones">Notificaciones</TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile" className="space-y-6">
@@ -60,10 +57,6 @@ export default function Settings() {
             
             <TabsContent value="audio" className="space-y-6">
               <MemoizedAudioSettings />
-            </TabsContent>
-
-            <TabsContent value="notificaciones" className="space-y-6">
-              <MemoizedNotificationSettings />
             </TabsContent>
           </Tabs>
         </main>
