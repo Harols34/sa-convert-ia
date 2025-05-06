@@ -14,6 +14,7 @@ export interface FeedbackTrainingSectionProps {
   onChangeDateRange?: (days: number) => void;
   selectedDays?: number;
   hasCalls?: boolean;
+  onViewHistory?: () => void; // Added this missing prop
 }
 
 const FeedbackTrainingSection: React.FC<FeedbackTrainingSectionProps> = ({
@@ -22,7 +23,8 @@ const FeedbackTrainingSection: React.FC<FeedbackTrainingSectionProps> = ({
   onGenerateReport,
   onChangeDateRange,
   selectedDays,
-  hasCalls = true // Default to true to show data
+  hasCalls = true, // Default to true to show data
+  onViewHistory // Include the prop in component parameters
 }) => {
   // Top 3 agents based on total calls or score
   const topAgents = groupedAgents && groupedAgents.length > 0 ? groupedAgents.slice(0, 3) : [];
@@ -58,6 +60,13 @@ const FeedbackTrainingSection: React.FC<FeedbackTrainingSectionProps> = ({
   };
 
   const improvementOpportunities = generateImprovementOpportunities();
+
+  // Add the missing handler for onViewHistory
+  const handleViewHistory = () => {
+    if (onViewHistory) {
+      onViewHistory();
+    }
+  };
 
   return (
     <Card>
@@ -125,7 +134,7 @@ const FeedbackTrainingSection: React.FC<FeedbackTrainingSectionProps> = ({
               <p className="text-muted-foreground">No hay datos de agentes disponibles</p>
               <p className="text-sm">Sube grabaciones de llamadas para comenzar a ver métricas por agente.</p>
             </div>
-            <Button variant="outline" size="sm" onClick={onViewHistory}>
+            <Button variant="outline" size="sm" onClick={handleViewHistory}>
               Ver Panel de Agentes
             </Button>
           </div>

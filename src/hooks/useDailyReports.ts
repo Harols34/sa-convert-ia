@@ -277,14 +277,15 @@ export function useDailyReports(initialDays = 7) {
         if (previousCalls && previousCalls.length > 0) {
           previousCalls.forEach(call => {
             if (call.feedback) {
+              // Fix the type check for the feedback data
               if (Array.isArray(call.feedback)) {
-                call.feedback.forEach(item => {
-                  if (typeof item.score === 'number') {
+                call.feedback.forEach((item: any) => {
+                  if (item && typeof item.score === 'number') {
                     previousScore += item.score;
                     previousScoreCount++;
                   }
                 });
-              } else if (typeof call.feedback.score === 'number') {
+              } else if (call.feedback && typeof call.feedback.score === 'number') {
                 previousScore += call.feedback.score;
                 previousScoreCount++;
               }
