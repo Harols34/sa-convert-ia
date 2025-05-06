@@ -179,6 +179,8 @@ export default function NotificationSettings() {
         onViewHistory={handleViewHistory}
         onChangeDateRange={handleDateRangeChange}
         selectedDays={selectedDays}
+        isDropdown={false}
+        showDateSelector={true}
       />
 
       {/* Global Analysis */}
@@ -187,7 +189,8 @@ export default function NotificationSettings() {
         loadingReports={loadingReports}
         onViewDetailedAnalysis={handleViewDetailedAnalysis}
         onChangeDateRange={handleDateRangeChange}
-        selectedDays={selectedDays} 
+        selectedDays={selectedDays}
+        isDropdown={false} 
       />
       
       {/* Feedback for Training */}
