@@ -14,21 +14,15 @@ export const formatTime = (time: number) => {
  * Triggers an audio file download
  * @param url URL of the file to download
  * @param filename Name to save the file as
- * @param format Optional format specification ('mp3' is default)
  */
-export const downloadAudio = (url: string, filename: string, format: 'mp3' | 'txt' = 'mp3') => {
+export const downloadAudio = (url: string, filename: string) => {
   if (!url) return;
   
   const link = document.createElement('a');
   link.href = url;
   
-  if (format === 'txt') {
-    // For text format, we download with .txt extension
-    link.download = `${filename.replace(/\.[^/.]+$/, '')}.txt`;
-  } else {
-    // Default mp3 download
-    link.download = filename || 'audio.mp3';
-  }
+  // Always download as mp3
+  link.download = filename || 'audio.mp3';
   
   document.body.appendChild(link);
   link.click();
