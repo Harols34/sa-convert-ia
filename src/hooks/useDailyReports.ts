@@ -241,9 +241,11 @@ export function useDailyReports(initialDays = 7) {
           opportunities.push("No hay datos disponibles para este día");
         }
         
-        // Format the daily report - Use the actual date value for the formatted date
+        // Format the daily report - FIX: Add one day to correctly match the data with the actual date
         const reportDate = new Date(dateStr);
-        const formattedDate = format(reportDate, 'dd MMMM yyyy', { locale: es });
+        // Add 1 day to fix the date offset issue - showing correct date for calls data
+        const correctedDate = addDays(reportDate, 1);
+        const formattedDate = format(correctedDate, 'dd MMMM yyyy', { locale: es });
         
         // Count occurrences of each finding and take the top 5
         const getTopFindings = (findings: string[], limit = 5) => {
