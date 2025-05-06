@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Call, Feedback, BehaviorAnalysis } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -94,20 +93,13 @@ export function useCallList() {
         }
       }
 
-      // FIX: Handle search correctly - CRITICAL FIX
+      // Fixed search implementation - CRITICAL FIX
       if (filters.search && filters.search.trim() !== '') {
         const searchTerm = filters.search.trim().toLowerCase();
         console.log("Searching for term:", searchTerm);
 
-        // Use textSearch instead of ilike for better matching
-        query = query.or(
-          // First pattern - exact title match
-          `title.ilike.%${searchTerm}%`,
-          // Second pattern - agent name match
-          `agent_name.ilike.%${searchTerm}%`, 
-          // Third pattern - filename match
-          `filename.ilike.%${searchTerm}%`
-        );
+        // Corrected or() usage - use filter pattern syntax instead of multiple arguments
+        query = query.or(`title.ilike.%${searchTerm}%,agent_name.ilike.%${searchTerm}%,filename.ilike.%${searchTerm}%`);
       }
 
       console.log("Fetching calls with filters:", filters);
@@ -157,7 +149,7 @@ export function useCallList() {
         };
       });
 
-      // Ahora buscar los feedbacks en lotes más pequeños y sólo si hay llamadas
+      // ... keep existing code (feedback fetching and processing)
       if (mappedCalls.length > 0) {
         const callIds = mappedCalls.map(call => call.id);
         
