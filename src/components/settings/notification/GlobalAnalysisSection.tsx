@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,11 +25,11 @@ const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
   onChangeDateRange,
   selectedDays,
   isDropdown,
-  hasCalls = false
+  hasCalls = true // Default to true to show data
 }) => {
   // Calculate global metrics from reports
   const calculateMetrics = () => {
-    if (!reports || reports.length === 0 || !hasCalls) {
+    if (!reports || reports.length === 0) {
       return {
         totalCalls: 0,
         avgScore: 0,
@@ -55,11 +56,12 @@ const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
   };
 
   const metrics = calculateMetrics();
+  const hasCallData = metrics.totalCalls > 0;
 
   // Prepare chart data
   const chartData = reports && reports.length > 0 
     ? [...reports].reverse().map(report => ({
-        date: new Date(report.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
+        date: report.date ? new Date(report.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : '',
         score: report.averageScore || 0,
         calls: report.callCount || 0
       }))
@@ -113,7 +115,7 @@ const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
             </div>
             <Skeleton className="h-[200px] w-full" />
           </div>
-        ) : hasCalls && metrics.totalCalls > 0 ? (
+        ) : hasCallData ? (
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="p-4 bg-card rounded-lg border shadow-sm">

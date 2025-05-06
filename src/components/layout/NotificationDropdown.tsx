@@ -37,6 +37,9 @@ export default function NotificationDropdown() {
   const [showFullSettings, setShowFullSettings] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   
+  // Check if we actually have calls to analyze
+  const hasCalls = reports && reports.some(report => report.callCount && report.callCount > 0);
+  
   // Handle date range change
   const handleDateRangeChange = (days: number) => {
     setSelectedDays(days);
@@ -50,6 +53,8 @@ export default function NotificationDropdown() {
     const agentsMap: Record<string, any> = {};
     
     reports.forEach(report => {
+      if (!report.agents || report.agents.length === 0) return;
+      
       report.agents.forEach(agent => {
         if (!agentsMap[agent.id]) {
           agentsMap[agent.id] = {
@@ -144,7 +149,7 @@ export default function NotificationDropdown() {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-10 w-10 rounded-full">
             <Bell className="h-5 w-5" />
-            {reports && reports.length > 0 && (
+            {hasCalls && (
               <span className="absolute top-0 right-0 h-2.5 w-2.5 rounded-full bg-red-600" />
             )}
           </Button>
@@ -168,6 +173,7 @@ export default function NotificationDropdown() {
                 selectedDays={selectedDays}
                 isDropdown={true}
                 showDateSelector={true}
+                hasCalls={hasCalls}
               />
               
               <GlobalAnalysisSection 
@@ -177,6 +183,7 @@ export default function NotificationDropdown() {
                 onChangeDateRange={handleDateRangeChange}
                 selectedDays={selectedDays}
                 isDropdown={true}
+                hasCalls={hasCalls}
               />
             </div>
           </ScrollArea>
@@ -222,7 +229,6 @@ export default function NotificationDropdown() {
                 <TabsTrigger value="analysis">Análisis Global</TabsTrigger>
               </TabsList>
 
-              {/* Keep the tab content the same */}
               <TabsContent value="preferences" className="space-y-4">
                 <div className="space-y-4 rounded-md border p-4">
                   <h3 className="font-medium text-sm">Preferencias de Notificaciones</h3>
@@ -275,6 +281,7 @@ export default function NotificationDropdown() {
                   selectedDays={selectedDays}
                   isDropdown={false}
                   showDateSelector={true}
+                  hasCalls={hasCalls}
                 />
               </TabsContent>
 
@@ -287,6 +294,7 @@ export default function NotificationDropdown() {
                     onChangeDateRange={handleDateRangeChange}
                     selectedDays={selectedDays}
                     isDropdown={false}
+                    hasCalls={hasCalls}
                   />
                   
                   <FeedbackTrainingSection 
@@ -295,6 +303,7 @@ export default function NotificationDropdown() {
                     onGenerateReport={handleGenerateReport}
                     onChangeDateRange={handleDateRangeChange}
                     selectedDays={selectedDays}
+                    hasCalls={hasCalls}
                   />
                 </div>
               </TabsContent>

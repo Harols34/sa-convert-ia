@@ -22,10 +22,42 @@ const FeedbackTrainingSection: React.FC<FeedbackTrainingSectionProps> = ({
   onGenerateReport,
   onChangeDateRange,
   selectedDays,
-  hasCalls = false
+  hasCalls = true // Default to true to show data
 }) => {
   // Top 3 agents based on total calls or score
-  const topAgents = hasCalls ? groupedAgents.slice(0, 3) : [];
+  const topAgents = groupedAgents && groupedAgents.length > 0 ? groupedAgents.slice(0, 3) : [];
+  const hasAgentData = topAgents.length > 0;
+
+  // Generate dynamic improvement opportunities based on agent data
+  const generateImprovementOpportunities = () => {
+    if (!hasAgentData) return [];
+
+    // Calculate average score across all agents
+    const avgScore = Math.round(
+      topAgents.reduce((sum, agent) => sum + agent.averageScore, 0) / topAgents.length
+    );
+
+    const opportunities = [];
+
+    // Generate dynamic improvement suggestions based on average score
+    if (avgScore < 70) {
+      opportunities.push("Fortalecer conocimiento de producto para resolver consultas técnicas");
+      opportunities.push("Mejorar manejo de objeciones sobre precio");
+      opportunities.push("Implementar guiones de ventas más efectivos");
+    } else if (avgScore < 80) {
+      opportunities.push("Optimizar técnicas de cierre efectivo de venta");
+      opportunities.push("Aumentar conocimiento sobre ventajas competitivas");
+      opportunities.push("Desarrollar habilidades de escucha activa y empatía");
+    } else {
+      opportunities.push("Potenciar técnicas de venta cruzada");
+      opportunities.push("Perfeccionar preguntas para descubrir necesidades ocultas");
+      opportunities.push("Fortalecer habilidades de negociación avanzada");
+    }
+
+    return opportunities;
+  };
+
+  const improvementOpportunities = generateImprovementOpportunities();
 
   return (
     <Card>
@@ -52,7 +84,7 @@ const FeedbackTrainingSection: React.FC<FeedbackTrainingSectionProps> = ({
               </div>
             ))}
           </div>
-        ) : hasCalls && topAgents.length > 0 ? (
+        ) : hasAgentData ? (
           <div className="space-y-6">
             <div className="space-y-4">
               {topAgents.map((agent) => (
@@ -80,15 +112,9 @@ const FeedbackTrainingSection: React.FC<FeedbackTrainingSectionProps> = ({
             <div className="pt-4 border-t">
               <h4 className="font-medium mb-2">Oportunidades de Mejora Detectadas</h4>
               <ul className="text-sm space-y-1 list-disc list-inside">
-                {groupedAgents.length > 0 ? (
-                  <>
-                    <li>Fortalecer manejo de objeciones sobre precio</li>
-                    <li>Mejorar técnicas de cierre efectivo de venta</li>
-                    <li>Ampliar conocimiento de producto para resolver consultas técnicas</li>
-                  </>
-                ) : (
-                  <li>No hay datos suficientes para identificar oportunidades</li>
-                )}
+                {improvementOpportunities.map((opportunity, index) => (
+                  <li key={index}>{opportunity}</li>
+                ))}
               </ul>
             </div>
           </div>
@@ -99,7 +125,7 @@ const FeedbackTrainingSection: React.FC<FeedbackTrainingSectionProps> = ({
               <p className="text-muted-foreground">No hay datos de agentes disponibles</p>
               <p className="text-sm">Sube grabaciones de llamadas para comenzar a ver métricas por agente.</p>
             </div>
-            <Button variant="outline" size="sm" onClick={onGenerateReport}>
+            <Button variant="outline" size="sm" onClick={onViewHistory}>
               Ver Panel de Agentes
             </Button>
           </div>

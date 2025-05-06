@@ -99,7 +99,20 @@ export async function createOrUpdateFeedback(
       result = data;
     }
 
-    // Prepare the success response
+    // Update the call with the summary of results
+    // This helps the notification system quickly access quality info
+    const callUpdateData = {
+      status_summary: mapScoreToText(score),
+      updated_at: new Date().toISOString()
+    };
+    
+    // Update call with status summary
+    await supabase
+      .from('calls')
+      .update(callUpdateData)
+      .eq('id', callId);
+
+    // Prepare the success response with abundant data for notifications
     return {
       success: true,
       message: existingFeedback ? "Feedback actualizado con nuevos análisis" : "Feedback creado exitosamente",

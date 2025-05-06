@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { format, addDays } from "date-fns";
+import { format, addDays, subDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { DailyReport } from "@/components/settings/notification/types";
 
@@ -31,7 +31,7 @@ export function useDailyReports(initialDays = 7) {
       const minDaysToFetch = Math.max(7, daysToFetch);
       
       if (daysToFetch > 0) {
-        // Important fix: ensure we include the current day by starting from today (not yesterday)
+        // Ensure we include the current day by starting from today
         dates = Array.from({ length: minDaysToFetch }, (_, i) => {
           const today = new Date();
           // Set time to beginning of day to avoid timezone issues
@@ -205,39 +205,36 @@ export function useDailyReports(initialDays = 7) {
           
           // If we still don't have findings, generate some defaults based on general knowledge
           if (positiveFindings.length === 0 && negativeFindings.length === 0 && opportunities.length === 0) {
-            // Add default findings
-            positiveFindings.push(
-              "Atención al cliente satisfactoria",
-              "Cumplimiento del protocolo de atención", 
-              "Tiempos de respuesta adecuados"
-            );
-            
-            negativeFindings.push(
-              "Falta mayor indagación sobre necesidades específicas", 
-              "Oportunidad de mejorar el cierre de la llamada",
-              "Tiempo de espera podría reducirse"
-            );
-            
-            opportunities.push(
-              "Implementar guiones más personalizados", 
-              "Mejorar técnicas de escucha activa",
-              "Capacitar en ofertas complementarias"
-            );
+            // Add default findings only if we have calls
+            if (calls.length > 0) {
+              positiveFindings.push(
+                "Atención al cliente satisfactoria",
+                "Cumplimiento del protocolo de atención", 
+                "Tiempos de respuesta adecuados"
+              );
+              
+              negativeFindings.push(
+                "Falta mayor indagación sobre necesidades específicas", 
+                "Oportunidad de mejorar el cierre de la llamada",
+                "Tiempo de espera podría reducirse"
+              );
+              
+              opportunities.push(
+                "Implementar guiones más personalizados", 
+                "Mejorar técnicas de escucha activa",
+                "Capacitar en ofertas complementarias"
+              );
+            }
           }
-        } else {
-          // Add default findings for days with no calls
-          positiveFindings.push("No hay datos disponibles para este día");
-          negativeFindings.push("No hay datos disponibles para este día");
-          opportunities.push("No hay datos disponibles para este día");
-        }
+        } 
         
-        // Format the daily report - FIX: Add TWO days to correctly match the data with the actual date
+        // Format the daily report - Add TWO days to correctly match the data with the actual date
         const reportDate = new Date(dateStr);
-        // Add 2 days to fix the date offset issue - showing correct date for calls data
+        // Add 1 day to fix the date offset issue - showing correct date for calls data
         const correctedDate = addDays(reportDate, 1);
         const formattedDate = format(correctedDate, 'dd MMMM yyyy', { locale: es });
         
-        // Count occurrences of each finding and take the top 5
+        // Count occurrences of each finding and take the top ones
         const getTopFindings = (findings: string[], limit = 5) => {
           const count: Record<string, number> = {};
           findings.forEach(finding => {
@@ -262,18 +259,65 @@ export function useDailyReports(initialDays = 7) {
         // Count issues (negative findings)
         const issuesCount = negativeFindings.length;
         
+        // Calculate trend (compared to previous day)
+        const previousDateStr = format(subDays(reportDate, 1), 'yyyy-MM-dd');
+        const { data: previousCalls } = await supabase
+          .from('calls')
+          .select(`
+            feedback (
+              score
+            )
+          `)
+          .gte('date', `${previousDateStr}T00:00:00`)
+          .lte('date', `${previousDateStr}T23:59:59`);
+          
+        let previousScore = 0;
+        let previousScoreCount = 0;
+        
+        if (previousCalls && previousCalls.length > 0) {
+          previousCalls.forEach(call => {
+            if (call.feedback) {
+              if (Array.isArray(call.feedback)) {
+                call.feedback.forEach(item => {
+                  if (typeof item.score === 'number') {
+                    previousScore += item.score;
+                    previousScoreCount++;
+                  }
+                });
+              } else if (typeof call.feedback.score === 'number') {
+                previousScore += call.feedback.score;
+                previousScoreCount++;
+              }
+            }
+          });
+        }
+        
+        const previousAvg = previousScoreCount > 0 ? Math.round(previousScore / previousScoreCount) : 0;
+        
+        let trend: "up" | "down" | "stable" = "stable";
+        if (previousAvg > 0 && averageScore > 0) {
+          if (averageScore > previousAvg + 5) trend = "up";
+          else if (averageScore < previousAvg - 5) trend = "down";
+        }
+        
         // Return daily report with all required fields
         return {
           date: formattedDate,
           callCount: calls?.length || 0,
-          averageScore,
-          issuesCount,
+          averageScore: averageScore,
+          trend: trend,
+          issuesCount: issuesCount,
+          issues: negativeFindings,
           agents: Object.values(agents).map(agent => ({
             id: agent.id,
             name: agent.name,
             callCount: agent.callCount,
             averageScore: agent.callCount > 0 ? Math.round(agent.totalScore / agent.callCount) : 0
           })),
+          findings: {
+            positive: getTopFindings(positiveFindings),
+            negative: getTopFindings(negativeFindings),
+          },
           topFindings: {
             positive: getTopFindings(positiveFindings),
             negative: getTopFindings(negativeFindings),
@@ -284,8 +328,10 @@ export function useDailyReports(initialDays = 7) {
       
       // Execute all promises and sort by date
       const fetchedReports = await Promise.all(reportPromises);
-      setReports(fetchedReports);
-      console.log("Daily reports loaded:", fetchedReports);
+      // Filter out empty reports (no calls)
+      const validReports = fetchedReports.filter(report => report !== null);
+      setReports(validReports);
+      console.log("Daily reports loaded:", validReports);
     } catch (err) {
       console.error("Error loading daily reports:", err);
       setError("Error loading daily reports");
