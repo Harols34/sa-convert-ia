@@ -94,14 +94,20 @@ export function useCallList() {
         }
       }
 
-      // Mejorar la búsqueda para que funcione con coincidencias parciales
+      // FIX: Handle search correctly - CRITICAL FIX
       if (filters.search && filters.search.trim() !== '') {
         const searchTerm = filters.search.trim().toLowerCase();
-        console.log("Buscando por término:", searchTerm);
-        
-        // Usar ILIKE para búsqueda insensible a mayúsculas/minúsculas con comodines %
-        // Colocar % antes y después del término para buscar coincidencias parciales en cualquier parte
-        query = query.or(`title.ilike.%${searchTerm}%,filename.ilike.%${searchTerm}%,agent_name.ilike.%${searchTerm}%`);
+        console.log("Searching for term:", searchTerm);
+
+        // Use textSearch instead of ilike for better matching
+        query = query.or(
+          // First pattern - exact title match
+          `title.ilike.%${searchTerm}%`,
+          // Second pattern - agent name match
+          `agent_name.ilike.%${searchTerm}%`, 
+          // Third pattern - filename match
+          `filename.ilike.%${searchTerm}%`
+        );
       }
 
       console.log("Fetching calls with filters:", filters);

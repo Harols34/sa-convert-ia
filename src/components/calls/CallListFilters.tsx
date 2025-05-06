@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Search, Filter, Calendar, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -49,8 +48,8 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
   const [tipificaciones, setTipificaciones] = useState<Tipificacion[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
   const [activeFilterCount, setActiveFilterCount] = useState(0);
-  const [searchInputValue, setSearchInputValue] = useState(""); // Estado para controlar el campo de búsqueda
-  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null); // Control de tiempo para búsqueda
+  const [searchInputValue, setSearchInputValue] = useState(""); 
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   
   // Load tipificaciones and agents for filters
   useEffect(() => {
@@ -103,35 +102,36 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
   
   // Apply filters whenever they change
   useEffect(() => {
+    console.log("Applying filters:", filters);
     onFilterChange(filters);
   }, [filters, onFilterChange]);
   
-  // Mejorar la búsqueda con debounce para mejor rendimiento
+  // Optimized search with short debounce for responsiveness - 150ms is more responsive than 250ms
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setSearchInputValue(newValue);
     
-    // Limpiar timeout anterior si existe
+    // Clear previous timeout if exists
     if (searchTimeout) {
       clearTimeout(searchTimeout);
     }
     
-    // Crear nuevo timeout para aplicar la búsqueda después de un breve retraso (250ms)
+    // Create new timeout with shorter delay (150ms)
     const newTimeout = setTimeout(() => {
-      console.log("Applying search:", newValue);
+      console.log("Applying search from input:", newValue);
       setFilters(prev => ({ ...prev, search: newValue }));
-    }, 250);
+    }, 150);
     
     setSearchTimeout(newTimeout);
   };
   
-  // Búsqueda inmediata al presionar Enter
+  // Immediate search on Enter key
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       if (searchTimeout) {
         clearTimeout(searchTimeout);
       }
-      console.log("Search on Enter:", searchInputValue);
+      console.log("Search on Enter key:", searchInputValue);
       setFilters(prev => ({ ...prev, search: searchInputValue }));
     }
   };
@@ -142,7 +142,7 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
   
   const clearFilters = () => {
     setFilters(initialFilters);
-    setSearchInputValue(""); // Limpiar también el campo de búsqueda
+    setSearchInputValue(""); 
   };
 
   // Function to get translated status name
@@ -176,6 +176,7 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
                 setSearchInputValue('');
                 setFilters(prev => ({ ...prev, search: '' }));
               }}
+              aria-label="Limpiar búsqueda"
             >
               <X className="h-4 w-4" />
             </button>
