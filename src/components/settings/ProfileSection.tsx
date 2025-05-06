@@ -113,6 +113,9 @@ export default function ProfileSection() {
             value={profileData.email} 
             disabled 
           />
+          <p className="text-xs text-muted-foreground mt-1">
+            Tu correo electrónico: {session?.user?.email || user?.email || "No disponible"}
+          </p>
         </div>
         
         <div className="space-y-2">

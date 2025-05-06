@@ -1,10 +1,13 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Users } from "lucide-react";
+import { Loader2, Users, Download } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 // Type definition for the grouped agent
 type AgentGrouped = {
@@ -30,6 +33,10 @@ export default function FeedbackTrainingSection({
   loadingReports,
   onGenerateReport
 }: FeedbackTrainingSectionProps) {
+  const [selectedAgent, setSelectedAgent] = useState<AgentGrouped | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
+  const [trainingPlan, setTrainingPlan] = useState("");
+  const [generatingPlan, setGeneratingPlan] = useState(false);
   
   // Function to generate training recommendations based on score
   const getTrainingRecommendations = (score: number) => {
@@ -52,80 +59,254 @@ export default function FeedbackTrainingSection({
     }
   };
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Feedback para Formación
-        </CardTitle>
-        <CardDescription>
-          Retroalimentación específica para agentes
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {loadingReports ? (
-          <div className="flex justify-center p-4">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          </div>
-        ) : groupedAgents.length === 0 ? (
-          <p className="text-center text-sm text-muted-foreground">
-            No hay datos disponibles para mostrar
-          </p>
-        ) : (
-          <ScrollArea className="h-64">
-            <div className="space-y-4">
-              {groupedAgents.map((agent, idx) => (
-                <div key={idx} className="border-b pb-4 last:border-0">
-                  <h4 className="font-medium">{agent.name}</h4>
-                  <div className="flex items-center mt-1 mb-2">
-                    <span className="text-sm text-muted-foreground">{agent.totalCalls} llamadas totales</span>
-                    <span className="mx-2">•</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${
-                      agent.averageScore >= 80 
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
-                        : agent.averageScore >= 60
-                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100'
-                          : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
-                    }`}>
-                      Promedio: {agent.averageScore}/100
-                    </span>
-                  </div>
-                  
-                  <div className="text-sm">
-                    <h5 className="font-medium mb-1">Áreas de mejora recomendadas:</h5>
-                    <ul className="list-disc pl-5">
-                      {getTrainingRecommendations(agent.averageScore).map((rec, idx) => (
-                        <li key={idx}>{rec}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  
-                  <div className="flex justify-end mt-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => {
-                        toast.success(`Plan de formación para ${agent.name}`, {
-                          description: "Plan personalizado generado correctamente"
-                        });
-                      }}
-                    >
-                      Ver plan de formación
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-        )}
+  // Function to generate a training plan for an agent
+  const generateTrainingPlan = async (agent: AgentGrouped) => {
+    setSelectedAgent(agent);
+    setGeneratingPlan(true);
+    setPlanOpen(true);
+    
+    try {
+      // Generate the plan - we'll create a realistic text for now
+      const recommendations = getTrainingRecommendations(agent.averageScore);
+      
+      const planText = `# Plan de Formación para ${agent.name}
+
+## Resumen del Desempeño
+- **Calificación promedio**: ${agent.averageScore}/100
+- **Total llamadas analizadas**: ${agent.totalCalls}
+- **Fortalezas**: ${agent.averageScore > 80 ? "Comunicación, seguimiento de protocolos" : "Atención básica al cliente"}
+- **Áreas de mejora**: ${agent.averageScore < 75 ? "Técnicas de venta, manejo de objeciones" : "Ventas cruzadas, cierre efectivo"}
+
+## Recomendaciones de Capacitación
+${recommendations.map(r => `- ${r}`).join('\n')}
+
+## Plan de Acción
+1. **Semana 1-2**: Formación intensiva en ${recommendations[0].toLowerCase()}
+2. **Semana 3-4**: Talleres prácticos sobre ${recommendations[1].toLowerCase()} 
+3. **Semana 5**: Evaluación de progreso y ajustes al plan
+4. **Semana 6-8**: Seguimiento y mentoría personalizada
+
+## Métricas de Éxito
+- Incremento de 10% en calificación promedio
+- Reducción de 15% en tiempo de resolución
+- Aumento de 20% en satisfacción del cliente
+
+Generado el ${new Date().toLocaleDateString()} | ID Plan: TRAINING-${agent.id.substring(0, 8)}`;
+      
+      setTrainingPlan(planText);
+      
+      // Save to database (if we had the table)
+      await saveTrainingPlanToDatabase(agent.id, planText);
+      
+    } catch (error) {
+      console.error("Error generating training plan:", error);
+      toast.error("Error al generar el plan de formación");
+    } finally {
+      setGeneratingPlan(false);
+    }
+  };
+  
+  // Function to save the training plan to the database
+  const saveTrainingPlanToDatabase = async (agentId: string, planText: string) => {
+    try {
+      const { error } = await supabase
+        .from('training_plans')
+        .insert({
+          agent_id: agentId,
+          plan_content: planText,
+          created_at: new Date().toISOString(),
+          status: 'active'
+        })
+        .select();
         
-        <div className="mt-4 flex justify-end">
-          <Button variant="outline" size="sm" onClick={onGenerateReport}>
-            Generar reporte completo
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      if (error) {
+        if (error.code === '42P01') {
+          console.log("Training plans table doesn't exist yet - this is expected");
+          // Table doesn't exist yet - this is expected for now
+        } else {
+          throw error;
+        }
+      }
+    } catch (error) {
+      console.error("Error saving training plan:", error);
+    }
+  };
+  
+  // Function to handle the download of the training plan
+  const handleDownloadPlan = () => {
+    if (!trainingPlan) return;
+    
+    const element = document.createElement("a");
+    const file = new Blob([trainingPlan], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = `plan_formacion_${selectedAgent?.name.replace(/\s+/g, '_')}.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    
+    toast.success("Plan de formación descargado");
+  };
+  
+  // Function to generate a complete report for all agents
+  const handleGenerateFullReport = async () => {
+    toast.loading("Generando reporte completo", { id: "generate-report" });
+    
+    try {
+      // Generate a comprehensive report for all agents
+      let reportText = `# REPORTE COMPLETO DE FORMACIÓN\n\n`;
+      reportText += `Fecha de generación: ${new Date().toLocaleDateString()}\n`;
+      reportText += `Total de agentes analizados: ${groupedAgents.length}\n\n`;
+      
+      groupedAgents.forEach(agent => {
+        reportText += `## ${agent.name}\n`;
+        reportText += `- Calificación promedio: ${agent.averageScore}/100\n`;
+        reportText += `- Total llamadas: ${agent.totalCalls}\n`;
+        reportText += `- Recomendaciones de capacitación:\n`;
+        
+        const recs = getTrainingRecommendations(agent.averageScore);
+        recs.forEach(rec => {
+          reportText += `  - ${rec}\n`;
+        });
+        
+        reportText += '\n';
+      });
+      
+      // Create and trigger download
+      const element = document.createElement("a");
+      const file = new Blob([reportText], {type: 'text/plain'});
+      element.href = URL.createObjectURL(file);
+      element.download = "reporte_completo_formacion.txt";
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+      
+      // Also save to database
+      await supabase
+        .from('training_reports')
+        .insert({
+          report_content: reportText,
+          created_at: new Date().toISOString(),
+          agent_count: groupedAgents.length
+        })
+        .select();
+        
+      toast.success("Reporte completo generado y descargado", { id: "generate-report" });
+    } catch (error) {
+      console.error("Error generating complete report:", error);
+      toast.error("Error al generar el reporte completo", { id: "generate-report" });
+    }
+  };
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Feedback para Formación
+          </CardTitle>
+          <CardDescription>
+            Retroalimentación específica para agentes
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loadingReports ? (
+            <div className="flex justify-center p-4">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : groupedAgents.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground">
+              No hay datos disponibles para mostrar
+            </p>
+          ) : (
+            <ScrollArea className="h-64">
+              <div className="space-y-4">
+                {groupedAgents.map((agent, idx) => (
+                  <div key={idx} className="border-b pb-4 last:border-0">
+                    <h4 className="font-medium">{agent.name}</h4>
+                    <div className="flex items-center mt-1 mb-2">
+                      <span className="text-sm text-muted-foreground">{agent.totalCalls} llamadas totales</span>
+                      <span className="mx-2">•</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs ${
+                        agent.averageScore >= 80 
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
+                          : agent.averageScore >= 60
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100'
+                            : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
+                      }`}>
+                        Promedio: {agent.averageScore}/100
+                      </span>
+                    </div>
+                    
+                    <div className="text-sm">
+                      <h5 className="font-medium mb-1">Áreas de mejora recomendadas:</h5>
+                      <ul className="list-disc pl-5">
+                        {getTrainingRecommendations(agent.averageScore).map((rec, idx) => (
+                          <li key={idx}>{rec}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    
+                    <div className="flex justify-end mt-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => generateTrainingPlan(agent)}
+                      >
+                        Ver plan de formación
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+          
+          <div className="mt-4 flex justify-end">
+            <Button variant="outline" size="sm" onClick={handleGenerateFullReport}>
+              Generar reporte completo
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Dialog for displaying the training plan */}
+      <Dialog open={planOpen} onOpenChange={setPlanOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedAgent ? `Plan de Formación para ${selectedAgent.name}` : "Plan de Formación"}
+            </DialogTitle>
+            <DialogDescription>
+              Plan personalizado basado en el análisis de desempeño
+            </DialogDescription>
+          </DialogHeader>
+          
+          {generatingPlan ? (
+            <div className="flex flex-col items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
+              <p className="text-sm text-muted-foreground">Generando plan personalizado...</p>
+            </div>
+          ) : (
+            <Textarea 
+              value={trainingPlan} 
+              readOnly
+              rows={15}
+              className="font-mono text-sm"
+            />
+          )}
+          
+          <DialogFooter>
+            <Button 
+              onClick={handleDownloadPlan}
+              disabled={generatingPlan || !trainingPlan}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" /> Descargar Plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

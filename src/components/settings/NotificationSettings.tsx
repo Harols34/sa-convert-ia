@@ -4,10 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAudioSettings } from "@/hooks/useAudioSettings";
-import { Loader2, FileText, BarChart2, Users } from "lucide-react";
 import { useDailyReports } from "@/hooks/useDailyReports";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
@@ -56,6 +53,15 @@ export default function NotificationSettings() {
           };
         } else {
           agentsMap[agent.id].totalCalls += agent.callCount;
+          
+          // Calculate weighted average score
+          const totalScore = agentsMap[agent.id].averageScore * 
+                            (agentsMap[agent.id].totalCalls - agent.callCount);
+          const newTotalScore = totalScore + (agent.averageScore * agent.callCount);
+          agentsMap[agent.id].averageScore = Math.round(
+            newTotalScore / agentsMap[agent.id].totalCalls
+          );
+          
           agentsMap[agent.id].datePoints.push({
             date: report.date,
             score: agent.averageScore,
@@ -73,12 +79,10 @@ export default function NotificationSettings() {
 
   // Handlers for button actions
   const handleViewHistory = () => {
-    toast.info("Redirigiendo al historial completo");
     navigate("/calls");
   };
 
   const handleViewDetailedAnalysis = () => {
-    toast.info("Redirigiendo al análisis detallado");
     navigate("/analytics");
   };
 
@@ -128,7 +132,10 @@ export default function NotificationSettings() {
             <Switch 
               id="auto_feedback"
               checked={settings?.auto_feedback}
-              onCheckedChange={(checked) => updateSetting("auto_feedback", checked)} 
+              onCheckedChange={(checked) => {
+                updateSetting("auto_feedback", checked);
+                handleSaveNotificationSettings();
+              }} 
             />
           </div>
           

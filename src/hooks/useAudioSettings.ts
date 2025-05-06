@@ -48,6 +48,7 @@ export function useAudioSettings() {
   const [isSaving, setIsSaving] = useState(false);
   const { user } = useUser();
 
+  // Load settings from database
   useEffect(() => {
     async function loadSettings() {
       if (!user?.id) {
@@ -56,24 +57,18 @@ export function useAudioSettings() {
       }
       try {
         setIsLoading(true);
-        const cachedSettings = localStorage.getItem('audio-settings');
-        if (cachedSettings) {
-          try {
-            const parsed = JSON.parse(cachedSettings);
-            setSettings(parsed);
-            console.log("Configuraciones cargadas desde caché local");
-          } catch (e) {
-            console.error("Error al parsear configuraciones de localStorage:", e);
-          }
-        }
+        
+        // Load from database first
         const { data, error } = await supabase
           .from('user_settings')
           .select('*')
           .eq('user_id', user.id)
           .maybeSingle();
+          
         if (error && error.code !== 'PGRST116') {
           console.error("Error al cargar configuraciones:", error);
         }
+        
         if (data) {
           const loadedSettings: AudioSettings = {
             silenceDetection: data.silence_detection ?? defaultSettings.silenceDetection,
@@ -87,14 +82,27 @@ export function useAudioSettings() {
             speakerDiarization: data.speaker_diarization ?? defaultSettings.speakerDiarization,
             punctuation: data.punctuation ?? defaultSettings.punctuation,
             timestamps: data.timestamps ?? defaultSettings.timestamps,
-            sentiment_analysis: data.sentiment_analysis,
-            keyword_spotting: data.keyword_spotting,
-            analysis_model: data.analysis_model,
-            auto_feedback: data.auto_feedback
+            sentiment_analysis: data.sentiment_analysis ?? defaultSettings.sentiment_analysis,
+            keyword_spotting: data.keyword_spotting ?? defaultSettings.keyword_spotting,
+            analysis_model: data.analysis_model ?? defaultSettings.analysis_model,
+            auto_feedback: data.auto_feedback ?? defaultSettings.auto_feedback
           };
+          
           setSettings(loadedSettings);
           localStorage.setItem('audio-settings', JSON.stringify(loadedSettings));
-          console.log("Configuraciones cargadas desde base de datos y actualizadas en caché");
+          console.log("Configuraciones cargadas desde base de datos", loadedSettings);
+        } else {
+          // If no settings in DB, try to load from local storage as fallback
+          const cachedSettings = localStorage.getItem('audio-settings');
+          if (cachedSettings) {
+            try {
+              const parsed = JSON.parse(cachedSettings);
+              setSettings(parsed);
+              console.log("Configuraciones cargadas desde caché local");
+            } catch (e) {
+              console.error("Error al parsear configuraciones de localStorage:", e);
+            }
+          }
         }
       } catch (err) {
         console.error("Error al cargar configuraciones:", err);
@@ -102,6 +110,7 @@ export function useAudioSettings() {
         setIsLoading(false);
       }
     }
+    
     loadSettings();
   }, [user?.id]);
   
@@ -110,6 +119,7 @@ export function useAudioSettings() {
       toast.error("Debes iniciar sesión para guardar configuraciones");
       return;
     }
+    
     try {
       setIsSaving(true);
       const dbData = {
@@ -164,12 +174,15 @@ export function useAudioSettings() {
         throw error;
       }
       
+      // Update local state and cache
       setSettings(newSettings);
       localStorage.setItem('audio-settings', JSON.stringify(newSettings));
       toast.success("Configuraciones guardadas correctamente");
+      return true;
     } catch (error: any) {
       console.error("Error al guardar configuraciones:", error);
       toast.error("Error al guardar configuraciones");
+      return false;
     } finally {
       setIsSaving(false);
     }
