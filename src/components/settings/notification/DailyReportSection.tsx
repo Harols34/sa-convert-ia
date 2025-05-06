@@ -4,6 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, BarChart3 } from "lucide-react";
 import { DailyReport } from "@/hooks/useDailyReports";
 import { useNavigate } from "react-router-dom";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
 
 interface DailyReportSectionProps {
   reports: DailyReport[];
@@ -12,6 +19,7 @@ interface DailyReportSectionProps {
   onChangeDateRange: (days: number) => void;
   selectedDays: number;
   isDropdown?: boolean;
+  showDateSelector?: boolean;
 }
 
 export default function DailyReportSection({
@@ -20,7 +28,8 @@ export default function DailyReportSection({
   onViewHistory,
   onChangeDateRange,
   selectedDays,
-  isDropdown = false
+  isDropdown = false,
+  showDateSelector = false
 }: DailyReportSectionProps) {
   const navigate = useNavigate();
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
@@ -44,12 +53,37 @@ export default function DailyReportSection({
     }
   };
   
+  // Date range selector
+  const renderDateRangeSelector = () => {
+    if (!showDateSelector) return null;
+    
+    return (
+      <div className="mb-2">
+        <Select 
+          value={String(selectedDays)} 
+          onValueChange={(value) => onChangeDateRange(Number(value))}
+        >
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Seleccionar rango" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="7">Últimos 7 días</SelectItem>
+            <SelectItem value="15">Últimos 15 días</SelectItem>
+            <SelectItem value="30">Últimos 30 días</SelectItem>
+            <SelectItem value="90">Últimos 90 días</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  };
+  
   // If in dropdown mode, use a simpler layout
   if (isDropdown) {
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">Resumen Diario de Cargas</h3>
+          {showDateSelector && renderDateRangeSelector()}
         </div>
         
         {loadingReports ? (
@@ -118,6 +152,9 @@ export default function DailyReportSection({
           </CardTitle>
           <CardDescription>Análisis de las llamadas más recientes (Últimos 7 Días)</CardDescription>
         </div>
+        {showDateSelector && (
+          <div>{renderDateRangeSelector()}</div>
+        )}
       </CardHeader>
       <CardContent>
         {loadingReports ? (
