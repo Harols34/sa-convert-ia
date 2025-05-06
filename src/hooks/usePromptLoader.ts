@@ -9,7 +9,7 @@ export function usePromptLoader(type: PromptType, fallback: string) {
   useEffect(() => {
     if (!loading && activePrompt) {
       setLoadedPrompt(activePrompt.content);
-    } else {
+    } else if (!loading && !activePrompt) {
       setLoadedPrompt(fallback);
     }
   }, [activePrompt, fallback, loading]);

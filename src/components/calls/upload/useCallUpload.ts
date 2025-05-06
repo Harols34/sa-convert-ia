@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { FileWithProgress } from "./FileItem";
-import { validateCallStatus } from "../detail/CallUtils";
 
 export default function useCallUpload() {
   const [files, setFiles] = useState<FileWithProgress[]>([]);
@@ -48,8 +47,29 @@ export default function useCallUpload() {
   }, [navigate]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
+    // Validar tipos de archivos
+    const validFiles = acceptedFiles.filter(file => 
+      file.type.startsWith('audio/') || file.name.endsWith('.mp3') || file.name.endsWith('.wav') || file.name.endsWith('.m4a')
+    );
+    
+    if (validFiles.length !== acceptedFiles.length) {
+      toast.warning(`Se han omitido ${acceptedFiles.length - validFiles.length} archivos no válidos`, {
+        description: "Solo se permiten archivos de audio (.mp3, .wav, .m4a)"
+      });
+    }
+    
+    // Verificar tamaño máximo (100MB)
+    const MAX_SIZE = 100 * 1024 * 1024; // 100MB
+    const validSizeFiles = validFiles.filter(file => file.size <= MAX_SIZE);
+    
+    if (validSizeFiles.length !== validFiles.length) {
+      toast.warning(`Se han omitido ${validFiles.length - validSizeFiles.length} archivos demasiado grandes`, {
+        description: "El tamaño máximo permitido es de 100MB por archivo"
+      });
+    }
+    
     // Create file objects with progress
-    const newFiles = acceptedFiles.map((file) => ({
+    const newFiles = validSizeFiles.map((file) => ({
       id: Math.random().toString(36).substring(7),
       file,
       progress: 0,
@@ -274,7 +294,7 @@ export default function useCallUpload() {
       }
       
       return callId;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error en la carga:", error);
       
       // Limpiar intervalo de simulación
@@ -299,7 +319,7 @@ export default function useCallUpload() {
     setTotalCount(filesToProcess.length);
     const results = [];
     const total = filesToProcess.length;
-    const batchSize = 3; // Reducir tamaño del lote para evitar sobrecarga
+    const batchSize = 2; // Reducir tamaño del lote para evitar sobrecarga
     
     // Reiniciar contador de procesados
     setProcessedCount(0);
@@ -314,7 +334,7 @@ export default function useCallUpload() {
         try {
           const callId = await processCall(fileData);
           batchResults.push({ id: fileData.id, success: true, callId });
-        } catch (error) {
+        } catch (error: any) {
           batchResults.push({ 
             id: fileData.id, 
             success: false, 
@@ -331,7 +351,7 @@ export default function useCallUpload() {
       
       // Pequeña pausa entre lotes para evitar sobrecarga
       if (i + batchSize < total) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
     
@@ -384,6 +404,22 @@ export default function useCallUpload() {
           : "Esto puede tomar algunos minutos"
       });
       
+      // Verificar que el bucket existe
+      let { data: buckets } = await supabase.storage.listBuckets();
+      const callsBucketExists = buckets?.some(bucket => bucket.name === 'calls');
+      
+      if (!callsBucketExists) {
+        console.log("Creando bucket 'calls'...");
+        const { error: createError } = await supabase.storage.createBucket('calls', {
+          public: true,
+          fileSizeLimit: 104857600 // 100MB in bytes
+        });
+        
+        if (createError) {
+          throw new Error(`Error al crear bucket: ${createError.message}`);
+        }
+      }
+      
       // Procesar todos los archivos sin límite fijo
       const results = await processFileBatch(files);
       
@@ -406,7 +442,7 @@ export default function useCallUpload() {
           description: "Ningún archivo fue subido correctamente. Intente nuevamente con archivos más pequeños o menos archivos a la vez."
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error en el proceso de carga:", error);
       toast.error("Error en el proceso de carga", {
         description: error.message || "Hubo un problema durante la carga. Intente con menos archivos a la vez."

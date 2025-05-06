@@ -9,35 +9,40 @@ export async function transcribeAudio(openai: OpenAI, audioUrl: string) {
   console.log(`Descargando archivo de audio: ${audioUrl}`);
   console.log("Iniciando transcripción con alta precisión y diarización...");
 
-  // Descargar archivo de audio usando fetch
-  const audioResponse = await fetch(audioUrl);
-  if (!audioResponse.ok) {
-    throw new Error(`Error descargando audio: ${audioResponse.status} ${audioResponse.statusText}`);
+  try {
+    // Descargar archivo de audio usando fetch
+    const audioResponse = await fetch(audioUrl);
+    if (!audioResponse.ok) {
+      throw new Error(`Error descargando audio: ${audioResponse.status} ${audioResponse.statusText}`);
+    }
+    
+    const audioBlob = await audioResponse.blob();
+    const file = new File([audioBlob], "audio.mp3", { type: "audio/mpeg" });
+    
+    console.log("Comenzando transcripción con Whisper optimizado...");
+    
+    // Configuración optimizada para transcripción de alta calidad
+    const transcriptionResult = await openai.audio.transcriptions.create({
+      file: file,
+      model: "whisper-1", // Usar el modelo más preciso
+      response_format: "verbose_json",
+      temperature: 0, // Sin aleatoriedad para máxima precisión
+      language: "es", // Especificar español para mejor reconocimiento
+      timestamp_granularities: ["segment", "word"] // Timestamps a nivel de palabra y segmento
+    });
+    
+    // Extraer segmentos de la transcripción
+    const segments = transcriptionResult.segments || [];
+    console.log(`Transcripción completada con ${segments.length} segmentos`);
+    
+    // Aplicar diarización mejorada basada en características acústicas
+    const enhancedSegments = enhanceTranscriptionWithSpeakerDetection(segments);
+    
+    return enhancedSegments;
+  } catch (error) {
+    console.error("Error en la transcripción del audio:", error);
+    throw error;
   }
-  
-  const audioBlob = await audioResponse.blob();
-  const file = new File([audioBlob], "audio.mp3", { type: "audio/mpeg" });
-  
-  console.log("Comenzando transcripción con Whisper optimizado...");
-  
-  // Configuración optimizada para transcripción de alta calidad
-  const transcriptionResult = await openai.audio.transcriptions.create({
-    file: file,
-    model: "whisper-1", // Usar el modelo más preciso
-    response_format: "verbose_json",
-    temperature: 0, // Sin aleatoriedad para máxima precisión
-    language: "es", // Especificar español para mejor reconocimiento
-    timestamp_granularities: ["segment", "word"] // Timestamps a nivel de palabra y segmento
-  });
-  
-  // Extraer segmentos de la transcripción
-  const segments = transcriptionResult.segments || [];
-  console.log(`Transcripción completada con ${segments.length} segmentos`);
-  
-  // Aplicar diarización mejorada basada en características acústicas
-  const enhancedSegments = enhanceTranscriptionWithSpeakerDetection(segments);
-  
-  return enhancedSegments;
 }
 
 /**
