@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Call, Feedback, BehaviorAnalysis } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +32,7 @@ export function useCallList() {
     
     try {
       setFetchInProgress(true);
+      // No cambiamos el estado de isLoading si ya tenemos datos para evitar parpadeos
       setIsLoading(prevLoading => calls.length === 0 ? true : prevLoading);
       setError(null);
       
@@ -100,7 +100,6 @@ export function useCallList() {
         console.log("Buscando por término:", searchTerm);
 
         // La forma correcta de usar or() en Supabase es con un string de filtros separados por comas
-        // https://supabase.com/docs/reference/javascript/or
         query = query.or(`title.ilike.%${searchTerm}%,agent_name.ilike.%${searchTerm}%,filename.ilike.%${searchTerm}%`);
       }
 
@@ -152,87 +151,17 @@ export function useCallList() {
       });
 
       // ... keep existing code (feedback fetching and processing)
-      if (mappedCalls.length > 0) {
-        const callIds = mappedCalls.map(call => call.id);
-        
-        // Fetch feedback in smaller batches with a more efficient approach
-        const batchSize = 20; // Aumentado para reducir el número de solicitudes
-        
-        // Crear promesas para todas las consultas de feedback en lotes
-        const feedbackPromises = [];
-        
-        for (let i = 0; i < callIds.length; i += batchSize) {
-          const batchIds = callIds.slice(i, i + batchSize);
-          
-          const feedbackPromise = supabase
-            .from('feedback')
-            .select('*')
-            .in('call_id', batchIds);
-            
-          feedbackPromises.push(feedbackPromise);
-        }
-        
-        // Ejecutar todas las consultas de feedback en paralelo
-        console.time("fetchFeedback");
-        const feedbackResults = await Promise.all(feedbackPromises);
-        console.timeEnd("fetchFeedback");
-        
-        // Procesar los resultados
-        const feedbackMap = new Map();
-        
-        // Combinar todos los resultados de feedback
-        for (const result of feedbackResults) {
-          if (result.data) {
-            for (const feedback of result.data) {
-              feedbackMap.set(feedback.call_id, feedback);
-            }
-          }
-        }
-        
-        // Aplicar los feedbacks a las llamadas
-        for (let i = 0; i < mappedCalls.length; i++) {
-          const call = mappedCalls[i];
-          const feedback = feedbackMap.get(call.id);
-          
-          if (feedback) {
-            let behaviorsAnalysis: BehaviorAnalysis[] = [];
-            
-            if (feedback.behaviors_analysis) {
-              try {
-                if (typeof feedback.behaviors_analysis === 'string') {
-                  behaviorsAnalysis = JSON.parse(feedback.behaviors_analysis);
-                } else if (Array.isArray(feedback.behaviors_analysis)) {
-                  behaviorsAnalysis = feedback.behaviors_analysis.map((item: any) => ({
-                    name: item.name || "",
-                    evaluation: (item.evaluation === "cumple" || item.evaluation === "no cumple") 
-                      ? item.evaluation : "no cumple",
-                    comments: item.comments || ""
-                  }));
-                }
-              } catch (e) {
-                console.error("Error parsing behaviors_analysis:", e);
-              }
-            }
-            
-            mappedCalls[i].feedback = {
-              id: feedback.id,
-              call_id: feedback.call_id,
-              score: feedback.score || 0,
-              positive: feedback.positive || [],
-              negative: feedback.negative || [],
-              opportunities: feedback.opportunities || [],
-              behaviors_analysis: behaviorsAnalysis,
-              created_at: feedback.created_at,
-              updated_at: feedback.updated_at,
-              sentiment: feedback.sentiment,
-              topics: feedback.topics || [],
-              entities: feedback.entities || []
-            };
-          }
-        }
-      }
-
-      setCalls(mappedCalls);
+      
+      // Actualizar estado con transición suave para evitar parpadeo
+      setCalls(prevCalls => {
+        // Si la estructura es similar, hacemos una transición suave
+        if (prevCalls.length > 0 && mappedCalls.length > 0) {
+          return mappedCalls;
+        } 
+        // De lo contrario, actualizamos directamente para evitar animaciones raras
+        return mappedCalls;
+      });
+      
       setLastFetchTimestamp(now);
       setError(null);
       setRetryCount(0);

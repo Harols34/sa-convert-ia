@@ -65,7 +65,7 @@ export default function CallsPage() {
     setSidebarOpen(!sidebarOpen);
   }, [sidebarOpen]);
 
-  // Prevent flickering by using a key based on the location pathname
+  // Prevent flickering by using a key based on the location pathname and adding transition classes
   const routeKey = location.pathname;
 
   return (
@@ -76,7 +76,7 @@ export default function CallsPage() {
         <main className={`flex-1 p-4 md:p-6 transition-all duration-300 ${sidebarCollapsed ? 'ml-0 md:ml-16' : 'ml-0 md:ml-64'}`}>
           <Routes>
             <Route path="/" element={
-              <div key="calls-list">
+              <div key="calls-list" className="animate-fade-in motion-reduce:animate-none">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
                   <div>
                     <h2 className="text-3xl font-bold tracking-tight">Llamadas</h2>
@@ -85,18 +85,18 @@ export default function CallsPage() {
                     </p>
                   </div>
                   <div className="flex flex-col md:flex-row gap-2 mt-4 md:mt-0">
-                    {isAdmin && <Button variant="outline" onClick={() => setShowAdminPanel(!showAdminPanel)}>
+                    {isAdmin && <Button variant="outline" onClick={() => setShowAdminPanel(!showAdminPanel)} className="transition-colors">
                       <Settings className="mr-2 h-4 w-4" /> 
                       {showAdminPanel ? "Ocultar Panel" : "Panel Admin"}
                     </Button>}
-                    <Button onClick={() => navigate("/calls/upload")}>
+                    <Button onClick={() => navigate("/calls/upload")} className="transition-colors">
                       <Plus className="mr-2 h-4 w-4" /> Subir Llamadas
                     </Button>
                   </div>
                 </div>
                 
                 {isAdmin && showAdminPanel && (
-                  <div className="mb-6">
+                  <div className="mb-6 animate-fade-in motion-reduce:animate-none">
                     <Suspense fallback={<LoadingPlaceholder />}>
                       <CallControlPanelLazy />
                     </Suspense>
@@ -107,9 +107,9 @@ export default function CallsPage() {
               </div>
             } />
             <Route path="/upload" element={
-              <div key="calls-upload">
+              <div key="calls-upload" className="animate-fade-in motion-reduce:animate-none">
                 <div className="flex items-center mb-6">
-                  <Button variant="ghost" size="sm" onClick={() => navigate("/calls")} className="mr-4">
+                  <Button variant="ghost" size="sm" onClick={() => navigate("/calls")} className="mr-4 transition-colors">
                     <ArrowLeft className="h-4 w-4 mr-2" /> Volver
                   </Button>
                   <div>
@@ -123,9 +123,9 @@ export default function CallsPage() {
               </div>
             } />
             <Route path="/:id" element={
-              <div key="calls-detail">
+              <div key="calls-detail" className="animate-fade-in motion-reduce:animate-none">
                 <div className="flex items-center mb-6">
-                  <Button variant="ghost" size="sm" onClick={() => navigate("/calls")} className="mr-4">
+                  <Button variant="ghost" size="sm" onClick={() => navigate("/calls")} className="mr-4 transition-colors">
                     <ArrowLeft className="h-4 w-4 mr-2" /> Volver
                   </Button>
                   <div>
