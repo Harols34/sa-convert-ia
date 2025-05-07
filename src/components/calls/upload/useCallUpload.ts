@@ -13,7 +13,6 @@ export default function useCallUpload() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processedCount, setProcessedCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
-  const [processedFiles, setProcessedFiles] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
 
   // Verificar sesión al cargar el componente
@@ -111,22 +110,6 @@ export default function useCallUpload() {
   const processCall = async (fileData: FileWithProgress) => {
     let callId = null;
     let progressInterval: any = null;
-    
-    // Evitar duplicados durante reintento
-    if (processedFiles.has(fileData.file.name)) {
-      console.log(`Archivo ${fileData.file.name} ya fue procesado, evitando duplicación`);
-      setFiles((prev) =>
-        prev.map((f) =>
-          f.id === fileData.id ? { 
-            ...f, 
-            progress: 100, 
-            status: "success",
-            error: "Archivo ya procesado previamente" 
-          } : f
-        )
-      );
-      return null;
-    }
     
     try {
       // Update progress to show we're starting
@@ -241,9 +224,6 @@ export default function useCallUpload() {
       console.log("Registro de llamada creado exitosamente:", callData);
       callId = callData[0].id;
       
-      // Marcar este archivo como procesado para evitar duplicados
-      setProcessedFiles(prev => new Set(prev).add(fileData.file.name));
-      
       // Iniciar el procesamiento de la llamada
       setFiles((prev) =>
         prev.map((f) =>
@@ -339,20 +319,24 @@ export default function useCallUpload() {
     setTotalCount(filesToProcess.length);
     const results = [];
     const total = filesToProcess.length;
-    const batchSize = 5; // Reducido para minimizar errores y evitar duplicados
+    const batchSize = 100; // Aumentado a 100 para procesar más archivos a la vez
     
     // Reiniciar contador de procesados
     setProcessedCount(0);
     
-    // Procesar en lotes más pequeños
+    // Procesar en lotes de 100
     for (let i = 0; i < total; i += batchSize) {
       const batch = filesToProcess.slice(i, i + batchSize);
       console.log(`Procesando lote ${Math.floor(i/batchSize) + 1}, con ${batch.length} archivos`);
       
+      // Procesar cada archivo en el lote en paralelo con límite de concurrencia
+      const promises = batch.map(fileData => processCall(fileData));
+      
       try {
-        // Ejecutar procesamiento en paralelo con un límite reducido de operaciones concurrentes
-        // para evitar sobrecargar el sistema y minimizar los errores
-        const concurrencyLimit = 2; // Reducido para mayor estabilidad
+        // Ejecutar procesamiento en paralelo con un límite de 10 operaciones concurrentes
+        // para evitar sobrecargar el sistema
+        const batchResults = [];
+        const concurrencyLimit = 10;
         
         for (let j = 0; j < batch.length; j += concurrencyLimit) {
           const concurrentBatch = batch.slice(j, j + concurrencyLimit);
@@ -368,24 +352,21 @@ export default function useCallUpload() {
           });
           
           const concurrentResults = await Promise.all(concurrentPromises);
-          results.push(...concurrentResults);
+          batchResults.push(...concurrentResults);
           
           // Actualizar contador después de cada lote concurrente
           setProcessedCount(prev => prev + concurrentResults.length);
-          
-          // Pausa breve entre lotes concurrentes para evitar sobrecargar recursos
-          if (j + concurrencyLimit < batch.length) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
         }
+        
+        results.push(...batchResults);
       } catch (error) {
         console.error("Error en el lote:", error);
         // Continuar con el siguiente lote incluso si este falla
       }
       
-      // Pausa más larga entre lotes principales para evitar sobrecarga
+      // Pequeña pausa entre lotes para evitar sobrecarga
       if (i + batchSize < total) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
     
@@ -427,19 +408,10 @@ export default function useCallUpload() {
       return;
     }
 
-    if (isUploading) {
-      toast.warning("Ya hay una carga en proceso", {
-        description: "Por favor espere a que finalice la carga actual"
-      });
-      return;
-    }
-
     setIsUploading(true);
 
     try {
       setProcessedCount(0);
-      // Limpiar registro de archivos procesados al iniciar nueva carga
-      setProcessedFiles(new Set());
       
       toast.info(`Procesando ${files.length} ${files.length === 1 ? 'archivo' : 'archivos'}`, {
         description: files.length > 3 
@@ -463,7 +435,7 @@ export default function useCallUpload() {
         
         // Intentar de todos modos
         try {
-          // Procesar todos los archivos en lotes más pequeños
+          // Procesar todos los archivos sin límite fijo
           const results = await processFileBatch(files);
           
           // Contar éxitos, errores y duplicados
@@ -495,7 +467,7 @@ export default function useCallUpload() {
       
       console.log("Bucket 'calls' encontrado, procediendo con la carga...");
       
-      // Procesar todos los archivos en lotes más pequeños
+      // Procesar todos los archivos sin límite fijo
       const results = await processFileBatch(files);
       
       // Contar éxitos, errores y duplicados
