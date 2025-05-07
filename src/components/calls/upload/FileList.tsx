@@ -1,7 +1,10 @@
 
-import { Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import FileItem, { FileWithProgress } from "./FileItem";
+import { FileWithProgress } from "./FileItem";
+import FileItem from "./FileItem";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Info, Upload } from "lucide-react";
+import { memo } from "react";
 
 interface FileListProps {
   files: FileWithProgress[];
@@ -10,50 +13,55 @@ interface FileListProps {
   onUploadFiles: () => void;
 }
 
-export default function FileList({ 
-  files, 
-  onRemoveFile, 
-  isUploading, 
-  onUploadFiles 
-}: FileListProps) {
+// Memoize the component to prevent unnecessary re-renders
+const FileList = memo(function FileList({ files, onRemoveFile, isUploading, onUploadFiles }: FileListProps) {
   if (files.length === 0) {
-    return null;
+    return (
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertTitle>Sin archivos seleccionados</AlertTitle>
+        <AlertDescription>
+          No se han seleccionado archivos para subir. Arrastre o seleccione archivos para continuar.
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   return (
-    <div className="glass-card dark:glass-card-dark p-6 animate-slide-in-bottom">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">Archivos seleccionados</h3>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={onUploadFiles}
-          disabled={isUploading || files.every((f) => f.status === "success")}
+    <div className="space-y-4 transition-all duration-300">
+      <div className="rounded-md border p-2">
+        <div className="space-y-2">
+          {files.map((file) => (
+            <FileItem 
+              key={file.id} 
+              file={file} 
+              onRemove={() => onRemoveFile(file.id)}
+              disabled={isUploading} 
+            />
+          ))}
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <Button 
+          onClick={onUploadFiles} 
+          disabled={isUploading || files.length === 0} 
+          className="transition-all duration-300"
         >
           {isUploading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Subiendo...
-            </>
+            <span className="flex items-center gap-2">
+              <span className="animate-spin h-4 w-4 border-2 border-current rounded-full border-t-transparent"></span>
+              Procesando...
+            </span>
           ) : (
-            <>
-              <Upload className="mr-2 h-4 w-4" />
-              Subir todos
-            </>
+            <span className="flex items-center gap-2">
+              <Upload className="h-4 w-4" />
+              {files.length === 1 ? "Subir archivo" : `Subir ${files.length} archivos`}
+            </span>
           )}
         </Button>
       </div>
-
-      <div className="space-y-4">
-        {files.map((file) => (
-          <FileItem
-            key={file.id}
-            file={file}
-            onRemove={onRemoveFile}
-            disabled={isUploading}
-          />
-        ))}
-      </div>
     </div>
   );
-}
+});
+
+export default FileList;

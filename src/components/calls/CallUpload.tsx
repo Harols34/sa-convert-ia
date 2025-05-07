@@ -41,7 +41,7 @@ export default function CallUpload() {
         <AlertTitle>Información importante</AlertTitle>
         <AlertDescription className="text-sm">
           Se aceptan archivos de audio en formato MP3, WAV o M4A. Tamaño máximo: 100MB por archivo.
-          Cada archivo subido será procesado automáticamente para su transcripción y análisis.
+          Cada archivo subido será procesado automáticamente para su transcripción y análisis. Se pueden procesar hasta 100 archivos a la vez.
         </AlertDescription>
       </Alert>
       

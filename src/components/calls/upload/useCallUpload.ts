@@ -368,43 +368,47 @@ export default function useCallUpload() {
     setTotalCount(filesToProcess.length);
     const results = [];
     const total = filesToProcess.length;
-    const batchSize = 5; // Reducido a 5 para mayor estabilidad
+    const batchSize = 10; // Tamaño de lote para procesamiento interno
     
     // Reiniciar contador de procesados
     setProcessedCount(0);
     
-    // Procesar en lotes pequeños
+    // Procesar en lotes más pequeños internamente para mejor estabilidad
     for (let i = 0; i < total; i += batchSize) {
       const batch = filesToProcess.slice(i, i + batchSize);
       console.log(`Procesando lote ${Math.floor(i/batchSize) + 1}, con ${batch.length} archivos`);
       
-      // Procesar cada archivo en el lote secuencialmente para evitar sobrecarga
-      const batchResults = [];
-      
-      for (let j = 0; j < batch.length; j++) {
-        const fileData = batch[j];
-        try {
-          const callId = await processCall(fileData);
-          batchResults.push({ id: fileData.id, success: true, callId });
-        } catch (error: any) {
-          console.error(`Error procesando archivo ${fileData.file.name}:`, error);
-          batchResults.push({ 
-            id: fileData.id, 
-            success: false, 
-            error,
-            dupeTitleError: error?.dupeTitleError || false 
+      try {
+        // Procesar archivos en paralelo pero con límite de concurrencia
+        const promises = batch.map(fileData => {
+          return new Promise<any>(async (resolve) => {
+            try {
+              const callId = await processCall(fileData);
+              resolve({ id: fileData.id, success: true, callId });
+            } catch (error: any) {
+              console.error(`Error procesando archivo ${fileData.file.name}:`, error);
+              resolve({ 
+                id: fileData.id, 
+                success: false, 
+                error,
+                dupeTitleError: error?.dupeTitleError || false 
+              });
+            } finally {
+              // Actualizar contador después de cada archivo
+              setProcessedCount(prev => prev + 1);
+            }
           });
-        }
+        });
         
-        // Actualizar contador después de cada archivo
-        setProcessedCount(prev => prev + 1);
+        const batchResults = await Promise.all(promises);
+        results.push(...batchResults);
+      } catch (batchError) {
+        console.error("Error en el procesamiento del lote:", batchError);
       }
-      
-      results.push(...batchResults);
       
       // Pequeña pausa entre lotes para evitar sobrecarga
       if (i + batchSize < total) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
     
@@ -459,9 +463,11 @@ export default function useCallUpload() {
     try {
       setProcessedCount(0);
       
-      toast.info(`Procesando ${files.length} ${files.length === 1 ? 'archivo' : 'archivos'}`, {
-        description: files.length > 3 
-          ? "Se procesarán en lotes pequeños para mejorar la estabilidad" 
+      // Mostrar mensaje informativo según la cantidad de archivos
+      const filesMessage = files.length > 1 ? `${files.length} archivos` : "1 archivo";
+      toast.info(`Procesando ${filesMessage}`, {
+        description: files.length > 50 
+          ? "Se procesarán en lotes para mejorar la estabilidad" 
           : "Esto puede tomar algunos minutos"
       });
       
@@ -481,7 +487,7 @@ export default function useCallUpload() {
         
         // Intentar de todos modos
         try {
-          // Procesar archivos en lotes pequeños
+          // Procesar archivos en lotes
           const results = await processFileBatch(files);
           
           // Contar éxitos, errores y duplicados
@@ -513,20 +519,46 @@ export default function useCallUpload() {
       
       console.log("Bucket 'calls' encontrado, procediendo con la carga...");
       
-      // Procesar archivos en lotes pequeños
-      const results = await processFileBatch(files);
+      // Dividir archivos en lotes de máximo 100 para procesar
+      const MAX_BATCH_SIZE = 100;
+      let processedTotal = 0;
+      let totalSuccess = 0;
+      let totalErrors = 0;
+      let totalDupes = 0;
       
-      // Contar éxitos, errores y duplicados
-      const successCount = results.filter(r => r.success).length;
-      const errorCount = results.filter(r => !r.success && !r.dupeTitleError).length;
-      const dupeCount = results.filter(r => r.dupeTitleError).length;
+      // Procesar en lotes de hasta 100 archivos
+      for (let i = 0; i < files.length; i += MAX_BATCH_SIZE) {
+        const currentBatch = files.slice(i, i + MAX_BATCH_SIZE);
+        console.log(`Procesando lote principal ${Math.floor(i/MAX_BATCH_SIZE) + 1} de ${Math.ceil(files.length/MAX_BATCH_SIZE)})`);
+        
+        // Mostrar progreso de lote actual
+        if (files.length > MAX_BATCH_SIZE) {
+          toast.info(`Procesando lote ${Math.floor(i/MAX_BATCH_SIZE) + 1} de ${Math.ceil(files.length/MAX_BATCH_SIZE)}`, {
+            description: `${processedTotal} de ${files.length} archivos procesados`
+          });
+        }
+        
+        // Procesar lote actual
+        const batchResults = await processFileBatch(currentBatch);
+        
+        // Actualizar contadores
+        processedTotal += currentBatch.length;
+        totalSuccess += batchResults.filter(r => r.success).length;
+        totalErrors += batchResults.filter(r => !r.success && !r.dupeTitleError).length;
+        totalDupes += batchResults.filter(r => r.dupeTitleError).length;
+        
+        // Pequeña pausa entre lotes para dar tiempo al servidor
+        if (i + MAX_BATCH_SIZE < files.length) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
       
-      // Mostrar mensaje según resultados
-      if (successCount > 0) {
+      // Mostrar resumen final
+      if (totalSuccess > 0) {
         toast.success(`Carga completa`, {
-          description: `Se ${successCount === 1 ? 'subió 1 archivo' : `subieron ${successCount} archivos`}${errorCount > 0 ? `, ${errorCount} con ${errorCount === 1 ? 'error' : 'errores'}` : ''}${dupeCount > 0 ? `, ${dupeCount} ya ${dupeCount === 1 ? 'existente' : 'existentes'}` : ''}`
+          description: `Se ${totalSuccess === 1 ? 'subió 1 archivo' : `subieron ${totalSuccess} archivos`}${totalErrors > 0 ? `, ${totalErrors} con ${totalErrors === 1 ? 'error' : 'errores'}` : ''}${totalDupes > 0 ? `, ${totalDupes} ya ${totalDupes === 1 ? 'existente' : 'existentes'}` : ''}`
         });
-      } else if (dupeCount === files.length) {
+      } else if (totalDupes === files.length) {
         toast.warning("Todas las grabaciones ya existen", {
           description: "No se ha cargado ningún archivo nuevo"
         });

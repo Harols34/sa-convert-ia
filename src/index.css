@@ -228,4 +228,40 @@
   .spinner {
     @apply animate-spin text-primary;
   }
+  
+  /* Animaciones de elementos en listas */
+  .list-item-enter {
+    @apply opacity-0 transform -translate-y-2;
+  }
+  
+  .list-item-enter-active {
+    @apply opacity-100 transform translate-y-0 transition-all duration-300;
+  }
+  
+  .list-item-exit {
+    @apply opacity-100;
+  }
+  
+  .list-item-exit-active {
+    @apply opacity-0 transform -translate-y-2 transition-all duration-200;
+  }
+
+  /* Evitar parpadeos */
+  .no-flicker {
+    @apply transform-gpu backface-visibility-hidden will-change-transform will-change-opacity;
+  }
+  
+  /* Animación fade-in */
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in-out forwards;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 }

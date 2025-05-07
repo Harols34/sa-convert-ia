@@ -16,10 +16,14 @@ export function useCallList() {
   const [lastFetchTimestamp, setLastFetchTimestamp] = useState<number | null>(null);
   const [fetchInProgress, setFetchInProgress] = useState(false);
   const [filtersApplied, setFiltersApplied] = useState<any>({});
+  const [cachedData, setCachedData] = useState<{filters: any, data: Call[]}>({
+    filters: {},
+    data: []
+  });
 
-  // Cachea los resultados de la consulta para evitar solicitudes duplicadas
+  // Función mejorada para recuperar datos de llamadas con caché optimizada
   const fetchCalls = useCallback(async (filters: any = {}, forceRefresh = false) => {
-    // Evita consultas simultáneas
+    // Evitar consultas simultáneas
     if (fetchInProgress) {
       console.log("Fetch already in progress, skipping request");
       return;
@@ -27,7 +31,7 @@ export function useCallList() {
     
     // Si los filtros no han cambiado y no es forzado, usar caché
     const filtersChanged = JSON.stringify(filters) !== JSON.stringify(filtersApplied);
-    if (!filtersChanged && !forceRefresh && calls.length > 0) {
+    if (!filtersChanged && !forceRefresh && cachedData.data.length > 0) {
       console.log("Using cached data with same filters");
       return;
     }
@@ -41,14 +45,15 @@ export function useCallList() {
     
     try {
       setFetchInProgress(true);
-      setIsLoading(prevLoading => calls.length === 0 ? true : prevLoading);
+      setIsLoading(prevLoading => cachedData.data.length === 0 ? true : prevLoading);
       setError(null);
       setFiltersApplied(filters);
       
+      console.log("Aplicando filtros:", filters);
       console.time("fetchCalls");
       
       // Set a reasonable page size to prevent timeouts
-      const pageSize = 500; // Reducido para mejor rendimiento
+      const pageSize = 500; // Optimizado para rendimiento y estabilidad
       
       let query = supabase
         .from("calls")
@@ -103,7 +108,7 @@ export function useCallList() {
         }
       }
 
-      // Implementación corregida del filtro de búsqueda
+      // Implementación optimizada del filtro de búsqueda
       if (filters.search && filters.search.trim() !== '') {
         const searchTerm = filters.search.trim().toLowerCase();
         console.log("Buscando por término:", searchTerm);
@@ -163,8 +168,8 @@ export function useCallList() {
       if (mappedCalls.length > 0) {
         const callIds = mappedCalls.map(call => call.id);
         
-        // Fetch feedback in smaller batches with a more efficient approach
-        const batchSize = 50; // Optimizado para balance entre eficiencia y velocidad
+        // Obtener feedback en lotes más pequeños para un equilibrio entre rendimiento y estabilidad
+        const batchSize = 50; 
         
         // Crear promesas para todas las consultas de feedback en lotes
         const feedbackPromises = [];
@@ -240,7 +245,12 @@ export function useCallList() {
         }
       }
 
+      // Actualizar los datos en caché y en estado
       setCalls(mappedCalls);
+      setCachedData({
+        filters,
+        data: mappedCalls
+      });
       setLastFetchTimestamp(now);
       setError(null);
       setRetryCount(0);
@@ -267,7 +277,7 @@ export function useCallList() {
       setIsRefreshing(false);
       setFetchInProgress(false);
     }
-  }, [calls.length, fetchInProgress, lastFetchTimestamp, retryCount, filtersApplied]);
+  }, [lastFetchTimestamp, retryCount, filtersApplied, cachedData.data.length, fetchInProgress]);
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
@@ -275,7 +285,7 @@ export function useCallList() {
     fetchCalls(filtersApplied, true);
   }, [fetchCalls, filtersApplied]);
 
-  // Efecto para cargar los datos iniciales
+  // Efecto para cargar los datos iniciales con optimización
   useEffect(() => {
     fetchCalls({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
