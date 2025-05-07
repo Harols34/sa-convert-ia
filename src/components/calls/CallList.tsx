@@ -210,7 +210,7 @@ export default function CallList() {
           </ScrollArea>
         </div>
 
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mt-4">
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">
               Mostrar
@@ -277,7 +277,7 @@ export default function CallList() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 component-fade">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold tracking-tight">Llamadas</h2>
         <div className="flex gap-2">
@@ -337,7 +337,9 @@ export default function CallList() {
 
       <CallListFilters onFilterChange={handleFilterChange} />
 
-      {renderContent()}
+      <div className="transition-all duration-300">
+        {renderContent()}
+      </div>
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>

@@ -34,7 +34,7 @@ export default function CallUpload() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in transition-all duration-300">
       {/* Información sobre formato de archivos */}
       <Alert variant="default" className="bg-muted/50">
         <AlertCircle className="h-4 w-4" />
@@ -48,7 +48,7 @@ export default function CallUpload() {
       <FileDropzone onDrop={onDrop} />
       
       {isProcessing && totalCount > 0 && (
-        <div className="p-4 border rounded-lg bg-secondary/10 mb-4">
+        <div className="p-4 border rounded-lg bg-secondary/10 mb-4 transition-all duration-300">
           <div className="flex justify-between mb-2">
             <p className="text-sm font-medium">Procesando archivos</p>
             <p className="text-sm text-muted-foreground">{processedCount} de {totalCount}</p>

@@ -205,4 +205,27 @@
   .text-gradient {
     @apply bg-gradient-to-r from-dark-green to-bright-green bg-clip-text text-transparent;
   }
+  
+  /* Transiciones suaves para componentes */
+  .component-fade {
+    @apply transition-opacity duration-300 ease-in-out;
+  }
+  
+  .table-fade-in {
+    @apply transition-opacity duration-300 ease-in-out;
+  }
+  
+  /* Prevenir flashes durante operaciones asíncronas */
+  .skeleton-container {
+    @apply transition-opacity duration-300;
+  }
+  
+  /* Mejorar la experiencia de carga */
+  .loading-overlay {
+    @apply bg-background/80 backdrop-blur-sm absolute inset-0 flex items-center justify-center z-50 transition-opacity duration-300;
+  }
+  
+  .spinner {
+    @apply animate-spin text-primary;
+  }
 }

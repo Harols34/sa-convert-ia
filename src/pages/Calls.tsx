@@ -76,7 +76,7 @@ export default function CallsPage() {
         <main className={`flex-1 p-4 md:p-6 transition-all duration-300 ${sidebarCollapsed ? 'ml-0 md:ml-16' : 'ml-0 md:ml-64'}`}>
           <Routes>
             <Route path="/" element={
-              <div key="calls-list">
+              <div key="calls-list" className="transition-opacity duration-300">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
                   <div>
                     <h2 className="text-3xl font-bold tracking-tight">Llamadas</h2>
@@ -96,7 +96,7 @@ export default function CallsPage() {
                 </div>
                 
                 {isAdmin && showAdminPanel && (
-                  <div className="mb-6">
+                  <div className="mb-6 transition-all duration-300">
                     <Suspense fallback={<LoadingPlaceholder />}>
                       <CallControlPanelLazy />
                     </Suspense>
@@ -107,7 +107,7 @@ export default function CallsPage() {
               </div>
             } />
             <Route path="/upload" element={
-              <div key="calls-upload">
+              <div key="calls-upload" className="transition-opacity duration-300">
                 <div className="flex items-center mb-6">
                   <Button variant="ghost" size="sm" onClick={() => navigate("/calls")} className="mr-4">
                     <ArrowLeft className="h-4 w-4 mr-2" /> Volver
@@ -123,7 +123,7 @@ export default function CallsPage() {
               </div>
             } />
             <Route path="/:id" element={
-              <div key="calls-detail">
+              <div key="calls-detail" className="transition-opacity duration-300">
                 <div className="flex items-center mb-6">
                   <Button variant="ghost" size="sm" onClick={() => navigate("/calls")} className="mr-4">
                     <ArrowLeft className="h-4 w-4 mr-2" /> Volver

@@ -13,6 +13,7 @@ export default function useCallUpload() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processedCount, setProcessedCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [processedFiles, setProcessedFiles] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
 
   // Verificar sesión al cargar el componente
@@ -47,13 +48,23 @@ export default function useCallUpload() {
   }, [navigate]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
+    // Verificar si hay archivos duplicados por nombre
+    const existingFileNames = files.map(f => f.file.name);
+    const uniqueFiles = acceptedFiles.filter(file => !existingFileNames.includes(file.name));
+    
+    if (uniqueFiles.length !== acceptedFiles.length) {
+      toast.warning(`Se omitieron ${acceptedFiles.length - uniqueFiles.length} archivos duplicados`, {
+        description: "Ya has agregado estos archivos a la cola"
+      });
+    }
+    
     // Validar tipos de archivos
-    const validFiles = acceptedFiles.filter(file => 
+    const validFiles = uniqueFiles.filter(file => 
       file.type.startsWith('audio/') || file.name.endsWith('.mp3') || file.name.endsWith('.wav') || file.name.endsWith('.m4a')
     );
     
-    if (validFiles.length !== acceptedFiles.length) {
-      toast.warning(`Se han omitido ${acceptedFiles.length - validFiles.length} archivos no válidos`, {
+    if (validFiles.length !== uniqueFiles.length) {
+      toast.warning(`Se han omitido ${uniqueFiles.length - validFiles.length} archivos no válidos`, {
         description: "Solo se permiten archivos de audio (.mp3, .wav, .m4a)"
       });
     }
@@ -77,7 +88,7 @@ export default function useCallUpload() {
     }));
 
     setFiles((prev) => [...prev, ...newFiles]);
-  }, []);
+  }, [files]);
 
   const removeFile = (id: string) => {
     setFiles((prev) => prev.filter((file) => file.id !== id));
@@ -106,10 +117,43 @@ export default function useCallUpload() {
     return interval;
   };
 
+  // Verificar si una llamada ya existe para evitar duplicados
+  const checkCallExists = async (callTitle: string) => {
+    try {
+      const { data: existingCalls, error: checkError } = await supabase
+        .from('calls')
+        .select('id')
+        .eq('title', callTitle);
+        
+      if (checkError) throw checkError;
+      
+      return existingCalls && existingCalls.length > 0;
+    } catch (error) {
+      console.error("Error al verificar llamadas existentes:", error);
+      return false;
+    }
+  };
+
   // Procesar llamada individual
   const processCall = async (fileData: FileWithProgress) => {
     let callId = null;
     let progressInterval: any = null;
+    
+    // Si el archivo ya fue procesado, evitar procesarlo nuevamente
+    if (processedFiles.has(fileData.file.name)) {
+      console.log(`Archivo ${fileData.file.name} ya procesado, omitiendo`);
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === fileData.id ? { 
+            ...f, 
+            progress: 100, 
+            status: "success",
+            info: "Archivo ya procesado anteriormente" 
+          } : f
+        )
+      );
+      return null;
+    }
     
     try {
       // Update progress to show we're starting
@@ -133,17 +177,10 @@ export default function useCallUpload() {
       const callTitle = originalFileName.replace(/\.[^/.]+$/, "");
       
       // Check if a call with this title already exists
-      const { data: existingCalls, error: checkError } = await supabase
-        .from('calls')
-        .select('id')
-        .eq('title', callTitle);
+      const callExists = await checkCallExists(callTitle);
         
-      if (checkError) {
-        console.error("Error al verificar llamadas existentes:", checkError);
-      }
-      
       // If call with this title already exists, mark as duplicate and skip
-      if (existingCalls && existingCalls.length > 0) {
+      if (callExists) {
         console.log(`Llamada con título "${callTitle}" ya existe`);
         setFiles((prev) =>
           prev.map((f) =>
@@ -161,6 +198,9 @@ export default function useCallUpload() {
       }
       
       console.log("Subiendo archivo a bucket 'calls':", filePath);
+      
+      // Marcar el archivo como en procesamiento para evitar duplicados
+      setProcessedFiles(prev => new Set(prev).add(fileData.file.name));
       
       // Convertir file a Uint8Array para mayor compatibilidad con Supabase Storage
       const arrayBuffer = await fileData.file.arrayBuffer();
@@ -309,6 +349,15 @@ export default function useCallUpload() {
         );
       }
       
+      // Remover el archivo de los procesados si hubo error para permitir reintentar
+      if (!error.dupeTitleError) {
+        setProcessedFiles(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(fileData.file.name);
+          return newSet;
+        });
+      }
+      
       throw error;
     }
   };
@@ -319,54 +368,43 @@ export default function useCallUpload() {
     setTotalCount(filesToProcess.length);
     const results = [];
     const total = filesToProcess.length;
-    const batchSize = 100; // Aumentado a 100 para procesar más archivos a la vez
+    const batchSize = 5; // Reducido a 5 para mayor estabilidad
     
     // Reiniciar contador de procesados
     setProcessedCount(0);
     
-    // Procesar en lotes de 100
+    // Procesar en lotes pequeños
     for (let i = 0; i < total; i += batchSize) {
       const batch = filesToProcess.slice(i, i + batchSize);
       console.log(`Procesando lote ${Math.floor(i/batchSize) + 1}, con ${batch.length} archivos`);
       
-      // Procesar cada archivo en el lote en paralelo con límite de concurrencia
-      const promises = batch.map(fileData => processCall(fileData));
+      // Procesar cada archivo en el lote secuencialmente para evitar sobrecarga
+      const batchResults = [];
       
-      try {
-        // Ejecutar procesamiento en paralelo con un límite de 10 operaciones concurrentes
-        // para evitar sobrecargar el sistema
-        const batchResults = [];
-        const concurrencyLimit = 10;
-        
-        for (let j = 0; j < batch.length; j += concurrencyLimit) {
-          const concurrentBatch = batch.slice(j, j + concurrencyLimit);
-          const concurrentPromises = concurrentBatch.map(fileData => {
-            return processCall(fileData)
-              .then(callId => ({ id: fileData.id, success: true, callId }))
-              .catch(error => ({ 
-                id: fileData.id, 
-                success: false, 
-                error,
-                dupeTitleError: error?.dupeTitleError || false 
-              }));
+      for (let j = 0; j < batch.length; j++) {
+        const fileData = batch[j];
+        try {
+          const callId = await processCall(fileData);
+          batchResults.push({ id: fileData.id, success: true, callId });
+        } catch (error: any) {
+          console.error(`Error procesando archivo ${fileData.file.name}:`, error);
+          batchResults.push({ 
+            id: fileData.id, 
+            success: false, 
+            error,
+            dupeTitleError: error?.dupeTitleError || false 
           });
-          
-          const concurrentResults = await Promise.all(concurrentPromises);
-          batchResults.push(...concurrentResults);
-          
-          // Actualizar contador después de cada lote concurrente
-          setProcessedCount(prev => prev + concurrentResults.length);
         }
         
-        results.push(...batchResults);
-      } catch (error) {
-        console.error("Error en el lote:", error);
-        // Continuar con el siguiente lote incluso si este falla
+        // Actualizar contador después de cada archivo
+        setProcessedCount(prev => prev + 1);
       }
+      
+      results.push(...batchResults);
       
       // Pequeña pausa entre lotes para evitar sobrecarga
       if (i + batchSize < total) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
     
@@ -408,6 +446,14 @@ export default function useCallUpload() {
       return;
     }
 
+    // Evitar iniciar una nueva carga si ya hay una en progreso
+    if (isUploading) {
+      toast.warning("Hay una carga en progreso", {
+        description: "Por favor espere a que finalice la carga actual"
+      });
+      return;
+    }
+
     setIsUploading(true);
 
     try {
@@ -435,7 +481,7 @@ export default function useCallUpload() {
         
         // Intentar de todos modos
         try {
-          // Procesar todos los archivos sin límite fijo
+          // Procesar archivos en lotes pequeños
           const results = await processFileBatch(files);
           
           // Contar éxitos, errores y duplicados
@@ -467,7 +513,7 @@ export default function useCallUpload() {
       
       console.log("Bucket 'calls' encontrado, procediendo con la carga...");
       
-      // Procesar todos los archivos sin límite fijo
+      // Procesar archivos en lotes pequeños
       const results = await processFileBatch(files);
       
       // Contar éxitos, errores y duplicados

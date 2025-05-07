@@ -15,6 +15,7 @@ export function useCallList() {
   const [retryCount, setRetryCount] = useState(0);
   const [lastFetchTimestamp, setLastFetchTimestamp] = useState<number | null>(null);
   const [fetchInProgress, setFetchInProgress] = useState(false);
+  const [filtersApplied, setFiltersApplied] = useState<any>({});
 
   // Cachea los resultados de la consulta para evitar solicitudes duplicadas
   const fetchCalls = useCallback(async (filters: any = {}, forceRefresh = false) => {
@@ -24,9 +25,16 @@ export function useCallList() {
       return;
     }
     
-    // Comprueba si ha pasado suficiente tiempo desde la última actualización (30 segundos)
+    // Si los filtros no han cambiado y no es forzado, usar caché
+    const filtersChanged = JSON.stringify(filters) !== JSON.stringify(filtersApplied);
+    if (!filtersChanged && !forceRefresh && calls.length > 0) {
+      console.log("Using cached data with same filters");
+      return;
+    }
+    
+    // Comprueba si ha pasado suficiente tiempo desde la última actualización (10 segundos si no hay cambios en filtros)
     const now = Date.now();
-    if (!forceRefresh && lastFetchTimestamp && now - lastFetchTimestamp < 30000) {
+    if (!forceRefresh && !filtersChanged && lastFetchTimestamp && now - lastFetchTimestamp < 10000) {
       console.log("Using cached data, last fetch was", Math.round((now - lastFetchTimestamp)/1000), "seconds ago");
       return;
     }
@@ -35,11 +43,12 @@ export function useCallList() {
       setFetchInProgress(true);
       setIsLoading(prevLoading => calls.length === 0 ? true : prevLoading);
       setError(null);
+      setFiltersApplied(filters);
       
       console.time("fetchCalls");
       
       // Set a reasonable page size to prevent timeouts
-      const pageSize = 1000;
+      const pageSize = 500; // Reducido para mejor rendimiento
       
       let query = supabase
         .from("calls")
@@ -100,7 +109,6 @@ export function useCallList() {
         console.log("Buscando por término:", searchTerm);
 
         // La forma correcta de usar or() en Supabase es con un string de filtros separados por comas
-        // https://supabase.com/docs/reference/javascript/or
         query = query.or(`title.ilike.%${searchTerm}%,agent_name.ilike.%${searchTerm}%,filename.ilike.%${searchTerm}%`);
       }
 
@@ -151,12 +159,12 @@ export function useCallList() {
         };
       });
 
-      // ... keep existing code (feedback fetching and processing)
+      // Obtener feedbacks en paralelo si hay llamadas
       if (mappedCalls.length > 0) {
         const callIds = mappedCalls.map(call => call.id);
         
         // Fetch feedback in smaller batches with a more efficient approach
-        const batchSize = 20; // Aumentado para reducir el número de solicitudes
+        const batchSize = 50; // Optimizado para balance entre eficiencia y velocidad
         
         // Crear promesas para todas las consultas de feedback en lotes
         const feedbackPromises = [];
@@ -259,13 +267,13 @@ export function useCallList() {
       setIsRefreshing(false);
       setFetchInProgress(false);
     }
-  }, [calls.length, fetchInProgress, lastFetchTimestamp, retryCount]);
+  }, [calls.length, fetchInProgress, lastFetchTimestamp, retryCount, filtersApplied]);
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
     setRetryCount(0);
-    fetchCalls({}, true);
-  }, [fetchCalls]);
+    fetchCalls(filtersApplied, true);
+  }, [fetchCalls, filtersApplied]);
 
   // Efecto para cargar los datos iniciales
   useEffect(() => {
