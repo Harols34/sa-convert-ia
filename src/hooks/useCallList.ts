@@ -1,11 +1,12 @@
-
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Call, Feedback, BehaviorAnalysis } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { validateCallStatus } from "@/components/calls/detail/CallUtils";
+import { useOrganization } from "@/context/OrganizationContext";
 
 export function useCallList() {
+  const { currentOrganization } = useOrganization();
   const [calls, setCalls] = useState<Call[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCalls, setSelectedCalls] = useState<string[]>([]);
@@ -73,10 +74,16 @@ export function useCallList() {
           product,
           reason,
           tipificacion_id,
-          status_summary
+          status_summary,
+          organization_id
         `)
         .order("date", { ascending: false })
         .limit(pageSize);
+
+      // Filtrar por organización si el usuario no es super admin
+      if (currentOrganization) {
+        query = query.eq("organization_id", currentOrganization.id);
+      }
 
       // Aplicar filtros si existen
       if (filters.status && filters.status !== "all") {
@@ -277,7 +284,7 @@ export function useCallList() {
       setIsRefreshing(false);
       setFetchInProgress(false);
     }
-  }, [lastFetchTimestamp, retryCount, filtersApplied, cachedData.data.length, fetchInProgress]);
+  }, [lastFetchTimestamp, retryCount, filtersApplied, cachedData.data.length, fetchInProgress, currentOrganization]);
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);

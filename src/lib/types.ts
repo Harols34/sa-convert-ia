@@ -14,6 +14,18 @@ export interface User {
   language?: 'es' | 'en';
   created_at?: string;
   updated_at?: string;
+  organizationId?: string | null;
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  settings?: Record<string, any>;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Call {
@@ -36,8 +48,9 @@ export interface Call {
   reason?: string;
   tipificacionId?: string | null;
   speaker_analysis?: any;
-  statusSummary?: string; // Field for brief status summary (max 4 words)
-  contractCompliance?: ContractCompliance; // New field for contract compliance
+  statusSummary?: string;
+  contractCompliance?: ContractCompliance;
+  organizationId?: string | null;
 }
 
 export interface ContractCompliance {
@@ -95,6 +108,7 @@ export interface Behavior {
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
+  organizationId?: string | null;
 }
 
 export interface Tipificacion {
@@ -105,6 +119,7 @@ export interface Tipificacion {
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
+  organizationId?: string | null;
 }
 
 export interface DashboardCard {
@@ -130,7 +145,6 @@ export interface ChatMessage {
   user_id?: string;
 }
 
-// Interface for ChatHistoryItem
 export interface ChatHistoryItem {
   id: string;
   query: string; 
@@ -139,7 +153,6 @@ export interface ChatHistoryItem {
   user_id: string;
 }
 
-// Interfaces para la transcripción mejorada 
 export interface TranscriptSegment {
   text: string;
   start: number;
