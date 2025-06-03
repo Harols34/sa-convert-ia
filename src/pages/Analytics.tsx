@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
+import Layout from "@/components/layout/Layout";
+import Card from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
 import Navbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
@@ -513,7 +514,7 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <Layout>
       <Navbar toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
       <div className="flex flex-1">
         <Sidebar isOpen={sidebarOpen} closeSidebar={() => setSidebarOpen(false)} />
@@ -665,6 +666,6 @@ export default function AnalyticsPage() {
       <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-0 md:ml-16' : 'ml-0 md:ml-64'}`}>
         <Footer />
       </div>
-    </div>
+    </Layout>
   );
 }
