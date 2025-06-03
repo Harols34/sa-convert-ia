@@ -30,7 +30,7 @@ export function useOrganizations() {
         name: org.name,
         slug: org.slug,
         description: org.description,
-        settings: org.settings || {},
+        settings: (org.settings as Record<string, any>) || {},
         isActive: org.is_active,
         createdAt: org.created_at,
         updatedAt: org.updated_at
@@ -164,7 +164,7 @@ export function useOrganizations() {
         name: org.name,
         slug: org.slug,
         description: org.description,
-        settings: org.settings || {},
+        settings: (org.settings as Record<string, any>) || {},
         isActive: org.is_active,
         createdAt: org.created_at,
         updatedAt: org.updated_at

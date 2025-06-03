@@ -13,6 +13,7 @@ interface AuthContextType {
   setUser: (user: AppUser | null) => void;
   setSession: (session: Session | null) => void;
   refreshUserSession: () => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,6 +31,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [sessionChecked, setSessionChecked] = useState(false);
+
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Error logging out:", error);
+        throw error;
+      }
+      setUser(null);
+      setSession(null);
+    } catch (error) {
+      console.error("Error during logout:", error);
+      throw error;
+    }
+  };
 
   const refreshUserSession = async () => {
     try {
@@ -161,6 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser,
         setSession,
         refreshUserSession,
+        logout,
       }}
     >
       {children}
