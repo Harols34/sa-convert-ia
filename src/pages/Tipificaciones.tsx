@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import Layout from "@/components/layout/Layout";
+import Footer from "@/components/layout/Footer";
+import Navbar from "@/components/layout/Navbar";
+import Sidebar from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,6 +26,7 @@ interface Tipificacion {
 }
 
 export default function TipificacionesPage() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [tipificaciones, setTipificaciones] = useState<Tipificacion[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -219,128 +222,52 @@ export default function TipificacionesPage() {
   };
 
   return (
-    <Layout>
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Tipificaciones</h2>
-          <p className="text-muted-foreground">
-            Gestiona las tipificaciones para clasificar las llamadas
-          </p>
-        </div>
-        <div className="mt-4 md:mt-0">
-          <Button onClick={() => setShowForm(true)}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Nueva Tipificación
-          </Button>
-        </div>
-      </div>
-
-      <Card className="mb-6 bg-white">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Filtros</CardTitle>
-          <CardDescription>Filtra las tipificaciones por diferentes criterios</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div className="min-h-screen flex flex-col">
+      <Navbar toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+      <div className="flex flex-1">
+        <Sidebar isOpen={sidebarOpen} closeSidebar={() => setSidebarOpen(false)} />
+        <main className="flex-1 p-4 md:p-6 ml-0 md:ml-64 transition-all duration-300">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
             <div>
-              <Label htmlFor="filter-name">Nombre</Label>
-              <Input
-                id="filter-name"
-                value={filter.name}
-                onChange={(e) => setFilter({ ...filter, name: e.target.value })}
-                placeholder="Filtrar por nombre"
-              />
+              <h2 className="text-3xl font-bold tracking-tight">Tipificaciones</h2>
+              <p className="text-muted-foreground">
+                Gestiona las tipificaciones para clasificar las llamadas
+              </p>
             </div>
-            <div>
-              <Label htmlFor="filter-type">Tipo</Label>
-              <Select
-                value={filter.type}
-                onValueChange={(value) => setFilter({ ...filter, type: value })}
-              >
-                <SelectTrigger id="filter-type">
-                  <SelectValue placeholder="Todos los tipos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los tipos</SelectItem>
-                  <SelectItem value="general">General</SelectItem>
-                  <SelectItem value="venta">Venta</SelectItem>
-                  <SelectItem value="soporte">Soporte</SelectItem>
-                  <SelectItem value="reclamacion">Reclamación</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center space-x-2 mt-8">
-              <Checkbox 
-                id="filter-active"
-                checked={filter.showActive}
-                onCheckedChange={(checked) => 
-                  setFilter({ ...filter, showActive: checked === true })}
-              />
-              <label
-                htmlFor="filter-active"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Mostrar activas
-              </label>
-            </div>
-            <div className="flex items-center space-x-2 mt-8">
-              <Checkbox 
-                id="filter-inactive"
-                checked={filter.showInactive}
-                onCheckedChange={(checked) => 
-                  setFilter({ ...filter, showInactive: checked === true })}
-              />
-              <label
-                htmlFor="filter-inactive"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Mostrar inactivas
-              </label>
+            <div className="mt-4 md:mt-0">
+              <Button onClick={() => setShowForm(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Nueva Tipificación
+              </Button>
             </div>
           </div>
-          <div className="flex justify-end mt-4 space-x-2">
-            <Button variant="outline" onClick={handleResetFilter}>
-              Restablecer
-            </Button>
-            <Button onClick={handleApplyFilter}>
-              Aplicar filtros
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
-      {showForm && (
-        <Card className="mb-6 bg-white">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">
-              {editingTipificacion ? "Editar Tipificación" : "Nueva Tipificación"}
-            </CardTitle>
-            <CardDescription>
-              {editingTipificacion ? "Modifica los datos de la tipificación" : "Introduce los datos para la nueva tipificación"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleFormSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nombre *</Label>
+          <Card className="mb-6 bg-white">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Filtros</CardTitle>
+              <CardDescription>Filtra las tipificaciones por diferentes criterios</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <Label htmlFor="filter-name">Nombre</Label>
                   <Input
-                    id="name"
-                    value={formState.name}
-                    onChange={(e) => setFormState({ ...formState, name: e.target.value })}
-                    placeholder="Nombre de la tipificación"
-                    required
+                    id="filter-name"
+                    value={filter.name}
+                    onChange={(e) => setFilter({ ...filter, name: e.target.value })}
+                    placeholder="Filtrar por nombre"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="type">Tipo</Label>
+                <div>
+                  <Label htmlFor="filter-type">Tipo</Label>
                   <Select
-                    value={formState.type}
-                    onValueChange={(value) => setFormState({ ...formState, type: value })}
+                    value={filter.type}
+                    onValueChange={(value) => setFilter({ ...filter, type: value })}
                   >
-                    <SelectTrigger id="type">
-                      <SelectValue placeholder="Seleccionar tipo" />
+                    <SelectTrigger id="filter-type">
+                      <SelectValue placeholder="Todos los tipos" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="all">Todos los tipos</SelectItem>
                       <SelectItem value="general">General</SelectItem>
                       <SelectItem value="venta">Venta</SelectItem>
                       <SelectItem value="soporte">Soporte</SelectItem>
@@ -348,156 +275,241 @@ export default function TipificacionesPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="flex items-center space-x-2 mt-8">
+                  <Checkbox 
+                    id="filter-active"
+                    checked={filter.showActive}
+                    onCheckedChange={(checked) => 
+                      setFilter({ ...filter, showActive: checked === true })}
+                  />
+                  <label
+                    htmlFor="filter-active"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Mostrar activas
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2 mt-8">
+                  <Checkbox 
+                    id="filter-inactive"
+                    checked={filter.showInactive}
+                    onCheckedChange={(checked) => 
+                      setFilter({ ...filter, showInactive: checked === true })}
+                  />
+                  <label
+                    htmlFor="filter-inactive"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Mostrar inactivas
+                  </label>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Descripción</Label>
-                <Textarea
-                  id="description"
-                  value={formState.description}
-                  onChange={(e) => setFormState({ ...formState, description: e.target.value })}
-                  placeholder="Descripción detallada de la tipificación"
-                  rows={3}
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="is_active"
-                  checked={formState.is_active}
-                  onCheckedChange={(checked) => 
-                    setFormState({ ...formState, is_active: checked === true })}
-                />
-                <label
-                  htmlFor="is_active"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Tipificación activa
-                </label>
-              </div>
-              <div className="flex justify-end space-x-2">
-                <Button type="button" variant="outline" onClick={handleCancel}>
-                  Cancelar
+              <div className="flex justify-end mt-4 space-x-2">
+                <Button variant="outline" onClick={handleResetFilter}>
+                  Restablecer
                 </Button>
-                <Button type="submit">
-                  {editingTipificacion ? "Actualizar" : "Guardar"}
+                <Button onClick={handleApplyFilter}>
+                  Aplicar filtros
                 </Button>
               </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
 
-      <Card className="bg-white">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Lista de Tipificaciones</CardTitle>
-          <CardDescription>
-            {filteredTipificaciones.length} tipificaciones encontradas
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          ) : filteredTipificaciones.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium">No hay tipificaciones</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                No se encontraron tipificaciones con los filtros aplicados.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Descripción</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTipificaciones.map((tip) => (
-                    <TableRow key={tip.id}>
-                      <TableCell className="font-medium">{tip.name}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded-md text-xs font-medium ${
-                          tip.type === 'venta' ? 'bg-green-100 text-green-800' :
-                          tip.type === 'soporte' ? 'bg-blue-100 text-blue-800' :
-                          tip.type === 'reclamacion' ? 'bg-red-100 text-red-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {tip.type.charAt(0).toUpperCase() + tip.type.slice(1)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {tip.description || <span className="text-muted-foreground italic">Sin descripción</span>}
-                      </TableCell>
-                      <TableCell>
-                        {tip.is_active ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            <Check className="h-3 w-3 mr-1" /> Activa
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            <X className="h-3 w-3 mr-1" /> Inactiva
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(tip)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>¿Confirmar eliminación?</DialogTitle>
-                              <DialogDescription>
-                                Esta acción no se puede deshacer. La tipificación será eliminada permanentemente.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <DialogFooter className="mt-4">
-                              <Button variant="outline" onClick={() => document.getElementById('close-dialog')?.click()}>
-                                Cancelar
-                              </Button>
-                              <Button variant="destructive" onClick={() => {
-                                handleDelete(tip);
-                                document.getElementById('close-dialog')?.click();
-                              }}>
-                                Eliminar
-                              </Button>
-                              <button id="close-dialog" className="hidden" />
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleToggleActive(tip)}
-                          title={tip.is_active ? "Desactivar" : "Activar"}
-                        >
-                          {tip.is_active ? (
-                            <X className="h-4 w-4 text-red-500" />
-                          ) : (
-                            <Check className="h-4 w-4 text-green-500" />
-                          )}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+          {showForm && (
+            <Card className="mb-6 bg-white">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">
+                  {editingTipificacion ? "Editar Tipificación" : "Nueva Tipificación"}
+                </CardTitle>
+                <CardDescription>
+                  {editingTipificacion ? "Modifica los datos de la tipificación" : "Introduce los datos para la nueva tipificación"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleFormSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Nombre *</Label>
+                      <Input
+                        id="name"
+                        value={formState.name}
+                        onChange={(e) => setFormState({ ...formState, name: e.target.value })}
+                        placeholder="Nombre de la tipificación"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="type">Tipo</Label>
+                      <Select
+                        value={formState.type}
+                        onValueChange={(value) => setFormState({ ...formState, type: value })}
+                      >
+                        <SelectTrigger id="type">
+                          <SelectValue placeholder="Seleccionar tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="general">General</SelectItem>
+                          <SelectItem value="venta">Venta</SelectItem>
+                          <SelectItem value="soporte">Soporte</SelectItem>
+                          <SelectItem value="reclamacion">Reclamación</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Descripción</Label>
+                    <Textarea
+                      id="description"
+                      value={formState.description}
+                      onChange={(e) => setFormState({ ...formState, description: e.target.value })}
+                      placeholder="Descripción detallada de la tipificación"
+                      rows={3}
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="is_active"
+                      checked={formState.is_active}
+                      onCheckedChange={(checked) => 
+                        setFormState({ ...formState, is_active: checked === true })}
+                    />
+                    <label
+                      htmlFor="is_active"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Tipificación activa
+                    </label>
+                  </div>
+                  <div className="flex justify-end space-x-2">
+                    <Button type="button" variant="outline" onClick={handleCancel}>
+                      Cancelar
+                    </Button>
+                    <Button type="submit">
+                      {editingTipificacion ? "Actualizar" : "Guardar"}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
-    </Layout>
+
+          <Card className="bg-white">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Lista de Tipificaciones</CardTitle>
+              <CardDescription>
+                {filteredTipificaciones.length} tipificaciones encontradas
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              ) : filteredTipificaciones.length === 0 ? (
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-medium">No hay tipificaciones</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    No se encontraron tipificaciones con los filtros aplicados.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nombre</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Descripción</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredTipificaciones.map((tip) => (
+                        <TableRow key={tip.id}>
+                          <TableCell className="font-medium">{tip.name}</TableCell>
+                          <TableCell>
+                            <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+                              tip.type === 'venta' ? 'bg-green-100 text-green-800' :
+                              tip.type === 'soporte' ? 'bg-blue-100 text-blue-800' :
+                              tip.type === 'reclamacion' ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {tip.type.charAt(0).toUpperCase() + tip.type.slice(1)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="max-w-xs truncate">
+                            {tip.description || <span className="text-muted-foreground italic">Sin descripción</span>}
+                          </TableCell>
+                          <TableCell>
+                            {tip.is_active ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                <Check className="h-3 w-3 mr-1" /> Activa
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                <X className="h-3 w-3 mr-1" /> Inactiva
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right space-x-2">
+                            <Button variant="ghost" size="icon" onClick={() => handleEdit(tip)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>¿Confirmar eliminación?</DialogTitle>
+                                  <DialogDescription>
+                                    Esta acción no se puede deshacer. La tipificación será eliminada permanentemente.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <DialogFooter className="mt-4">
+                                  <Button variant="outline" onClick={() => document.getElementById('close-dialog')?.click()}>
+                                    Cancelar
+                                  </Button>
+                                  <Button variant="destructive" onClick={() => {
+                                    handleDelete(tip);
+                                    document.getElementById('close-dialog')?.click();
+                                  }}>
+                                    Eliminar
+                                  </Button>
+                                  <button id="close-dialog" className="hidden" />
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleToggleActive(tip)}
+                              title={tip.is_active ? "Desactivar" : "Activar"}
+                            >
+                              {tip.is_active ? (
+                                <X className="h-4 w-4 text-red-500" />
+                              ) : (
+                                <Check className="h-4 w-4 text-green-500" />
+                              )}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+      <div className="ml-0 md:ml-64 transition-all duration-300">
+        <Footer />
+      </div>
+    </div>
   );
 }

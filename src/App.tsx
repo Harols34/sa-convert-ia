@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -26,8 +27,6 @@ import RouteObserver from "@/components/layout/RouteObserver";
 import { supabase } from "./integrations/supabase/client";
 import { toast } from "sonner";
 import { User as AppUser } from "@/lib/types";
-import Organizations from "./pages/Organizations";
-import { OrganizationProvider } from "@/context/OrganizationContext";
 
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
   const { isAuthenticated, loading, user, setUser, setSession } = useAuth();
@@ -161,133 +160,123 @@ const AppContent = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <OrganizationProvider>
-          <UserProvider>
-            <TooltipProvider>
-              <Toaster />
-              <SonnerToaster />
-              <RouteObserver />
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/dashboard" element={<Navigate to="/analytics" replace />} />
-                <Route 
-                  path="/organizations" 
-                  element={
-                    <ProtectedRoute>
-                      <Organizations />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/calls/*" 
-                  element={
-                    <ProtectedRoute>
-                      <Calls />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/analytics" 
-                  element={
-                    <ProtectedRoute>
-                      <Analytics />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/workforce" 
-                  element={
-                    <ProtectedRoute>
-                      <Workforce />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/agents" 
-                  element={
-                    <ProtectedRoute>
-                      <Agents />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/tools" 
-                  element={
-                    <ProtectedRoute>
-                      <Tools />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/chat/*" 
-                  element={
-                    <ProtectedRoute>
-                      <Chat />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/settings" 
-                  element={
-                    <ProtectedRoute>
-                      <Settings />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/users/*" 
-                  element={
-                    <ProtectedRoute>
-                      <Users />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/behaviors/*" 
-                  element={
-                    <ProtectedRoute>
-                      <Behaviors />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/tipificaciones" 
-                  element={
-                    <ProtectedRoute>
-                      <Tipificaciones />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/prompts" 
-                  element={
-                    <ProtectedRoute>
-                      <Prompts />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/prompts/new" 
-                  element={
-                    <ProtectedRoute>
-                      <PromptForm />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/prompts/edit/:id" 
-                  element={
-                    <ProtectedRoute>
-                      <PromptForm />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </TooltipProvider>
-          </UserProvider>
-        </OrganizationProvider>
+        <UserProvider>
+          <TooltipProvider>
+            <Toaster />
+            <SonnerToaster />
+            <RouteObserver />
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/dashboard" element={<Navigate to="/analytics" replace />} />
+              <Route 
+                path="/calls/*" 
+                element={
+                  <ProtectedRoute>
+                    <Calls />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/analytics" 
+                element={
+                  <ProtectedRoute>
+                    <Analytics />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/workforce" 
+                element={
+                  <ProtectedRoute>
+                    <Workforce />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/agents" 
+                element={
+                  <ProtectedRoute>
+                    <Agents />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/tools" 
+                element={
+                  <ProtectedRoute>
+                    <Tools />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/chat/*" 
+                element={
+                  <ProtectedRoute>
+                    <Chat />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/settings" 
+                element={
+                  <ProtectedRoute>
+                    <Settings />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/users/*" 
+                element={
+                  <ProtectedRoute>
+                    <Users />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/behaviors/*" 
+                element={
+                  <ProtectedRoute>
+                    <Behaviors />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/tipificaciones" 
+                element={
+                  <ProtectedRoute>
+                    <Tipificaciones />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/prompts" 
+                element={
+                  <ProtectedRoute>
+                    <Prompts />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/prompts/new" 
+                element={
+                  <ProtectedRoute>
+                    <PromptForm />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/prompts/edit/:id" 
+                element={
+                  <ProtectedRoute>
+                    <PromptForm />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </TooltipProvider>
+        </UserProvider>
       </AuthProvider>
     </BrowserRouter>
   );

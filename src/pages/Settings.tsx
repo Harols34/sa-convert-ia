@@ -1,6 +1,8 @@
 
 import React, { useState } from "react";
-import Layout from "@/components/layout/Layout";
+import Footer from "@/components/layout/Footer";
+import Navbar from "@/components/layout/Navbar";
+import Sidebar from "@/components/layout/Sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAudioSettings } from "@/hooks/useAudioSettings";
 import { Loader2 } from "lucide-react";
@@ -11,10 +13,13 @@ import PasswordSection from "@/components/settings/PasswordSection";
 import AudioSettings from "@/components/settings/AudioSettings";
 
 export default function Settings() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isLoading: loadingSettings } = useAudioSettings();
   const { user, isLoading: loadingUser } = useUser();
   const { isAuthenticated, loading: loadingAuth } = useAuth();
   
+  // We completely remove the useSessionTimeout hook to prevent auto-reloading
+
   // Create stable references for components using React.memo to improve performance
   const MemoizedProfileSection = React.memo(ProfileSection);
   const MemoizedPasswordSection = React.memo(PasswordSection);
@@ -32,24 +37,33 @@ export default function Settings() {
   }
 
   return (
-    <Layout>
-      <h2 className="text-3xl font-bold tracking-tight mb-6">Configuración</h2>
+    <div className="min-h-screen flex flex-col">
+      <Navbar toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+      <div className="flex flex-1">
+        <Sidebar isOpen={sidebarOpen} closeSidebar={() => setSidebarOpen(false)} />
+        <main className="flex-1 p-4 md:p-6 ml-0 md:ml-64 transition-all duration-300">
+          <h2 className="text-3xl font-bold tracking-tight mb-6">Configuración</h2>
 
-      <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid grid-cols-2 gap-2">
-          <TabsTrigger value="profile">Perfil</TabsTrigger>
-          <TabsTrigger value="audio">Procesamiento de Audio</TabsTrigger>
-        </TabsList>
+          <Tabs defaultValue="profile" className="space-y-6">
+            <TabsList className="grid grid-cols-2 gap-2">
+              <TabsTrigger value="profile">Perfil</TabsTrigger>
+              <TabsTrigger value="audio">Procesamiento de Audio</TabsTrigger>
+            </TabsList>
 
-        <TabsContent value="profile" className="space-y-6">
-          <MemoizedProfileSection />
-          <MemoizedPasswordSection />
-        </TabsContent>
-        
-        <TabsContent value="audio" className="space-y-6">
-          <MemoizedAudioSettings />
-        </TabsContent>
-      </Tabs>
-    </Layout>
+            <TabsContent value="profile" className="space-y-6">
+              <MemoizedProfileSection />
+              <MemoizedPasswordSection />
+            </TabsContent>
+            
+            <TabsContent value="audio" className="space-y-6">
+              <MemoizedAudioSettings />
+            </TabsContent>
+          </Tabs>
+        </main>
+      </div>
+      <div className="ml-0 md:ml-64 transition-all duration-300">
+        <Footer />
+      </div>
+    </div>
   );
 }

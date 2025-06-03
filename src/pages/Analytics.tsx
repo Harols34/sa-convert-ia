@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import Layout from "@/components/layout/Layout";
 import { Card } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
 import Navbar from "@/components/layout/Navbar";
+import Sidebar from "@/components/layout/Sidebar";
 import {
   Select,
   SelectContent,
@@ -55,8 +55,10 @@ const chartTypes = {
 };
 
 export default function AnalyticsPage() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [timeRange, setTimeRange] = useState("week");
   const [isLoading, setIsLoading] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   
   const [callVolumeChartType, setCallVolumeChartType] = useState("bar");
   const [agentPerformanceChartType, setAgentPerformanceChartType] = useState("line");
@@ -68,6 +70,24 @@ export default function AnalyticsPage() {
   const [resultsData, setResultsData] = useState<ResultsData[]>(emptyResultsData);
   const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetric[]>([]);
   const [hasData, setHasData] = useState(false);
+
+  useEffect(() => {
+    const savedState = localStorage.getItem('sidebar-collapsed');
+    if (savedState !== null) {
+      setSidebarCollapsed(savedState === 'true');
+    }
+    
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'sidebar-collapsed') {
+        setSidebarCollapsed(e.newValue === 'true');
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   useEffect(() => {
     fetchAnalyticsData();
@@ -493,10 +513,11 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <Layout>
-      <div className="flex flex-col min-h-screen">
-        <Navbar toggleSidebar={() => {}} />
-        <main className="flex-1 p-4 md:p-6">
+    <div className="min-h-screen flex flex-col">
+      <Navbar toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+      <div className="flex flex-1">
+        <Sidebar isOpen={sidebarOpen} closeSidebar={() => setSidebarOpen(false)} />
+        <main className={`flex-1 p-4 md:p-6 transition-all duration-300 ${sidebarCollapsed ? 'ml-0 md:ml-16' : 'ml-0 md:ml-64'}`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
             <div>
               <h2 className="text-3xl font-bold tracking-tight">Analítica</h2>
@@ -510,7 +531,7 @@ export default function AnalyticsPage() {
                   <SelectValue placeholder="Seleccionar periodo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="day">Últimas 24 Horas</SelectItem>
+                  <SelectItem value="day">��ltimas 24 Horas</SelectItem>
                   <SelectItem value="week">Últimos 7 Días</SelectItem>
                   <SelectItem value="month">Últimos 30 Días</SelectItem>
                   <SelectItem value="quarter">Último Trimestre</SelectItem>
@@ -640,8 +661,10 @@ export default function AnalyticsPage() {
             </div>
           </Card>
         </main>
+      </div>
+      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-0 md:ml-16' : 'ml-0 md:ml-64'}`}>
         <Footer />
       </div>
-    </Layout>
+    </div>
   );
 }

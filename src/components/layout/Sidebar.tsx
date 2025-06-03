@@ -1,197 +1,240 @@
 
-import { useState } from "react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import {
-  BarChart3,
-  Phone,
-  MessageSquare,
-  Settings,
-  Users,
-  Target,
-  Briefcase,
-  Wrench,
-  FileText,
-  Building2,
-  ChevronLeft,
-  ChevronRight
+import { useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { 
+  Cog, 
+  BarChart3, 
+  Phone, 
+  Users, 
+  BriefcaseBusiness, 
+  Wrench, 
+  MessageSquareText, 
+  CheckSquare, 
+  User, 
+  Folder, 
+  ChevronLeft, 
+  ChevronRight,
+  Menu,
+  X,
+  FileText
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useLocation, Link } from "react-router-dom";
-import { MenuItem } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SidebarProps {
-  className?: string;
+  isOpen: boolean;
+  closeSidebar: () => void;
 }
 
-export default function Sidebar({ className }: SidebarProps) {
-  const { user } = useAuth();
+export default function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
   const location = useLocation();
+  const { user } = useAuth();
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [collapsed, setCollapsed] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
 
-  const menuItems: MenuItem[] = [
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  // Load collapsed state from localStorage
+  useEffect(() => {
+    const savedState = localStorage.getItem('sidebar-collapsed');
+    if (savedState !== null) {
+      setCollapsed(savedState === 'true');
+    }
+  }, []);
+
+  // Save collapsed state to localStorage and notify other components
+  const toggleCollapse = () => {
+    const newState = !collapsed;
+    setCollapsed(newState);
+    localStorage.setItem('sidebar-collapsed', String(newState));
+    
+    // Dispatch storage event manually to notify other components
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'sidebar-collapsed',
+      newValue: String(newState),
+      oldValue: String(collapsed),
+      storageArea: localStorage,
+      url: window.location.href
+    }));
+  };
+
+  const handleLinkClick = () => {
+    if (isMobile) {
+      closeSidebar();
+    }
+  };
+
+  const isActive = (path: string) => {
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
+  };
+
+  const menuItems = [
     {
-      name: "Analytics",
-      href: "/analytics",
-      icon: <BarChart3 className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"]
+      name: "Analítica",
+      path: "/analytics",
+      icon: <BarChart3 />,
     },
     {
       name: "Llamadas",
-      href: "/calls",
-      icon: <Phone className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"]
-    },
-    {
-      name: "Chat IA",
-      href: "/chat",
-      icon: <MessageSquare className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"]
-    },
-    {
-      name: "Organizaciones",
-      href: "/organizations",
-      icon: <Building2 className="h-5 w-5" />,
-      role: ["superAdmin"]
-    },
-    {
-      name: "Usuarios",
-      href: "/users",
-      icon: <Users className="h-5 w-5" />,
-      role: ["superAdmin", "admin"]
+      path: "/calls",
+      icon: <Phone />,
     },
     {
       name: "Agentes",
-      href: "/agents",
-      icon: <Briefcase className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "supervisor"]
+      path: "/agents",
+      icon: <Users />,
     },
     {
       name: "Workforce",
-      href: "/workforce",
-      icon: <Target className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "supervisor"]
+      path: "/workforce",
+      icon: <BriefcaseBusiness />,
     },
     {
       name: "Herramientas",
-      href: "/tools",
-      icon: <Wrench className="h-5 w-5" />,
-      role: ["superAdmin", "admin"]
+      path: "/tools",
+      icon: <Wrench />,
+    },
+    {
+      name: "Chat IA",
+      path: "/chat",
+      icon: <MessageSquareText />,
     },
     {
       name: "Comportamientos",
-      href: "/behaviors",
-      icon: <Target className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "qualityAnalyst"]
+      path: "/behaviors",
+      icon: <CheckSquare />,
     },
     {
       name: "Tipificaciones",
-      href: "/tipificaciones",
-      icon: <FileText className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "qualityAnalyst"]
+      path: "/tipificaciones",
+      icon: <Folder />,
     },
     {
       name: "Prompts",
-      href: "/prompts",
-      icon: <MessageSquare className="h-5 w-5" />,
-      role: ["superAdmin", "admin"]
+      path: "/prompts",
+      icon: <FileText />,
+    },
+    {
+      name: "Usuarios",
+      path: "/users",
+      icon: <User />,
     },
     {
       name: "Configuración",
-      href: "/settings",
-      icon: <Settings className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"]
-    }
+      path: "/settings",
+      icon: <Cog />,
+    },
   ];
 
-  const filteredMenuItems = menuItems.filter(item => 
-    user && item.role.includes(user.role)
-  );
-
   return (
-    <div className={cn(
-      "h-screen bg-sidebar-background text-sidebar-foreground transition-all duration-300",
-      collapsed ? "w-16" : "w-64",
-      className
-    )}>
-      <div className="flex h-full flex-col">
-        {/* Header */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-sidebar-border">
-          {!collapsed && (
-            <h1 className="text-lg font-semibold text-sidebar-foreground">
-              CallCenter AI
-            </h1>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setCollapsed(!collapsed)}
-            className="text-sidebar-foreground hover:bg-sidebar-accent/10"
-          >
-            {collapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronLeft className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-
-        {/* Navigation */}
-        <ScrollArea className="flex-1 px-3 py-4">
-          <nav className="space-y-1">
-            {filteredMenuItems.map((item) => {
-              const isActive = location.pathname.startsWith(item.href);
-              
-              return (
-                <Link key={item.name} to={item.href}>
-                  <Button
-                    variant={isActive ? "secondary" : "ghost"}
-                    className={cn(
-                      "w-full justify-start gap-3 transition-colors",
-                      isActive 
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" 
-                        : "text-sidebar-foreground hover:bg-sidebar-accent/10 hover:text-sidebar-accent-foreground",
-                      collapsed && "justify-center px-2"
-                    )}
-                  >
-                    {item.icon}
-                    {!collapsed && <span>{item.name}</span>}
-                  </Button>
-                </Link>
-              );
-            })}
-          </nav>
-        </ScrollArea>
-
-        {/* User Info */}
-        {user && (
-          <>
-            <Separator className="border-sidebar-border" />
-            <div className="p-4">
-              <div className={cn(
-                "flex items-center gap-3",
-                collapsed && "justify-center"
-              )}>
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground">
-                  {user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
-                </div>
-                {!collapsed && (
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-sidebar-foreground truncate">
-                      {user.name || user.email}
-                    </p>
-                    <p className="text-xs text-sidebar-foreground/70 capitalize">
-                      {user.role}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </>
+    <>
+      {/* Mobile Overlay */}
+      {isOpen && isMobile && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-10"
+          onClick={closeSidebar}
+        />
+      )}
+      
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-20 flex flex-col bg-white shadow-lg transition-all duration-300 dark:bg-gray-900 lg:shadow-none",
+          {
+            "translate-x-0": isOpen,
+            "-translate-x-full md:translate-x-0": !isOpen,
+            "w-64": !collapsed,
+            "w-16": collapsed,
+          }
         )}
-      </div>
-    </div>
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
+      >
+        <div className="border-b px-4 py-4 dark:border-gray-700 flex justify-between items-center">
+          <div className={cn("flex items-center transition-opacity", { 
+            "opacity-0 w-0": collapsed && !isHovering,
+            "opacity-100": !collapsed || (collapsed && isHovering) 
+          })}>
+            <img 
+              src="https://www.convertia.com/favicon/favicon-convertia.png" 
+              alt="Convert-IA Logo" 
+              className="h-7 w-7 mr-2" 
+            />
+            {(!collapsed || isHovering) && (
+              <div className="text-lg font-semibold transition-opacity">Convert-IA</div>
+            )}
+          </div>
+          <div className="flex items-center">
+            {isMobile ? (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={closeSidebar} 
+                className="flex md:hidden items-center justify-center h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={toggleCollapse} 
+                className="flex items-center justify-center h-8 w-8"
+              >
+                {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+              </Button>
+            )}
+          </div>
+        </div>
+        <ScrollArea className="flex-1 overflow-auto py-2">
+          <TooltipProvider delayDuration={0}>
+            <nav className="space-y-1">
+              {menuItems.map((item) => (
+                <Tooltip key={item.path} delayDuration={200}>
+                  <TooltipTrigger asChild>
+                    <Link
+                      to={item.path}
+                      onClick={handleLinkClick}
+                      className={cn(
+                        "flex items-center px-4 py-2.5 text-gray-600 transition-all hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800",
+                        {
+                          "border-l-4 border-primary bg-primary/5 font-medium text-primary dark:border-primary dark:bg-primary/10 dark:text-primary-foreground":
+                            isActive(item.path),
+                          "justify-center": collapsed && !isHovering,
+                        }
+                      )}
+                    >
+                      <span className={cn("h-5 w-5", { "mr-3": !collapsed || isHovering })}>
+                        {item.icon}
+                      </span>
+                      {(!collapsed || isHovering) && (
+                        <span className="truncate transition-opacity">{item.name}</span>
+                      )}
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className={cn({ "hidden": !collapsed || isHovering })}>
+                    {item.name}
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </nav>
+          </TooltipProvider>
+          <Separator className="my-2" />
+        </ScrollArea>
+      </aside>
+    </>
   );
 }
