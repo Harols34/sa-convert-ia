@@ -1,8 +1,6 @@
 
 import { useState, useEffect } from "react";
-import Footer from "@/components/layout/Footer";
-import Navbar from "@/components/layout/Navbar";
-import Sidebar from "@/components/layout/Sidebar";
+import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -25,7 +23,6 @@ interface Agent {
 }
 
 export default function AgentsPage() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -295,221 +292,212 @@ export default function AgentsPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-      <div className="flex flex-1">
-        <Sidebar isOpen={sidebarOpen} closeSidebar={() => setSidebarOpen(false)} />
-        <main className="flex-1 p-4 md:p-6 ml-0 md:ml-64 transition-all duration-300">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-            <div>
-              <h2 className="text-3xl font-bold tracking-tight">Agentes</h2>
-              <p className="text-muted-foreground">
-                Gestiona los agentes de tu call center
-              </p>
-            </div>
-            <div className="flex space-x-2 mt-4 md:mt-0">
-              <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline">
-                    <Upload className="mr-2 h-4 w-4" /> Importar
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Importar agentes desde CSV</DialogTitle>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <p className="text-sm text-muted-foreground">
-                      Sube un archivo CSV con los datos de los agentes. Puedes descargar una plantilla con el formato correcto.
-                    </p>
-                    <Button variant="outline" onClick={handleDownloadTemplate}>
-                      <Download className="mr-2 h-4 w-4" /> Descargar Plantilla
-                    </Button>
-                    <Input 
-                      type="file" 
-                      accept=".csv" 
-                      onChange={handleImportCSV} 
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>Cancelar</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-              
-              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" /> Añadir Agente
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Añadir nuevo agente</DialogTitle>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <label htmlFor="name" className="text-right">Nombre</label>
-                      <Input 
-                        id="name" 
-                        value={newAgent.name} 
-                        onChange={(e) => setNewAgent({...newAgent, name: e.target.value})}
-                        className="col-span-3" 
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <label htmlFor="supervisor" className="text-right">Supervisor</label>
-                      <Input 
-                        id="supervisor" 
-                        value={newAgent.supervisor} 
-                        onChange={(e) => setNewAgent({...newAgent, supervisor: e.target.value})}
-                        className="col-span-3" 
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <label htmlFor="joinDate" className="text-right">Fecha Ingreso</label>
-                      <Input 
-                        id="joinDate" 
-                        type="date" 
-                        value={newAgent.joinDate} 
-                        onChange={(e) => setNewAgent({...newAgent, joinDate: e.target.value})}
-                        className="col-span-3" 
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <label htmlFor="status" className="text-right">Estado</label>
-                      <Select 
-                        value={newAgent.status} 
-                        onValueChange={(value: any) => setNewAgent({...newAgent, status: value})}
-                      >
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="Seleccionar estado" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="active">Activo</SelectItem>
-                          <SelectItem value="inactive">Inactivo</SelectItem>
-                          <SelectItem value="vacation">Vacaciones</SelectItem>
-                          <SelectItem value="training">Formación</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <label htmlFor="user_id" className="text-right">ID Usuario</label>
-                      <Input 
-                        id="user_id" 
-                        value={newAgent.user_id} 
-                        onChange={(e) => setNewAgent({...newAgent, user_id: e.target.value})}
-                        className="col-span-3" 
-                        placeholder="Opcional - UUID del usuario asociado"
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancelar</Button>
-                    <Button onClick={handleAddAgent} disabled={isLoading}>
-                      {isLoading ? 'Guardando...' : 'Guardar'}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                <CardTitle>Lista de Agentes</CardTitle>
-                <div className="relative mt-2 md:mt-0">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar agentes..."
-                    className="pl-8 w-full md:w-64"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+    <Layout>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Agentes</h2>
+          <p className="text-muted-foreground">
+            Gestiona los agentes de tu call center
+          </p>
+        </div>
+        <div className="flex space-x-2 mt-4 md:mt-0">
+          <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Upload className="mr-2 h-4 w-4" /> Importar
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Importar agentes desde CSV</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <p className="text-sm text-muted-foreground">
+                  Sube un archivo CSV con los datos de los agentes. Puedes descargar una plantilla con el formato correcto.
+                </p>
+                <Button variant="outline" onClick={handleDownloadTemplate}>
+                  <Download className="mr-2 h-4 w-4" /> Descargar Plantilla
+                </Button>
+                <Input 
+                  type="file" 
+                  accept=".csv" 
+                  onChange={handleImportCSV} 
+                  disabled={isLoading}
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>Cancelar</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" /> Añadir Agente
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Añadir nuevo agente</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <label htmlFor="name" className="text-right">Nombre</label>
+                  <Input 
+                    id="name" 
+                    value={newAgent.name} 
+                    onChange={(e) => setNewAgent({...newAgent, name: e.target.value})}
+                    className="col-span-3" 
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <label htmlFor="supervisor" className="text-right">Supervisor</label>
+                  <Input 
+                    id="supervisor" 
+                    value={newAgent.supervisor} 
+                    onChange={(e) => setNewAgent({...newAgent, supervisor: e.target.value})}
+                    className="col-span-3" 
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <label htmlFor="joinDate" className="text-right">Fecha Ingreso</label>
+                  <Input 
+                    id="joinDate" 
+                    type="date" 
+                    value={newAgent.joinDate} 
+                    onChange={(e) => setNewAgent({...newAgent, joinDate: e.target.value})}
+                    className="col-span-3" 
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <label htmlFor="status" className="text-right">Estado</label>
+                  <Select 
+                    value={newAgent.status} 
+                    onValueChange={(value: any) => setNewAgent({...newAgent, status: value})}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Seleccionar estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Activo</SelectItem>
+                      <SelectItem value="inactive">Inactivo</SelectItem>
+                      <SelectItem value="vacation">Vacaciones</SelectItem>
+                      <SelectItem value="training">Formación</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <label htmlFor="user_id" className="text-right">ID Usuario</label>
+                  <Input 
+                    id="user_id" 
+                    value={newAgent.user_id} 
+                    onChange={(e) => setNewAgent({...newAgent, user_id: e.target.value})}
+                    className="col-span-3" 
+                    placeholder="Opcional - UUID del usuario asociado"
                   />
                 </div>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>Supervisor</TableHead>
-                      <TableHead>Fecha Ingreso</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>ID Usuario</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancelar</Button>
+                <Button onClick={handleAddAgent} disabled={isLoading}>
+                  {isLoading ? 'Guardando...' : 'Guardar'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+            <CardTitle>Lista de Agentes</CardTitle>
+            <div className="relative mt-2 md:mt-0">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar agentes..."
+                className="pl-8 w-full md:w-64"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Supervisor</TableHead>
+                  <TableHead>Fecha Ingreso</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>ID Usuario</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8">
+                      <div className="flex justify-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : filteredAgents.length > 0 ? (
+                  filteredAgents.map((agent) => (
+                    <TableRow key={agent.id}>
+                      <TableCell className="font-medium">{agent.id.slice(0, 8)}</TableCell>
+                      <TableCell>{agent.name}</TableCell>
+                      <TableCell>{agent.supervisor}</TableCell>
+                      <TableCell>{new Date(agent.joinDate).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(agent.status)}`}>
+                          {agent.status === "active" && "Activo"}
+                          {agent.status === "inactive" && "Inactivo"}
+                          {agent.status === "vacation" && "Vacaciones"}
+                          {agent.status === "training" && "Formación"}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {agent.user_id ? agent.user_id.slice(0, 8) + '...' : 'N/A'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => {
+                            setCurrentAgent(agent);
+                            setIsEditDialogOpen(true);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleDeleteAgent(agent.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8">
-                          <div className="flex justify-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ) : filteredAgents.length > 0 ? (
-                      filteredAgents.map((agent) => (
-                        <TableRow key={agent.id}>
-                          <TableCell className="font-medium">{agent.id.slice(0, 8)}</TableCell>
-                          <TableCell>{agent.name}</TableCell>
-                          <TableCell>{agent.supervisor}</TableCell>
-                          <TableCell>{new Date(agent.joinDate).toLocaleDateString()}</TableCell>
-                          <TableCell>
-                            <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(agent.status)}`}>
-                              {agent.status === "active" && "Activo"}
-                              {agent.status === "inactive" && "Inactivo"}
-                              {agent.status === "vacation" && "Vacaciones"}
-                              {agent.status === "training" && "Formación"}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            {agent.user_id ? agent.user_id.slice(0, 8) + '...' : 'N/A'}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={() => {
-                                setCurrentAgent(agent);
-                                setIsEditDialogOpen(true);
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={() => handleDeleteAgent(agent.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                          No se encontraron agentes
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </main>
-      </div>
-      <div className="ml-0 md:ml-64 transition-all duration-300">
-        <Footer />
-      </div>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      No se encontraron agentes
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Edit Agent Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -584,6 +572,6 @@ export default function AgentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </Layout>
   );
 }
