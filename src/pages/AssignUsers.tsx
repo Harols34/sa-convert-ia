@@ -13,7 +13,7 @@ import { useAuth } from "@/context/AuthContext";
 
 interface User {
   id: string;
-  email: string;
+  email?: string;
   full_name: string;
   role: string;
 }
@@ -68,8 +68,7 @@ const AssignUsers = () => {
       // Load users from profiles
       const { data: usersData, error: usersError } = await supabase
         .from('profiles')
-        .select('id, email:auth.users.email, full_name, role')
-        .order('full_name');
+        .select('id, full_name, role');
 
       if (usersError) throw usersError;
 
@@ -81,21 +80,48 @@ const AssignUsers = () => {
 
       if (accountsError) throw accountsError;
 
-      // Load existing assignments
+      // Load existing assignments with proper joins
       const { data: assignmentsData, error: assignmentsError } = await supabase
         .from('user_accounts')
         .select(`
-          *,
-          user:profiles(id, full_name, role),
-          account:accounts(id, name, status)
+          id,
+          user_id,
+          account_id,
+          created_at
         `)
         .order('created_at', { ascending: false });
 
       if (assignmentsError) throw assignmentsError;
 
+      // Get user and account details for each assignment
+      const enrichedAssignments: UserAssignment[] = [];
+      if (assignmentsData) {
+        for (const assignment of assignmentsData) {
+          const { data: userData } = await supabase
+            .from('profiles')
+            .select('id, full_name, role')
+            .eq('id', assignment.user_id)
+            .single();
+
+          const { data: accountData } = await supabase
+            .from('accounts')
+            .select('id, name, status')
+            .eq('id', assignment.account_id)
+            .single();
+
+          if (userData && accountData) {
+            enrichedAssignments.push({
+              ...assignment,
+              user: userData,
+              account: accountData,
+            });
+          }
+        }
+      }
+
       setUsers(usersData || []);
       setAccounts(accountsData || []);
-      setAssignments(assignmentsData || []);
+      setAssignments(enrichedAssignments);
     } catch (error: any) {
       console.error("Error loading data:", error);
       toast.error("Error al cargar los datos");

@@ -22,22 +22,34 @@ export interface Call {
   summary?: string;
   created_at: string;
   updated_at: string;
+  // Add missing properties expected by CallList
+  filename: string;
+  agentName: string;
+  progress: number;
+  audioUrl: string;
 }
 
 export function useCallList() {
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedCalls, setSelectedCalls] = useState<string[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
   const { user, session } = useAuth();
 
-  const loadCalls = async () => {
+  const loadCalls = async (filters?: any, forceRefresh?: boolean) => {
     if (!session || !user) {
       setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
+      if (forceRefresh) {
+        setIsRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
       
       console.log("Loading calls for user:", user.role);
@@ -65,6 +77,7 @@ export function useCallList() {
           // User has no accounts assigned, return empty array
           setCalls([]);
           setLoading(false);
+          setIsRefreshing(false);
           return;
         }
 
@@ -78,7 +91,19 @@ export function useCallList() {
       }
 
       console.log("Calls loaded successfully:", data?.length || 0);
-      setCalls(data || []);
+      
+      // Transform data to match expected interface
+      const transformedCalls = (data || []).map(call => ({
+        ...call,
+        filename: call.title || 'Unknown',
+        agentName: call.agent_name || 'Unknown',
+        progress: call.status === 'complete' ? 100 : 
+                 call.status === 'analyzing' ? 75 :
+                 call.status === 'transcribing' ? 50 : 25,
+        audioUrl: call.audio_url || '',
+      }));
+      
+      setCalls(transformedCalls);
     } catch (err: any) {
       console.error("Error fetching calls:", err);
       setError(err.message || "Error al cargar las llamadas");
@@ -89,6 +114,67 @@ export function useCallList() {
       }
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  const fetchCalls = (filters?: any, forceRefresh?: boolean) => {
+    loadCalls(filters, forceRefresh);
+  };
+
+  const handleRefresh = () => {
+    loadCalls(undefined, true);
+  };
+
+  const deleteCall = async (callId: string) => {
+    try {
+      const { error } = await supabase
+        .from('calls')
+        .delete()
+        .eq('id', callId);
+
+      if (error) throw error;
+
+      toast.success("Llamada eliminada exitosamente");
+      loadCalls();
+    } catch (err: any) {
+      console.error("Error deleting call:", err);
+      toast.error("Error al eliminar la llamada");
+    }
+  };
+
+  const deleteMultipleCalls = async () => {
+    try {
+      const { error } = await supabase
+        .from('calls')
+        .delete()
+        .in('id', selectedCalls);
+
+      if (error) throw error;
+
+      toast.success(`${selectedCalls.length} llamadas eliminadas exitosamente`);
+      setSelectedCalls([]);
+      setMultiSelectMode(false);
+      loadCalls();
+    } catch (err: any) {
+      console.error("Error deleting calls:", err);
+      toast.error("Error al eliminar las llamadas");
+    }
+  };
+
+  const toggleCallSelection = (callId: string) => {
+    setSelectedCalls(prev => 
+      prev.includes(callId) 
+        ? prev.filter(id => id !== callId)
+        : [...prev, callId]
+    );
+  };
+
+  const toggleAllCalls = () => {
+    if (selectedCalls.length === calls.length) {
+      setSelectedCalls([]);
+    } else {
+      setSelectedCalls(calls.map(call => call.id));
     }
   };
 
@@ -104,6 +190,18 @@ export function useCallList() {
     calls,
     loading,
     error,
+    selectedCalls,
+    isRefreshing,
+    multiSelectMode,
+    setMultiSelectMode,
+    fetchCalls,
+    handleRefresh,
+    deleteCall,
+    deleteMultipleCalls,
+    toggleCallSelection,
+    toggleAllCalls,
     refreshCalls,
+    // Add alias for compatibility
+    isLoading: loading,
   };
 }

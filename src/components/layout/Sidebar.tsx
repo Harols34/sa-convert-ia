@@ -20,7 +20,12 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 
-const Sidebar = () => {
+interface SidebarProps {
+  isOpen?: boolean;
+  closeSidebar?: () => void;
+}
+
+const Sidebar = ({ isOpen, closeSidebar }: SidebarProps) => {
   const location = useLocation();
   const { user } = useAuth();
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
@@ -123,7 +128,10 @@ const Sidebar = () => {
   });
 
   return (
-    <div className="h-full bg-white border-r border-gray-200 w-64 flex flex-col">
+    <div className={cn(
+      "h-full bg-white border-r border-gray-200 w-64 flex flex-col",
+      isOpen ? "block" : "hidden md:flex"
+    )}>
       <div className="p-6 border-b border-gray-200">
         <h1 className="text-xl font-bold text-primary">ConvertIA</h1>
         <p className="text-sm text-muted-foreground">Analytics Platform</p>
@@ -165,6 +173,7 @@ const Sidebar = () => {
                         <Link
                           key={subItem.path}
                           to={subItem.path}
+                          onClick={closeSidebar}
                           className={cn(
                             "block px-3 py-2 text-sm rounded-lg transition-colors",
                             isActive(subItem.path)
@@ -181,6 +190,7 @@ const Sidebar = () => {
               ) : (
                 <Link
                   to={item.path}
+                  onClick={closeSidebar}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors",
                     itemIsActive
