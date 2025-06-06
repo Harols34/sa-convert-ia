@@ -1,5 +1,4 @@
-
-import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { Session, User } from '@supabase/supabase-js';
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,8 +31,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Optimized user data fetching with error handling
-  const fetchUserData = async (userId: string) => {
+  // Optimized user data fetching with better error handling
+  const fetchUserData = useCallback(async (userId: string) => {
+    if (!userId) {
+      console.error("No userId provided to fetchUserData");
+      setLoading(false);
+      return;
+    }
+
     try {
       console.log("Fetching user data for ID:", userId);
       
@@ -41,17 +46,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
       if (error) {
+        console.error("Error fetching user profile:", error);
+        
         if (error.code === 'PGRST116') {
           // No profile found, create one
           console.log("No profile found, creating default profile");
+          const userEmail = session?.user?.email || 'usuario@example.com';
+          
           const { data: newProfile, error: insertError } = await supabase
             .from('profiles')
             .insert({
               id: userId,
-              full_name: session?.user?.email?.split('@')[0] || 'Usuario',
+              full_name: userEmail.split('@')[0] || 'Usuario',
               role: 'agent',
               language: 'es'
             })
@@ -60,32 +69,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           if (insertError) {
             console.error("Error creating default profile:", insertError);
-            throw insertError;
+            setLoading(false);
+            return;
           }
           
-          const appUser: AppUser = {
+          setUser({
             id: userId,
-            email: session?.user?.email || '',
+            email: userEmail,
             role: newProfile.role as AppUser["role"],
             name: newProfile.full_name || '',
             full_name: newProfile.full_name || '',
             avatar: newProfile.avatar_url,
             avatar_url: newProfile.avatar_url,
-            language: (newProfile.language === 'es' || newProfile.language === 'en') ? newProfile.language : 'es',
+            language: newProfile.language === 'es' || newProfile.language === 'en' ? newProfile.language : 'es',
             dailyQueryLimit: 20,
             queriesUsed: 0,
             created_at: newProfile.created_at,
             updated_at: newProfile.updated_at
-          };
-          
-          console.log("User profile created successfully with role:", appUser.role);
-          setUser(appUser);
+          });
         } else {
-          console.error("Error fetching user profile:", error);
           throw error;
         }
-      } else {
-        const appUser: AppUser = {
+      } else if (data) {
+        setUser({
           id: userId,
           email: session?.user?.email || '',
           role: data.role as AppUser["role"],
@@ -93,46 +99,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           full_name: data.full_name || '',
           avatar: data.avatar_url,
           avatar_url: data.avatar_url,
-          language: (data.language === 'es' || data.language === 'en') ? data.language : 'es',
+          language: data.language === 'es' || data.language === 'en' ? data.language : 'es',
           dailyQueryLimit: 20,
           queriesUsed: 0,
           created_at: data.created_at,
           updated_at: data.updated_at
-        };
+        });
         
-        console.log("User data loaded with role:", appUser.role);
-        setUser(appUser);
+        console.log("User data loaded successfully with role:", data.role);
       }
       
-      setLoading(false);
     } catch (error) {
       console.error("Error in fetchUserData:", error);
-      setLoading(false);
       toast.error("Error al cargar los datos del usuario");
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [session?.user?.email]);
 
   // Optimized auth state management
   useEffect(() => {
     let mounted = true;
+    let sessionCheckTimeout: NodeJS.Timeout;
 
     const initializeAuth = async () => {
       try {
         console.log("Initializing auth...");
         
-        // Check for existing session
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("Error getting session:", error);
+          if (mounted) {
+            setLoading(false);
+          }
+          return;
+        }
         
         if (mounted) {
-          if (initialSession) {
-            console.log("Found initial session");
+          if (initialSession?.user) {
+            console.log("Found initial session for user:", initialSession.user.id);
             setSession(initialSession);
-            // Defer user data fetching to prevent blocking
-            setTimeout(() => {
-              if (mounted) {
-                fetchUserData(initialSession.user.id);
-              }
-            }, 100);
+            fetchUserData(initialSession.user.id);
           } else {
             console.log("No initial session found");
             setLoading(false);
@@ -146,52 +154,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    // Set up auth state listener
+    // Set up auth state listener with optimized event handling
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        console.log("Auth event:", event);
+        console.log("Auth event:", event, "Session exists:", !!currentSession);
 
         if (!mounted) return;
 
-        if (event === 'SIGNED_OUT') {
-          setSession(null);
-          setUser(null);
-          setLoading(false);
-        } 
-        else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          if (currentSession) {
-            console.log("Valid session found");
-            setSession(currentSession);
+        // Clear any existing timeout
+        if (sessionCheckTimeout) {
+          clearTimeout(sessionCheckTimeout);
+        }
+
+        switch (event) {
+          case 'SIGNED_OUT':
+            setSession(null);
+            setUser(null);
+            setLoading(false);
+            break;
             
-            // Defer user data fetching
-            setTimeout(() => {
-              if (mounted) {
-                fetchUserData(currentSession.user.id);
-              }
-            }, 100);
-          }
+          case 'SIGNED_IN':
+          case 'TOKEN_REFRESHED':
+            if (currentSession?.user) {
+              console.log("Setting session for user:", currentSession.user.id);
+              setSession(currentSession);
+              
+              // Defer user data fetching slightly to avoid blocking
+              sessionCheckTimeout = setTimeout(() => {
+                if (mounted) {
+                  fetchUserData(currentSession.user.id);
+                }
+              }, 100);
+            }
+            break;
+            
+          case 'USER_UPDATED':
+            if (currentSession?.user && user) {
+              // Update session but keep existing user data
+              setSession(currentSession);
+            }
+            break;
+            
+          default:
+            break;
         }
       }
     );
 
     initializeAuth();
 
-    // Safety timeout
+    // Safety timeout to prevent infinite loading
     const safetyTimeout = setTimeout(() => {
       if (mounted && loading) {
-        console.warn("SAFETY TIMEOUT: Forcing loading state to end");
+        console.warn("Auth initialization timeout reached, forcing loading to false");
         setLoading(false);
       }
-    }, 8000);
+    }, 10000);
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
       clearTimeout(safetyTimeout);
+      if (sessionCheckTimeout) {
+        clearTimeout(sessionCheckTimeout);
+      }
     };
-  }, []);
+  }, [fetchUserData, loading, user]);
 
-  // Sign-in function with better error handling
+  // Optimized sign-in function
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     
@@ -201,34 +231,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Sign in error:", error);
+        throw error;
+      }
       
-      console.log("Sign in successful");
+      console.log("Sign in successful for:", email);
     } catch (error: any) {
       setLoading(false);
       throw error;
     }
   };
 
-  // Sign-out function
+  // Optimized sign-out function
   const signOut = async () => {
     try {
       console.log("Signing out...");
-      await supabase.auth.signOut();
       
-      // Clean up local state
+      // Clear local state first
       setSession(null);
       setUser(null);
       
-      // Navigate to login
+      // Then sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error("Error during sign out:", error);
+      }
+      
+      // Navigate to login regardless of signOut result
       navigate('/login');
     } catch (error) {
-      console.error("Error signing out:", error);
-      toast.error("Error al cerrar sesión");
+      console.error("Unexpected error signing out:", error);
+      // Still navigate to login page
+      navigate('/login');
     }
   };
 
-  // Refresh user session
+  // Improved refresh session function
   const refreshUserSession = async () => {
     try {
       console.log("Refreshing user session");
@@ -251,7 +291,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Update user data
+  // Update user data function
   const updateUser = async (userData: Partial<AppUser>) => {
     try {
       if (!user || !user.id) {
@@ -282,7 +322,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAuthenticated = !!session && !!user;
   const userRole = user?.role;
 
-  // Create memoized context value
+  // Create optimized context value
   const contextValue = useMemo(
     () => ({
       session,

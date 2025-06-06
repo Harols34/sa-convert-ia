@@ -18,7 +18,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     setIsMounted(true);
   }, []);
 
-  // Global keyboard shortcuts
+  // Enhanced global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl/Cmd + K for search
@@ -32,14 +32,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         e.preventDefault();
         setSidebarOpen(prev => !prev);
       }
+
+      // Escape to close search
+      if (e.key === 'Escape' && searchOpen) {
+        e.preventDefault();
+        setSearchOpen(false);
+      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [searchOpen]);
 
   const toggleSidebar = useCallback(() => {
     setSidebarOpen(prev => !prev);
+  }, []);
+
+  const closeSidebar = useCallback(() => {
+    setSidebarOpen(false);
   }, []);
   
   if (!isMounted) {
@@ -68,7 +78,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {sidebarOpen && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={closeSidebar}
         />
       )}
       
@@ -96,22 +106,52 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <span className="font-bold text-lg text-primary">Convert-IA</span>
             </div>
             
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSearchOpen(true)}
-              className="h-9 w-9"
-            >
-              <Search className="h-4 w-4" />
-              <span className="sr-only">Buscar</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSearchOpen(true)}
+                className="h-9 w-9"
+              >
+                <Search className="h-4 w-4" />
+                <span className="sr-only">Buscar</span>
+              </Button>
+              
+              {/* Ctrl+K hint for mobile */}
+              <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
+                <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">⌘K</kbd>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Page content - optimized spacing */}
+        {/* Desktop search hint */}
+        <div className="hidden md:flex items-center justify-end p-2 border-b bg-muted/30">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Search className="h-3 w-3" />
+            <span>Presiona</span>
+            <kbd className="px-1.5 py-0.5 bg-background border rounded text-xs">Ctrl</kbd>
+            <span>+</span>
+            <kbd className="px-1.5 py-0.5 bg-background border rounded text-xs">K</kbd>
+            <span>para buscar en cualquier momento</span>
+          </div>
+        </div>
+
+        {/* Page content - optimized spacing and loading */}
         <main className="flex-1 w-full h-full overflow-auto">
-          <div className="w-full h-full p-3 md:p-4">
-            {children}
+          <div className="w-full h-full">
+            <React.Suspense 
+              fallback={
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                    <p className="text-muted-foreground">Cargando contenido...</p>
+                  </div>
+                </div>
+              }
+            >
+              {children}
+            </React.Suspense>
           </div>
         </main>
       </div>

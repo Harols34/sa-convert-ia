@@ -23,6 +23,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Search,
 } from "lucide-react";
 import { MenuItem, User as UserType } from "@/lib/types";
 import AccountFilter from "@/components/accounts/AccountFilter";
@@ -134,57 +135,71 @@ export default function Sidebar() {
 
   return (
     <div className={cn(
-      "border-r bg-gray-50/40 transition-all duration-300",
+      "border-r bg-gray-50/40 transition-all duration-300 flex flex-col h-full",
       collapsed ? "w-16" : "w-64"
     )}>
-      <div className="flex h-full max-h-screen flex-col gap-2">
-        {/* Header */}
-        <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-          <div className="flex items-center justify-between w-full">
-            {!collapsed && (
-              <Link to="/" className="flex items-center gap-2 font-semibold">
-                <span className="text-lg">Convertia</span>
-              </Link>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setCollapsed(!collapsed)}
-              className="h-8 w-8 p-0"
-            >
-              {collapsed ? (
-                <ChevronRight className="h-4 w-4" />
-              ) : (
-                <ChevronLeft className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {/* Account Filter - Only show for non-collapsed and when not loading */}
-        {!collapsed && !accountsLoading && userAccounts.length > 0 && (
-          <AccountFilter />
-        )}
-
-        {/* Current Account Display - Show even when collapsed */}
-        {!accountsLoading && (
-          <div className={cn(
-            "mx-4 mb-2 p-2 bg-white rounded-lg border text-sm",
-            collapsed ? "text-center" : ""
-          )}>
+      {/* Header */}
+      <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6 shrink-0">
+        <div className="flex items-center justify-between w-full">
+          {!collapsed && (
+            <Link to="/" className="flex items-center gap-2 font-semibold">
+              <img 
+                src="https://www.convertia.com/favicon/favicon-convertia.png" 
+                alt="Convert-IA Logo" 
+                className="h-6 w-6" 
+              />
+              <span className="text-lg text-primary">Convert-IA</span>
+            </Link>
+          )}
+          {collapsed && (
+            <img 
+              src="https://www.convertia.com/favicon/favicon-convertia.png" 
+              alt="Convert-IA Logo" 
+              className="h-6 w-6 mx-auto" 
+            />
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCollapsed(!collapsed)}
+            className="h-8 w-8 p-0 shrink-0"
+          >
             {collapsed ? (
-              <Building2 className="h-4 w-4 mx-auto text-muted-foreground" />
+              <ChevronRight className="h-4 w-4" />
             ) : (
-              <div>
-                <p className="text-xs text-muted-foreground">Cuenta activa:</p>
-                <p className="font-medium truncate">{getCurrentAccountName()}</p>
-              </div>
+              <ChevronLeft className="h-4 w-4" />
             )}
-          </div>
-        )}
+          </Button>
+        </div>
+      </div>
 
-        {/* Navigation */}
-        <ScrollArea className="flex-1">
+      {/* Account Filter - Only show for non-collapsed and when accounts exist */}
+      {!collapsed && !accountsLoading && userAccounts.length > 0 && (
+        <div className="shrink-0">
+          <AccountFilter />
+        </div>
+      )}
+
+      {/* Current Account Display - Show even when collapsed */}
+      {!accountsLoading && (
+        <div className={cn(
+          "mx-4 mb-2 p-2 bg-white rounded-lg border text-sm shrink-0",
+          collapsed ? "text-center" : ""
+        )}>
+          {collapsed ? (
+            <Building2 className="h-4 w-4 mx-auto text-muted-foreground" />
+          ) : (
+            <div>
+              <p className="text-xs text-muted-foreground">Cuenta activa:</p>
+              <p className="font-medium truncate">{getCurrentAccountName()}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Navigation with ScrollArea */}
+      <div className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full">
           <div className="flex flex-col gap-2 p-4">
             {filteredMenuItems.map((item) => (
               <Link
@@ -203,62 +218,72 @@ export default function Sidebar() {
                 {!collapsed && <span>{item.name}</span>}
               </Link>
             ))}
-          </div>
-        </ScrollArea>
-
-        {/* User Section */}
-        <div className="mt-auto">
-          <Separator />
-          <div className="p-4">
-            {/* Settings Link */}
-            <Link
-              to="/settings"
-              className={cn(
-                "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground mb-2",
-                location.pathname === "/settings" && "bg-accent text-accent-foreground",
-                collapsed && "justify-center px-2"
-              )}
-              title={collapsed ? "Configuración" : undefined}
-            >
-              <Settings className="h-4 w-4" />
-              {!collapsed && <span>Configuración</span>}
-            </Link>
-
-            {/* User Info and Logout */}
-            {!collapsed && user && (
-              <div className="space-y-2">
-                <div className="px-3 py-2 text-xs text-muted-foreground">
-                  <p className="font-medium text-foreground truncate">
-                    {user.full_name || user.email}
-                  </p>
-                  <p className="capitalize">{user.role}</p>
+            
+            {/* Search hint for Ctrl+K */}
+            {!collapsed && (
+              <div className="mt-4 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 text-xs text-blue-600">
+                  <Search className="h-3 w-3" />
+                  <span>Presiona <kbd className="px-1 py-0.5 bg-blue-100 rounded">Ctrl+K</kbd> para buscar</span>
                 </div>
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSignOut}
-                  className="w-full justify-start text-muted-foreground hover:text-accent-foreground"
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Cerrar Sesión
-                </Button>
               </div>
             )}
+          </div>
+        </ScrollArea>
+      </div>
 
-            {/* Collapsed logout button */}
-            {collapsed && (
+      {/* User Section */}
+      <div className="shrink-0 mt-auto">
+        <Separator />
+        <div className="p-4">
+          {/* Settings Link */}
+          <Link
+            to="/settings"
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground mb-2",
+              location.pathname === "/settings" && "bg-accent text-accent-foreground",
+              collapsed && "justify-center px-2"
+            )}
+            title={collapsed ? "Configuración" : undefined}
+          >
+            <Settings className="h-4 w-4" />
+            {!collapsed && <span>Configuración</span>}
+          </Link>
+
+          {/* User Info and Logout */}
+          {!collapsed && user && (
+            <div className="space-y-2">
+              <div className="px-3 py-2 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground truncate">
+                  {user.full_name || user.email}
+                </p>
+                <p className="capitalize">{user.role}</p>
+              </div>
+              
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleSignOut}
-                className="w-full p-2 justify-center"
-                title="Cerrar Sesión"
+                className="w-full justify-start text-muted-foreground hover:text-accent-foreground"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="h-4 w-4 mr-2" />
+                Cerrar Sesión
               </Button>
-            )}
-          </div>
+            </div>
+          )}
+
+          {/* Collapsed logout button */}
+          {collapsed && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSignOut}
+              className="w-full p-2 justify-center"
+              title="Cerrar Sesión"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
     </div>

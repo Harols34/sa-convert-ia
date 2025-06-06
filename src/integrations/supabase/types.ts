@@ -663,6 +663,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      count_calls_by_account: {
+        Args: { account_uuid: string }
+        Returns: number
+      }
       crear_comportamiento: {
         Args: {
           p_name: string

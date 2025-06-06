@@ -3,7 +3,7 @@ import React from 'react';
 import { useAccount } from '@/context/AccountContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building2 } from 'lucide-react';
+import { Building2, Loader2 } from 'lucide-react';
 
 const AccountFilter: React.FC = () => {
   const { userAccounts, selectedAccountId, setSelectedAccountId, isLoading } = useAccount();
@@ -18,7 +18,9 @@ const AccountFilter: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="h-9 bg-gray-200 animate-pulse rounded"></div>
+          <div className="h-9 bg-gray-200 animate-pulse rounded flex items-center justify-center">
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </div>
         </CardContent>
       </Card>
     );
@@ -26,19 +28,38 @@ const AccountFilter: React.FC = () => {
 
   if (userAccounts.length === 0) {
     return (
-      <Card className="mx-4 mb-4">
+      <Card className="mx-4 mb-4 border-amber-200 bg-amber-50">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center">
+          <CardTitle className="text-sm flex items-center text-amber-700">
             <Building2 className="h-4 w-4 mr-2" />
-            Filtro de Cuenta
+            Estado de Cuenta
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <p className="text-xs text-muted-foreground">No tienes cuentas asignadas</p>
+          <p className="text-xs text-amber-600">
+            No tienes cuentas asignadas. Contacta al administrador.
+          </p>
         </CardContent>
       </Card>
     );
   }
+
+  // Auto-select first account if none selected and user has accounts
+  React.useEffect(() => {
+    if (userAccounts.length > 0 && !selectedAccountId) {
+      console.log("Auto-selecting first account:", userAccounts[0].id);
+      setSelectedAccountId(userAccounts[0].id);
+    }
+  }, [userAccounts, selectedAccountId, setSelectedAccountId]);
+
+  const currentValue = selectedAccountId && selectedAccountId !== 'all' 
+    ? selectedAccountId 
+    : (userAccounts.length === 1 ? userAccounts[0].id : 'all');
+
+  const handleValueChange = (value: string) => {
+    console.log("Account filter changed to:", value);
+    setSelectedAccountId(value === 'all' ? null : value);
+  };
 
   return (
     <Card className="mx-4 mb-4">
@@ -50,14 +71,16 @@ const AccountFilter: React.FC = () => {
       </CardHeader>
       <CardContent className="pt-0">
         <Select
-          value={selectedAccountId || 'all'}
-          onValueChange={(value) => setSelectedAccountId(value === 'all' ? null : value)}
+          value={currentValue}
+          onValueChange={handleValueChange}
         >
           <SelectTrigger className="h-9">
             <SelectValue placeholder="Seleccionar cuenta" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todas las cuentas</SelectItem>
+            {userAccounts.length > 1 && (
+              <SelectItem value="all">Todas las cuentas</SelectItem>
+            )}
             {userAccounts.map((account) => (
               <SelectItem key={account.id} value={account.id}>
                 {account.name}
@@ -65,6 +88,14 @@ const AccountFilter: React.FC = () => {
             ))}
           </SelectContent>
         </Select>
+        
+        {/* Status indicator */}
+        <div className="mt-2 text-xs text-muted-foreground">
+          {userAccounts.length === 1 
+            ? `Cuenta única: ${userAccounts[0].name}`
+            : `${userAccounts.length} cuentas disponibles`
+          }
+        </div>
       </CardContent>
     </Card>
   );
