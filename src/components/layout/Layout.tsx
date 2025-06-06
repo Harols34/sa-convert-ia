@@ -133,14 +133,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <kbd className="px-1.5 py-0.5 bg-background border rounded text-xs">Ctrl</kbd>
             <span>+</span>
             <kbd className="px-1.5 py-0.5 bg-background border rounded text-xs">K</kbd>
-            <span>para buscar módulos disponibles</span>
+            <span>para buscar en cualquier momento</span>
           </div>
         </div>
 
         {/* Page content - optimized spacing and loading */}
         <main className="flex-1 w-full h-full overflow-auto">
           <div className="w-full h-full">
-            {children}
+            <React.Suspense 
+              fallback={
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                    <p className="text-muted-foreground">Cargando contenido...</p>
+                  </div>
+                </div>
+              }
+            >
+              {children}
+            </React.Suspense>
           </div>
         </main>
       </div>

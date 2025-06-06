@@ -44,16 +44,20 @@ const AccountFilter: React.FC = () => {
     );
   }
 
-  // Determinar valor actual correctamente
-  const currentValue = React.useMemo(() => {
-    if (userAccounts.length === 1) {
-      return userAccounts[0].id;
+  // Auto-select first account if none selected and user has accounts
+  React.useEffect(() => {
+    if (userAccounts.length > 0 && !selectedAccountId) {
+      console.log("Auto-selecting first account:", userAccounts[0].id);
+      setSelectedAccountId(userAccounts[0].id);
     }
-    return selectedAccountId || 'all';
-  }, [selectedAccountId, userAccounts]);
+  }, [userAccounts, selectedAccountId, setSelectedAccountId]);
+
+  const currentValue = selectedAccountId && selectedAccountId !== 'all' 
+    ? selectedAccountId 
+    : (userAccounts.length === 1 ? userAccounts[0].id : 'all');
 
   const handleValueChange = (value: string) => {
-    console.log("Changing account filter to:", value);
+    console.log("Account filter changed to:", value);
     setSelectedAccountId(value === 'all' ? null : value);
   };
 

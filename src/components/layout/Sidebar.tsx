@@ -25,7 +25,8 @@ import {
   LogOut,
   Search,
 } from "lucide-react";
-import { MenuItem } from "@/lib/types";
+import { MenuItem, User as UserType } from "@/lib/types";
+import AccountFilter from "@/components/accounts/AccountFilter";
 
 const menuItems: MenuItem[] = [
   {
@@ -98,7 +99,7 @@ const menuItems: MenuItem[] = [
 
 export default function Sidebar() {
   const location = useLocation();
-  const { user, signOut } = useAuth();
+  const { user, signOut, loading } = useAuth();
   const { selectedAccountId, userAccounts, isLoading: accountsLoading } = useAccount();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -110,23 +111,21 @@ export default function Sidebar() {
     }
   };
 
-  // Filter menu items based on user role
-  const filteredMenuItems = React.useMemo(() => {
-    if (!user) return [];
-    return menuItems.filter((item) => item.role.includes(user.role));
-  }, [user]);
+  const filteredMenuItems = menuItems.filter((item) => {
+    if (!user) return false;
+    return item.role.includes(user.role);
+  });
 
-  // Get current account info
-  const getCurrentAccount = React.useMemo(() => {
+  const getCurrentAccountName = () => {
     if (!selectedAccountId || selectedAccountId === 'all') {
       return user?.role === 'superAdmin' ? 'Todas las cuentas' : 'Sin cuenta';
     }
     
     const account = userAccounts.find(acc => acc.id === selectedAccountId);
     return account?.name || 'Cuenta no encontrada';
-  }, [selectedAccountId, userAccounts, user?.role]);
+  };
 
-  if (!user) {
+  if (loading) {
     return (
       <div className="w-64 border-r bg-gray-50/40 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -174,30 +173,27 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Account Filter - Only show when not collapsed */}
+      {/* Account Filter - Only show for non-collapsed and when accounts exist */}
       {!collapsed && !accountsLoading && userAccounts.length > 0 && (
-        <div className="shrink-0 p-4 pb-2">
-          <div className="bg-white rounded-lg border p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Cuenta activa</span>
-            </div>
-            <p className="text-sm text-foreground font-medium truncate">
-              {getCurrentAccount}
-            </p>
-            {userAccounts.length > 1 && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {userAccounts.length} cuentas disponibles
-              </p>
-            )}
-          </div>
+        <div className="shrink-0">
+          <AccountFilter />
         </div>
       )}
 
-      {/* Collapsed account indicator */}
-      {collapsed && !accountsLoading && (
-        <div className="mx-2 mb-2 p-2 bg-white rounded-lg border text-center shrink-0">
-          <Building2 className="h-4 w-4 mx-auto text-muted-foreground" />
+      {/* Current Account Display - Show even when collapsed */}
+      {!accountsLoading && (
+        <div className={cn(
+          "mx-4 mb-2 p-2 bg-white rounded-lg border text-sm shrink-0",
+          collapsed ? "text-center" : ""
+        )}>
+          {collapsed ? (
+            <Building2 className="h-4 w-4 mx-auto text-muted-foreground" />
+          ) : (
+            <div>
+              <p className="text-xs text-muted-foreground">Cuenta activa:</p>
+              <p className="font-medium truncate">{getCurrentAccountName()}</p>
+            </div>
+          )}
         </div>
       )}
 
