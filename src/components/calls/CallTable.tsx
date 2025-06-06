@@ -75,14 +75,14 @@ export default function CallTable({
   };
 
   const getResultBadge = (result?: "" | "venta" | "no venta") => {
-    if (!result || result === "") return null;
+    if (!result) return null;
     
     const resultConfig = {
-      venta: { label: "Venta", variant: "default" as const },
+      "venta": { label: "Venta", variant: "default" as const },
       "no venta": { label: "No Venta", variant: "secondary" as const },
     };
 
-    const config = resultConfig[result];
+    const config = resultConfig[result as "venta" | "no venta"];
     return config ? <Badge variant={config.variant}>{config.label}</Badge> : null;
   };
 

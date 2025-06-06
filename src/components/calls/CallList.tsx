@@ -6,6 +6,7 @@ import CallTable from "./CallTable";
 import CallListFilters from "./CallListFilters";
 import { useCallList } from "@/hooks/useCallList";
 import { RefreshCw, Trash2, Grid3x3, List } from "lucide-react";
+import { CallFilters } from "./CallListFilters";
 
 export default function CallList() {
   const {
@@ -22,14 +23,16 @@ export default function CallList() {
     isRefreshing,
   } = useCallList();
 
-  const [filters, setFilters] = useState({
-    dateRange: { from: undefined, to: undefined },
+  const [filters, setFilters] = useState<CallFilters>({
+    search: "",
     status: "all",
-    agent: "all",
-    result: "all",
+    result: "",
+    tipificacionId: "",
+    agentId: "",
+    dateRange: undefined,
   });
 
-  const handleFilterChange = (newFilters: typeof filters) => {
+  const handleFilterChange = (newFilters: CallFilters) => {
     setFilters(newFilters);
   };
 
@@ -79,9 +82,7 @@ export default function CallList() {
       </div>
 
       <CallListFilters
-        filters={filters}
         onFilterChange={handleFilterChange}
-        totalCalls={calls.length}
       />
 
       <Card className="overflow-hidden shadow-md border-gray-200">
