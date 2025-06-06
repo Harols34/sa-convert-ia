@@ -18,14 +18,26 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { email, password, fullName, role, accountNames = [] } = await req.json()
+    const requestBody = await req.json()
+    console.log("Request body received:", requestBody)
+
+    const { email, password, fullName, role, accountNames = [] } = requestBody
 
     console.log("Creating user:", { email, fullName, role, accountNames })
 
     // Validate required fields
     if (!email || !password || !fullName || !role) {
       console.error("Missing required fields:", { email: !!email, password: !!password, fullName: !!fullName, role: !!role })
-      throw new Error('Missing required fields: email, password, fullName, role')
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Missing required fields: email, password, fullName, role' 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
     }
 
     // Create user with Supabase Auth
@@ -40,7 +52,16 @@ serve(async (req) => {
 
     if (authError) {
       console.error("Auth error:", authError)
-      throw authError
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: authError.message 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
     }
 
     console.log("User created in auth:", authUser.user.id)
@@ -57,7 +78,22 @@ serve(async (req) => {
 
     if (profileError) {
       console.error("Profile error:", profileError)
-      throw profileError
+      // Try to delete the auth user if profile creation fails
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
+      } catch (e) {
+        console.error("Error cleaning up auth user:", e)
+      }
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: profileError.message 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
     }
 
     console.log("Profile created")
@@ -71,7 +107,16 @@ serve(async (req) => {
 
       if (accountsError) {
         console.error("Accounts error:", accountsError)
-        throw accountsError
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: accountsError.message 
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
       }
 
       console.log("Found accounts:", accounts)
@@ -89,7 +134,16 @@ serve(async (req) => {
 
         if (userAccountsError) {
           console.error("User accounts error:", userAccountsError)
-          throw userAccountsError
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: userAccountsError.message 
+            }),
+            { 
+              status: 400, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          )
         }
 
         console.log("User assigned to accounts")
@@ -110,10 +164,10 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: error.message || "Error interno del servidor"
       }),
       { 
-        status: 400, 
+        status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     )

@@ -9,7 +9,6 @@ const AccountSelector: React.FC = () => {
   const { user } = useAuth();
   const { selectedAccountId, setSelectedAccountId, userAccounts, isLoading } = useAccount();
 
-  // Show for all authenticated users
   if (!user || isLoading) {
     return null;
   }
@@ -19,16 +18,14 @@ const AccountSelector: React.FC = () => {
   }
 
   const handleAccountChange = (accountId: string) => {
+    console.log("Account changed to:", accountId);
     setSelectedAccountId(accountId);
   };
-
-  // Use undefined instead of empty string for unselected state
-  const selectValue = selectedAccountId || undefined;
 
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b">
       <Building2 className="h-4 w-4 text-muted-foreground" />
-      <Select value={selectValue} onValueChange={handleAccountChange}>
+      <Select value={selectedAccountId || undefined} onValueChange={handleAccountChange}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Seleccionar cuenta" />
         </SelectTrigger>

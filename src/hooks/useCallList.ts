@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -22,7 +23,6 @@ export interface Call {
   summary?: string;
   created_at: string;
   updated_at: string;
-  // Add missing properties expected by CallList
   filename: string;
   agentName: string;
   progress: number;
@@ -59,16 +59,19 @@ export function useCallList() {
         .from('calls')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(100); // Limit results to improve performance
+        .limit(100);
 
-      // Apply account filter for all roles
+      // Apply account filter - CRÍTICO: Solo filtrar si hay una cuenta específica seleccionada
       if (selectedAccountId && selectedAccountId !== 'all') {
+        console.log("Filtering by account:", selectedAccountId);
         query = query.eq('account_id', selectedAccountId);
+      } else {
+        console.log("No account filter applied - showing all calls or account 'all' selected");
       }
 
       // Additional filters based on user role
       if (user.role === 'agent') {
-        // Agents can only see their own calls
+        console.log("Agent filter applied - only showing calls for agent:", user.id);
         query = query.eq('agent_id', user.id);
       }
 
@@ -78,9 +81,10 @@ export function useCallList() {
         throw callsError;
       }
 
-      console.log("Calls loaded successfully:", data?.length || 0);
+      console.log("Raw calls data from DB:", data?.length || 0, "calls found");
+      console.log("Sample call account_ids:", data?.slice(0, 3).map(c => ({ id: c.id, account_id: c.account_id })));
       
-      // Transform data to match expected interface with proper type casting
+      // Transform data to match expected interface
       const transformedCalls = (data || []).map(call => ({
         ...call,
         filename: call.title || 'Unknown',
@@ -99,12 +103,12 @@ export function useCallList() {
                  undefined,
       })) as Call[];
       
+      console.log("Transformed calls ready to display:", transformedCalls.length);
       setCalls(transformedCalls);
     } catch (err: any) {
       console.error("Error fetching calls:", err);
       setError(err.message || "Error al cargar las llamadas");
       
-      // Don't show toast for timeout errors as they're often temporary
       if (!err.message?.includes('timeout')) {
         toast.error("Error al cargar las llamadas");
       }
@@ -177,6 +181,7 @@ export function useCallList() {
   // Load calls when user, session or selected account changes
   useEffect(() => {
     if (user && session) {
+      console.log("Effect triggered - loading calls with account:", selectedAccountId);
       loadCalls();
     }
   }, [user, session, selectedAccountId, loadCalls]);
@@ -200,7 +205,6 @@ export function useCallList() {
     toggleCallSelection,
     toggleAllCalls,
     refreshCalls,
-    // Add alias for compatibility
     isLoading: loading,
   };
 }

@@ -41,9 +41,7 @@ export default function UserForm() {
   const isEditMode = Boolean(id);
   
   const [isLoading, setIsLoading] = useState(false);
-  const [profileExists, setProfileExists] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [retries, setRetries] = useState(0);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -57,18 +55,21 @@ export default function UserForm() {
   });
 
   useEffect(() => {
-    if (isEditMode) {
+    if (isEditMode && id) {
       fetchUserData();
     }
-  }, [id, retries]);
+  }, [id, isEditMode]);
 
   const fetchUserData = async () => {
+    if (!id) return;
+    
     setIsLoading(true);
     setError(null);
+    
     try {
       console.log("Fetching user data for ID:", id);
       
-      // First try to get the profile data
+      // Get profile data
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -76,61 +77,39 @@ export default function UserForm() {
         .single();
       
       if (profileError) {
-        console.log("Error fetching profile or profile doesn't exist:", profileError.message);
-        setProfileExists(false);
-      } else {
-        console.log("Profile data obtained:", profileData);
-        setProfileExists(true);
+        console.log("Profile error:", profileError.message);
+        throw new Error("Usuario no encontrado");
+      }
+
+      // Get user email from getAllUserEmails function
+      const { data: usersData, error: usersError } = await supabase.functions.invoke('getAllUserEmails', {
+        body: { timestamp: new Date().getTime() }
+      });
+      
+      if (usersError) {
+        console.error("Error fetching user data:", usersError);
+        throw usersError;
       }
       
-      // Get user email and role from getAllUserEmails function
-      try {
-        const { data: usersData, error: usersError } = await supabase.functions.invoke('getAllUserEmails', {
-          body: { timestamp: new Date().getTime() }
+      if (usersData?.userData && usersData.userData[id]) {
+        const userData = usersData.userData[id];
+        console.log("User data obtained:", userData);
+        
+        form.reset({
+          email: userData.email || '',
+          password: '',
+          name: profileData?.full_name || userData.email.split('@')[0],
+          role: profileData?.role || 'agent',
+          language: profileData?.language || 'es',
         });
-        
-        if (usersError) {
-          console.error("Error fetching user data:", usersError);
-          throw usersError;
-        }
-        
-        if (usersData?.userData && usersData.userData[id as string]) {
-          const userData = usersData.userData[id as string];
-          console.log("User data obtained:", userData);
-          
-          // Update form with merged data from profile and auth
-          form.reset({
-            email: userData.email || '',
-            password: '',
-            name: profileData?.full_name || userData.email.split('@')[0],
-            role: profileData?.role || userData.role || 'agent',
-            language: profileData?.language || 'es',
-          });
-        } else {
-          console.error("User data not found");
-          setError("No se encontraron datos del usuario. Intente nuevamente.");
-          
-          // If data wasn't found, try fetching user email directly (fallback)
-          if (id) {
-            const { data: emailData, error: emailError } = await supabase.functions.invoke('getUserEmail', {
-              body: { userId: id }
-            });
-            
-            if (!emailError && emailData?.email) {
-              form.setValue("email", emailData.email);
-              form.setValue("name", emailData.email.split('@')[0]);
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Error connecting to server:", e);
-        setError("Error al conectar con el servidor. Intente nuevamente.");
+      } else {
+        throw new Error("No se encontraron datos del usuario");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching user data:", error);
-      setError("Hubo un problema al cargar los datos del usuario.");
+      setError(error.message || "Hubo un problema al cargar los datos del usuario.");
       toast.error("Error al cargar usuario", {
-        description: "Hubo un problema al cargar los datos del usuario.",
+        description: error.message || "Hubo un problema al cargar los datos del usuario.",
         duration: 3000,
       });
     } finally {
@@ -142,12 +121,10 @@ export default function UserForm() {
     try {
       console.log("Creating user:", values);
       
-      // Validate password for new users
       if (!values.password) {
         throw new Error("La contraseña es obligatoria para crear un nuevo usuario");
       }
       
-      // Create user using the correct edge function name
       const { data, error: authError } = await supabase.functions.invoke('create-user', {
         body: {
           email: values.email,
@@ -169,12 +146,11 @@ export default function UserForm() {
       });
       
       navigate('/users');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating user:", error);
       
       let errorMessage = "Hubo un problema al crear el usuario. Por favor, inténtalo de nuevo.";
       
-      // More specific error messages based on error type
       if (error.message?.includes("duplicate key")) {
         errorMessage = "Este correo electrónico ya está registrado. Por favor, utiliza otro.";
       }
@@ -190,7 +166,6 @@ export default function UserForm() {
     try {
       console.log("Updating user:", values);
       
-      // Use the updateUserPassword edge function to update user data
       const { error: updateError } = await supabase.functions.invoke('updateUserPassword', {
         body: { 
           userId: id, 
@@ -211,7 +186,7 @@ export default function UserForm() {
       });
       
       navigate('/users');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating user:", error);
       toast.error("Error al actualizar usuario", {
         description: "Hubo un problema al actualizar el usuario. Por favor, inténtalo de nuevo.",
@@ -234,18 +209,11 @@ export default function UserForm() {
     }
   };
 
-  const handleRetry = () => {
-    setRetries(prev => prev + 1);
-  };
-
   if (error) {
     return (
       <div className="p-8 text-center">
         <p className="text-red-500 mb-4">{error}</p>
-        <Button onClick={handleRetry}>
-          Intentar de nuevo
-        </Button>
-        <Button onClick={() => navigate('/users')} variant="outline" className="ml-2">
+        <Button onClick={() => navigate('/users')} variant="outline">
           Volver a la lista
         </Button>
       </div>
