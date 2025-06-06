@@ -1,339 +1,163 @@
-
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { Call, Feedback, BehaviorAnalysis } from "@/lib/types";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
+import { useAccount } from "@/context/AccountContext";
 import { toast } from "sonner";
-import { validateCallStatus } from "@/components/calls/detail/CallUtils";
 
-export function useCallList() {
+export interface Call {
+  id: string;
+  agent_name: string;
+  duration: number;
+  date: string;
+  progress: number;
+  status: string;
+  title: string;
+  filename: string;
+  account_id?: string;
+}
+
+export const useCallList = () => {
+  const { user } = useAuth();
+  const { selectedAccountId, userAccounts } = useAccount();
   const [calls, setCalls] = useState<Call[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedCalls, setSelectedCalls] = useState<string[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const [lastFetchTimestamp, setLastFetchTimestamp] = useState<number | null>(null);
-  const [fetchInProgress, setFetchInProgress] = useState(false);
-  const [filtersApplied, setFiltersApplied] = useState<any>({});
-  const [cachedData, setCachedData] = useState<{filters: any, data: Call[]}>({
-    filters: {},
-    data: []
-  });
+  const [selectedCalls, setSelectedCalls] = useState<string[]>([]);
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
 
-  // Función mejorada para recuperar datos de llamadas con caché optimizada
+  // CORREGIDO: Lógica de filtrado para SuperAdmin
   const fetchCalls = useCallback(async (filters: any = {}, forceRefresh = false) => {
-    // Evitar consultas simultáneas
-    if (fetchInProgress) {
-      console.log("Fetch already in progress, skipping request");
-      return;
-    }
-    
-    // Si los filtros no han cambiado y no es forzado, usar caché
-    const filtersChanged = JSON.stringify(filters) !== JSON.stringify(filtersApplied);
-    if (!filtersChanged && !forceRefresh && cachedData.data.length > 0) {
-      console.log("Using cached data with same filters");
-      return;
-    }
-    
-    // Comprueba si ha pasado suficiente tiempo desde la última actualización (10 segundos si no hay cambios en filtros)
-    const now = Date.now();
-    if (!forceRefresh && !filtersChanged && lastFetchTimestamp && now - lastFetchTimestamp < 10000) {
-      console.log("Using cached data, last fetch was", Math.round((now - lastFetchTimestamp)/1000), "seconds ago");
-      return;
-    }
-    
+    if (!user) return;
+
     try {
-      setFetchInProgress(true);
-      setIsLoading(prevLoading => cachedData.data.length === 0 ? true : prevLoading);
+      if (forceRefresh) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
       setError(null);
-      setFiltersApplied(filters);
-      
-      console.log("Aplicando filtros:", filters);
-      console.time("fetchCalls");
-      
-      // Set a reasonable page size to prevent timeouts
-      const pageSize = 500; // Optimizado para rendimiento y estabilidad
-      
+
+      console.log("Fetching calls for user:", user.email, "role:", user.role);
+
       let query = supabase
-        .from("calls")
-        .select(`
-          id, 
-          title, 
-          filename,
-          agent_name,
-          agent_id,
-          duration,
-          date,
-          status,
-          progress,
-          audio_url,
-          summary,
-          result,
-          product,
-          reason,
-          tipificacion_id,
-          status_summary
-        `)
-        .order("date", { ascending: false })
-        .limit(pageSize);
+        .from('calls')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-      // Aplicar filtros si existen
-      if (filters.status && filters.status !== "all") {
-        query = query.eq("status", filters.status);
-      }
-
-      if (filters.result) {
-        query = query.eq("result", filters.result);
-      }
-
-      if (filters.tipificacionId && filters.tipificacionId !== "all_tipificaciones") {
-        query = query.eq("tipificacion_id", filters.tipificacionId);
-      }
-
-      if (filters.agentId && filters.agentId !== "all_agents") {
-        query = query.eq("agent_id", filters.agentId);
-      }
-
-      if (filters.dateRange && filters.dateRange.from) {
-        const fromDate = new Date(filters.dateRange.from);
-        fromDate.setHours(0, 0, 0, 0);
+      // CORREGIDO: SuperAdmin ve todas las llamadas sin filtrar
+      if (user.role === 'superAdmin') {
+        console.log("SuperAdmin - loading all calls");
+        // SuperAdmin ve todas las llamadas, opcionalmente filtradas por cuenta seleccionada
+        if (selectedAccountId && selectedAccountId !== 'all') {
+          query = query.eq('account_id', selectedAccountId);
+          console.log("SuperAdmin - filtering by selected account:", selectedAccountId);
+        }
+      } else {
+        // Usuario normal solo ve llamadas de sus cuentas asignadas
+        const accountIds = userAccounts.map(account => account.id);
+        console.log("Regular user - filtering by assigned accounts:", accountIds);
         
-        query = query.gte("date", fromDate.toISOString());
-        
-        if (filters.dateRange.to) {
-          const toDate = new Date(filters.dateRange.to);
-          toDate.setHours(23, 59, 59, 999);
-          query = query.lte("date", toDate.toISOString());
+        if (accountIds.length > 0) {
+          if (selectedAccountId && selectedAccountId !== 'all') {
+            // Filtrar por cuenta específica seleccionada
+            query = query.eq('account_id', selectedAccountId);
+          } else {
+            // Mostrar todas las llamadas de las cuentas asignadas
+            query = query.in('account_id', accountIds);
+          }
+        } else {
+          // Usuario sin cuentas asignadas no ve nada
+          console.log("User has no assigned accounts");
+          setCalls([]);
+          setIsLoading(false);
+          setIsRefreshing(false);
+          return;
         }
       }
 
-      // Implementación optimizada del filtro de búsqueda
-      if (filters.search && filters.search.trim() !== '') {
-        const searchTerm = filters.search.trim().toLowerCase();
-        console.log("Buscando por término:", searchTerm);
-
-        // La forma correcta de usar or() en Supabase es con un string de filtros separados por comas
-        query = query.or(`title.ilike.%${searchTerm}%,agent_name.ilike.%${searchTerm}%,filename.ilike.%${searchTerm}%`);
+      // Aplicar filtros adicionales (búsqueda, fecha, etc.)
+      if (filters.search) {
+        query = query.or(`title.ilike.%${filters.search}%,agent_name.ilike.%${filters.search}%,filename.ilike.%${filters.search}%`);
       }
 
-      console.log("Fetching calls with filters:", filters);
+      if (filters.startDate) {
+        query = query.gte('date', filters.startDate);
+      }
+
+      if (filters.endDate) {
+        query = query.lte('date', filters.endDate);
+      }
+
+      if (filters.status && filters.status !== 'all') {
+        query = query.eq('status', filters.status);
+      }
+
+      if (filters.agent && filters.agent !== 'all') {
+        query = query.eq('agent_name', filters.agent);
+      }
+
       const { data, error } = await query;
 
-      if (error) {
-        console.error("Error fetching calls:", error);
-        setError(`${error.message}`);
-        toast.error("Error al cargar las llamadas");
-        return;
-      }
+      if (error) throw error;
 
-      console.log(`Loaded ${data?.length || 0} calls`);
-      
-      // Procesar datos de llamadas de forma más eficiente
-      const mappedCalls: Call[] = (data || []).map((call) => {
-        let result: "" | "venta" | "no venta" = "";
-        if (call.result === "venta" || call.result === "no venta") {
-          result = call.result;
-        }
-        
-        let product: "" | "fijo" | "móvil" = "";
-        if (call.product === "fijo" || call.product === "móvil") {
-          product = call.product;
-        }
-        
-        return {
-          id: call.id,
-          title: call.title,
-          filename: call.filename,
-          agentName: call.agent_name || "Sin asignar",
-          agentId: call.agent_id,
-          duration: call.duration || 0,
-          date: call.date,
-          status: validateCallStatus(call.status),
-          progress: call.progress || 0,
-          audio_url: call.audio_url,
-          audioUrl: call.audio_url,
-          transcription: null,
-          summary: call.summary || "",
-          result: result,
-          product: product,
-          reason: call.reason || "",
-          tipificacionId: call.tipificacion_id,
-          feedback: undefined,
-          statusSummary: call.status_summary || ""
-        };
-      });
-
-      // Obtener feedbacks en paralelo si hay llamadas
-      if (mappedCalls.length > 0) {
-        const callIds = mappedCalls.map(call => call.id);
-        
-        // Obtener feedback en lotes más pequeños para un equilibrio entre rendimiento y estabilidad
-        const batchSize = 50; 
-        
-        // Crear promesas para todas las consultas de feedback en lotes
-        const feedbackPromises = [];
-        
-        for (let i = 0; i < callIds.length; i += batchSize) {
-          const batchIds = callIds.slice(i, i + batchSize);
-          
-          const feedbackPromise = supabase
-            .from('feedback')
-            .select('*')
-            .in('call_id', batchIds);
-            
-          feedbackPromises.push(feedbackPromise);
-        }
-        
-        // Ejecutar todas las consultas de feedback en paralelo
-        console.time("fetchFeedback");
-        const feedbackResults = await Promise.all(feedbackPromises);
-        console.timeEnd("fetchFeedback");
-        
-        // Procesar los resultados
-        const feedbackMap = new Map();
-        
-        // Combinar todos los resultados de feedback
-        for (const result of feedbackResults) {
-          if (result.data) {
-            for (const feedback of result.data) {
-              feedbackMap.set(feedback.call_id, feedback);
-            }
-          }
-        }
-        
-        // Aplicar los feedbacks a las llamadas
-        for (let i = 0; i < mappedCalls.length; i++) {
-          const call = mappedCalls[i];
-          const feedback = feedbackMap.get(call.id);
-          
-          if (feedback) {
-            let behaviorsAnalysis: BehaviorAnalysis[] = [];
-            
-            if (feedback.behaviors_analysis) {
-              try {
-                if (typeof feedback.behaviors_analysis === 'string') {
-                  behaviorsAnalysis = JSON.parse(feedback.behaviors_analysis);
-                } else if (Array.isArray(feedback.behaviors_analysis)) {
-                  behaviorsAnalysis = feedback.behaviors_analysis.map((item: any) => ({
-                    name: item.name || "",
-                    evaluation: (item.evaluation === "cumple" || item.evaluation === "no cumple") 
-                      ? item.evaluation : "no cumple",
-                    comments: item.comments || ""
-                  }));
-                }
-              } catch (e) {
-                console.error("Error parsing behaviors_analysis:", e);
-              }
-            }
-            
-            mappedCalls[i].feedback = {
-              id: feedback.id,
-              call_id: feedback.call_id,
-              score: feedback.score || 0,
-              positive: feedback.positive || [],
-              negative: feedback.negative || [],
-              opportunities: feedback.opportunities || [],
-              behaviors_analysis: behaviorsAnalysis,
-              created_at: feedback.created_at,
-              updated_at: feedback.updated_at,
-              sentiment: feedback.sentiment,
-              topics: feedback.topics || [],
-              entities: feedback.entities || []
-            };
-          }
-        }
-      }
-
-      // Actualizar los datos en caché y en estado
-      setCalls(mappedCalls);
-      setCachedData({
-        filters,
-        data: mappedCalls
-      });
-      setLastFetchTimestamp(now);
-      setError(null);
-      setRetryCount(0);
-      
-      console.timeEnd("fetchCalls");
-    } catch (error) {
-      console.error("Unexpected error fetching calls:", error);
-      setError(error instanceof Error ? error.message : "Error inesperado al cargar las llamadas");
-      
-      // Implement retry logic (max 3 retries)
-      if (retryCount < 3) {
-        const retryDelay = 1000 * Math.pow(2, retryCount); // Exponential backoff
-        toast.error(`Error al cargar las llamadas. Reintentando en ${retryDelay/1000} segundos...`);
-        
-        setTimeout(() => {
-          setRetryCount(prev => prev + 1);
-          fetchCalls(filters);
-        }, retryDelay);
-      } else {
-        toast.error("Error al cargar las llamadas después de varios intentos");
-      }
+      console.log("Calls loaded:", data?.length || 0);
+      setCalls(data || []);
+    } catch (error: any) {
+      console.error('Error fetching calls:', error);
+      setError(error.message);
+      toast.error('Error al cargar las llamadas');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
-      setFetchInProgress(false);
     }
-  }, [lastFetchTimestamp, retryCount, filtersApplied, cachedData.data.length, fetchInProgress]);
+  }, [user, selectedAccountId, userAccounts]);
 
   const handleRefresh = useCallback(() => {
-    setIsRefreshing(true);
-    setRetryCount(0);
-    fetchCalls(filtersApplied, true);
-  }, [fetchCalls, filtersApplied]);
-
-  // Efecto para cargar los datos iniciales con optimización
-  useEffect(() => {
-    fetchCalls({});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    fetchCalls({}, true);
+  }, [fetchCalls]);
 
   const deleteCall = async (callId: string) => {
     try {
-      const { error } = await supabase.from("calls").delete().eq("id", callId);
+      setIsLoading(true);
+      const { error } = await supabase
+        .from('calls')
+        .delete()
+        .eq('id', callId);
 
-      if (error) {
-        console.error("Error deleting call:", error);
-        toast.error("Error al eliminar la llamada");
-      } else {
-        // Actualizar el estado local en lugar de recargar todos los datos
-        setCalls((prevCalls) => prevCalls.filter((call) => call.id !== callId));
-        setSelectedCalls(prev => prev.filter(id => id !== callId));
-        toast.success("Llamada eliminada correctamente");
-      }
-    } catch (error) {
-      console.error("Unexpected error deleting call:", error);
-      toast.error("Error inesperado al eliminar la llamada");
+      if (error) throw error;
+
+      setCalls(calls.filter(call => call.id !== callId));
+      toast.success('Llamada eliminada correctamente');
+    } catch (error: any) {
+      console.error('Error deleting call:', error);
+      toast.error('Error al eliminar la llamada');
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const deleteMultipleCalls = async () => {
-    if (selectedCalls.length === 0) return;
-
     try {
-      toast.loading(`Eliminando ${selectedCalls.length} llamadas...`, { id: "delete-multiple" });
-
+      setIsLoading(true);
       const { error } = await supabase
-        .from("calls")
+        .from('calls')
         .delete()
-        .in("id", selectedCalls);
+        .in('id', selectedCalls);
 
-      if (error) {
-        console.error("Error deleting calls:", error);
-        toast.error("Error al eliminar las llamadas", { id: "delete-multiple" });
-      } else {
-        // Actualizar estado local
-        setCalls((prevCalls) => prevCalls.filter((call) => !selectedCalls.includes(call.id)));
-        toast.success(`${selectedCalls.length} llamadas eliminadas correctamente`, { id: "delete-multiple" });
-        setSelectedCalls([]);
-        setMultiSelectMode(false);
-      }
-    } catch (error) {
-      console.error("Unexpected error deleting calls:", error);
-      toast.error("Error inesperado al eliminar las llamadas", { id: "delete-multiple" });
+      if (error) throw error;
+
+      setCalls(calls.filter(call => !selectedCalls.includes(call.id)));
+      setSelectedCalls([]);
+      setMultiSelectMode(false);
+      toast.success('Llamadas eliminadas correctamente');
+    } catch (error: any) {
+      console.error('Error deleting calls:', error);
+      toast.error('Error al eliminar las llamadas');
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -347,13 +171,21 @@ export function useCallList() {
     });
   };
 
-  const toggleAllCalls = (select: boolean) => {
-    if (select) {
-      setSelectedCalls(calls.map(call => call.id));
-    } else {
+  const toggleAllCalls = () => {
+    if (selectedCalls.length === calls.length) {
       setSelectedCalls([]);
+    } else {
+      setSelectedCalls(calls.map(call => call.id));
     }
   };
+
+  // Load calls when dependencies change
+  useEffect(() => {
+    if (user) {
+      console.log("Dependencies changed - fetching calls");
+      fetchCalls();
+    }
+  }, [fetchCalls]);
 
   return {
     calls,
@@ -370,4 +202,4 @@ export function useCallList() {
     toggleCallSelection,
     toggleAllCalls,
   };
-}
+};

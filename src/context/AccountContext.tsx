@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Account, UserAccount } from '@/lib/types';
 import { supabase } from '@/integrations/supabase/client';
@@ -40,11 +41,13 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Cargar cuentas del usuario actual - ACTUALIZADO para manejar RLS
+  // Cargar cuentas del usuario actual - CORREGIDO para SuperAdmin
   const loadUserAccounts = async () => {
     if (!user) return;
 
     try {
+      console.log("Loading user accounts for user:", user.id, "role:", user.role);
+      
       if (user.role === 'superAdmin') {
         // SuperAdmin ve todas las cuentas activas
         const { data: accounts, error } = await supabase
@@ -53,13 +56,18 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
           .eq('status', 'active')
           .order('name');
 
-        if (error) throw error;
+        if (error) {
+          console.error("Error loading accounts for SuperAdmin:", error);
+          throw error;
+        }
+        
+        console.log("SuperAdmin accounts loaded:", accounts);
         setUserAccounts((accounts || []).map(account => ({
           ...account,
           status: account.status as 'active' | 'inactive'
         })));
       } else {
-        // Usuario normal ve solo sus cuentas asignadas (RLS se encarga del filtrado)
+        // Usuario normal ve solo sus cuentas asignadas
         const { data: userAccountsData, error } = await supabase
           .from('user_accounts')
           .select(`
@@ -74,12 +82,17 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
           `)
           .eq('user_id', user.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error("Error loading user accounts:", error);
+          throw error;
+        }
 
         const accounts = userAccountsData?.map(ua => ({
           ...ua.accounts,
           status: ua.accounts.status as 'active' | 'inactive'
         })).filter(Boolean) || [];
+        
+        console.log("Regular user accounts loaded:", accounts);
         setUserAccounts(accounts as Account[]);
       }
     } catch (error) {
@@ -248,7 +261,9 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
   useEffect(() => {
     const initializeAccounts = async () => {
       if (user) {
+        console.log("Initializing accounts for user:", user.id, "role:", user.role);
         setIsLoading(true);
+        
         await Promise.all([
           loadUserAccounts(),
           user.role === 'superAdmin' ? loadAccounts() : Promise.resolve()

@@ -159,10 +159,23 @@ export default function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
     },
   ];
 
-  // Filtrar elementos del menú según el rol del usuario
-  const filteredMenuItems = menuItems.filter(item => 
-    user?.role && item.roles.includes(user.role)
-  );
+  // CORREGIDO: Filtrar elementos del menú según el rol del usuario
+  // SuperAdmin siempre ve todos los módulos
+  const filteredMenuItems = menuItems.filter(item => {
+    if (!user?.role) return false;
+    
+    // SuperAdmin siempre tiene acceso a todo
+    if (user.role === 'superAdmin') {
+      console.log("SuperAdmin user - showing all menu items");
+      return true;
+    }
+    
+    // Para otros roles, verificar permisos específicos
+    return item.roles.includes(user.role);
+  });
+
+  console.log("User role:", user?.role);
+  console.log("Filtered menu items:", filteredMenuItems.map(item => item.name));
 
   return (
     <>
@@ -224,8 +237,8 @@ export default function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
           </div>
         </div>
 
-        {/* Filtro de cuentas - Solo mostrar si no está colapsado o si está hover */}
-        {(!collapsed || isHovering) && (
+        {/* Filtro de cuentas - Solo mostrar para usuarios normales */}
+        {(!collapsed || isHovering) && user?.role !== 'superAdmin' && (
           <div className="py-2">
             <AccountFilter />
           </div>

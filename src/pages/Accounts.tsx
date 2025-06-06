@@ -39,13 +39,20 @@ export default function AccountsPage() {
     };
   }, []);
 
-  // Verificar permisos
+  // CORREGIDO: Verificar permisos para SuperAdmin únicamente
   useEffect(() => {
-    if (!loading && (!isAuthenticated || user?.role !== 'superAdmin')) {
-      toast.error("Acceso denegado", {
-        description: "Solo los SuperAdmins pueden acceder a la gestión de cuentas"
-      });
-      navigate("/analytics");
+    if (!loading && isAuthenticated && user) {
+      console.log("Checking access for user:", user.email, "role:", user.role);
+      
+      if (user.role !== 'superAdmin') {
+        console.log("Access denied - user is not SuperAdmin");
+        toast.error("Acceso denegado", {
+          description: "Solo los SuperAdmins pueden acceder a la gestión de cuentas"
+        });
+        navigate("/analytics");
+      } else {
+        console.log("Access granted - user is SuperAdmin");
+      }
     }
   }, [user, isAuthenticated, loading, navigate]);
 
@@ -55,6 +62,28 @@ export default function AccountsPage() {
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
           <p className="text-muted-foreground">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <p className="text-muted-foreground">Debes iniciar sesión para acceder a esta página</p>
+          <Button onClick={() => navigate("/login")}>Iniciar Sesión</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (user?.role !== 'superAdmin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <p className="text-muted-foreground">No tienes permisos para acceder a esta página</p>
+          <Button onClick={() => navigate("/analytics")}>Volver al Inicio</Button>
         </div>
       </div>
     );

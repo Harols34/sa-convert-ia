@@ -74,7 +74,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (currentSession) {
             console.info("Valid session found");
             setSession(currentSession);
-            await fetchUserData(currentSession.user.id);
+            
+            // Defer user data fetching to prevent auth state issues
+            setTimeout(() => {
+              fetchUserData(currentSession.user.id);
+            }, 0);
 
             // Start session refresh timer
             startSessionRefreshTimer();
@@ -96,7 +100,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (initialSession) {
           console.info("Found initial session");
           setSession(initialSession);
-          await fetchUserData(initialSession.user.id);
+          
+          // Defer user data fetching
+          setTimeout(() => {
+            fetchUserData(initialSession.user.id);
+          }, 0);
           
           // Start session refresh timer
           startSessionRefreshTimer();
@@ -182,6 +190,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (error) {
           console.error("Error fetching user profile:", error);
+          // Si no hay perfil, crear uno por defecto con rol agent
+          if (error.code === 'PGRST116') {
+            console.info("No profile found, creating default profile");
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert({
+                id: userId,
+                full_name: session?.user?.email?.split('@')[0] || 'Usuario',
+                role: 'agent',
+                language: 'es'
+              });
+            
+            if (insertError) {
+              console.error("Error creating default profile:", insertError);
+            } else {
+              // Fetch the newly created profile
+              const { data: newProfile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .single();
+              userData = newProfile;
+            }
+          }
         } else {
           userData = data;
         }
@@ -206,7 +238,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           updated_at: userData.updated_at
         };
         
-        console.info("User data loaded:", appUser);
+        console.info("User data loaded with role:", appUser.role);
         setUser(appUser);
       } else {
         // If no profile found, create a default user object
