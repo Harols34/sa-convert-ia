@@ -11,11 +11,18 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   
   useEffect(() => {
     setIsMounted(true);
+    
+    // Load sidebar state from localStorage
+    const savedState = localStorage.getItem('sidebar-collapsed');
+    if (savedState !== null) {
+      setSidebarCollapsed(savedState === 'true');
+    }
   }, []);
 
   // Global keyboard shortcuts
@@ -27,10 +34,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         setSearchOpen(true);
       }
       
-      // Ctrl/Cmd + B for sidebar toggle on mobile
+      // Ctrl/Cmd + B for sidebar toggle
       if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
         e.preventDefault();
-        setSidebarOpen(prev => !prev);
+        setSidebarCollapsed(prev => {
+          const newState = !prev;
+          localStorage.setItem('sidebar-collapsed', newState.toString());
+          return newState;
+        });
       }
     };
 
@@ -60,8 +71,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         fixed inset-y-0 left-0 z-50 transition-all duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
         md:translate-x-0 md:static md:inset-0
+        ${sidebarCollapsed ? 'md:w-16' : 'md:w-64'}
       `}>
-        <Sidebar />
+        <Sidebar 
+          isOpen={sidebarOpen} 
+          closeSidebar={() => setSidebarOpen(false)}
+          collapsed={sidebarCollapsed}
+          setCollapsed={setSidebarCollapsed}
+          onSearchOpen={() => setSearchOpen(true)}
+        />
       </div>
 
       {/* Mobile sidebar overlay */}

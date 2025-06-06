@@ -50,14 +50,14 @@ const AccountFilter: React.FC = () => {
       </CardHeader>
       <CardContent className="pt-0">
         <Select
-          value={selectedAccountId || 'all'}
-          onValueChange={(value) => setSelectedAccountId(value === 'all' ? null : value)}
+          value={selectedAccountId || ''}
+          onValueChange={(value) => setSelectedAccountId(value || null)}
         >
           <SelectTrigger className="h-9">
             <SelectValue placeholder="Seleccionar cuenta" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todas las cuentas</SelectItem>
+            <SelectItem value="">Todas las cuentas</SelectItem>
             {userAccounts.map((account) => (
               <SelectItem key={account.id} value={account.id}>
                 {account.name}
