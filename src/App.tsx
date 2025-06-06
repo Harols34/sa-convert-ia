@@ -1,4 +1,5 @@
 
+import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
@@ -30,7 +31,14 @@ import AssignUsers from "./pages/AssignUsers";
 
 import "./App.css";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: 1,
+    },
+  },
+});
 
 function App() {
   return (
@@ -60,7 +68,6 @@ function App() {
                       <Route path="/accounts/new" element={<CreateAccount />} />
                       <Route path="/accounts/assign" element={<AssignUsers />} />
                       <Route path="/settings" element={<Settings />} />
-                      {/* Redirect /dashboard to /analytics */}
                       <Route path="/dashboard" element={<Navigate to="/analytics" replace />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
