@@ -63,13 +63,14 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
           throw accountsError;
         }
 
-        // Cast to proper Account type
+        // Cast to proper Account type with proper status typing
         accountsData = (data || []).map(account => ({
           ...account,
           status: account.status as 'active' | 'inactive'
         })) as Account[];
         
         setAllAccounts(accountsData);
+        setUserAccounts(accountsData);
       } else if (userRole === 'admin') {
         // Admin can see accounts they're assigned to
         const { data, error: userAccountsError } = await supabase
@@ -97,10 +98,12 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
             ...account,
             status: account.status as 'active' | 'inactive'
           })) as Account[];
+        
+        setUserAccounts(accountsData);
+        setAllAccounts(accountsData);
       }
 
       console.log("Accounts fetched:", accountsData.length);
-      setUserAccounts(accountsData);
 
       // Set initial selected account
       if (accountsData.length > 0) {

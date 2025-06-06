@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { Routes, Route, useNavigate } from "react-router-dom";
+import { Routes, Route, useNavigate, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/layout/Layout";
 import UserList from "@/components/users/UserList";
@@ -51,7 +51,7 @@ export default function UsersPage() {
           }
         />
         <Route
-          path="/edit/:id"
+          path="/:id"
           element={
             <div className="space-y-6">
               <div className="flex items-center gap-4">
@@ -72,6 +72,11 @@ export default function UsersPage() {
               <UserForm />
             </div>
           }
+        />
+        {/* Redirect old edit routes to new structure */}
+        <Route
+          path="/edit/:id"
+          element={<Navigate to="/users/:id" replace />}
         />
       </Routes>
     </Layout>

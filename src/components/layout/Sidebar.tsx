@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/context/AuthContext";
 import { useAccount } from "@/context/AccountContext";
+import AccountSelector from "./AccountSelector";
 import {
   BarChart3,
   Phone,
@@ -99,7 +100,6 @@ const menuItems: MenuItem[] = [
 export default function Sidebar() {
   const location = useLocation();
   const { user, signOut } = useAuth();
-  const { selectedAccountId, userAccounts, isLoading: accountsLoading } = useAccount();
   const [collapsed, setCollapsed] = useState(false);
 
   const handleSignOut = async () => {
@@ -115,26 +115,6 @@ export default function Sidebar() {
     if (!user) return [];
     return menuItems.filter((item) => item.role.includes(user.role));
   }, [user]);
-
-  // Get current account info - only for users who need it
-  const getCurrentAccount = React.useMemo(() => {
-    if (!user) return 'Cargando...';
-    
-    // Only show account info for roles that use accounts
-    if (user.role !== 'superAdmin' && user.role !== 'admin') {
-      return null; // Don't show account selector for agents
-    }
-    
-    if (!selectedAccountId || selectedAccountId === 'all') {
-      return user.role === 'superAdmin' ? 'Todas las cuentas' : 'Sin cuenta';
-    }
-    
-    const account = userAccounts.find(acc => acc.id === selectedAccountId);
-    return account?.name || 'Cuenta no encontrada';
-  }, [selectedAccountId, userAccounts, user]);
-
-  // Check if user needs account display
-  const shouldShowAccounts = user && (user.role === 'superAdmin' || user.role === 'admin') && userAccounts.length > 0;
 
   if (!user) {
     return (
@@ -184,32 +164,8 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Account Filter - Only show for superAdmin and admin with accounts */}
-      {!collapsed && !accountsLoading && shouldShowAccounts && getCurrentAccount && (
-        <div className="shrink-0 p-4 pb-2">
-          <div className="bg-white rounded-lg border p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Cuenta activa</span>
-            </div>
-            <p className="text-sm text-foreground font-medium truncate">
-              {getCurrentAccount}
-            </p>
-            {userAccounts.length > 1 && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {userAccounts.length} cuentas disponibles
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Collapsed account indicator */}
-      {collapsed && !accountsLoading && shouldShowAccounts && (
-        <div className="mx-2 mb-2 p-2 bg-white rounded-lg border text-center shrink-0">
-          <Building2 className="h-4 w-4 mx-auto text-muted-foreground" />
-        </div>
-      )}
+      {/* Account Selector - Only show when not collapsed */}
+      {!collapsed && <AccountSelector />}
 
       {/* Navigation with ScrollArea */}
       <div className="flex-1 overflow-hidden">

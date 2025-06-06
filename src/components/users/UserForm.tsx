@@ -145,8 +145,8 @@ export default function UserForm() {
         throw new Error("La contraseña es obligatoria para crear un nuevo usuario");
       }
       
-      // Create user in Auth
-      const { data, error: authError } = await supabase.functions.invoke('createUser', {
+      // Create user using the correct edge function name
+      const { data, error: authError } = await supabase.functions.invoke('create-user', {
         body: {
           email: values.email,
           password: values.password,

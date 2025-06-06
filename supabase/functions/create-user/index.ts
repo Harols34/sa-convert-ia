@@ -18,9 +18,13 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { email, password, fullName, role, accountNames } = await req.json()
+    const { email, password, fullName, role, accountNames = [] } = await req.json()
 
     console.log("Creating user:", { email, fullName, role, accountNames })
+
+    if (!email || !password || !fullName || !role) {
+      throw new Error('Missing required fields: email, password, fullName, role')
+    }
 
     // Create user with Supabase Auth
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -56,7 +60,7 @@ serve(async (req) => {
 
     console.log("Profile created")
 
-    // Get account IDs by names
+    // Get account IDs by names if provided
     if (accountNames && accountNames.length > 0) {
       const { data: accounts, error: accountsError } = await supabaseAdmin
         .from('accounts')
@@ -71,21 +75,23 @@ serve(async (req) => {
       console.log("Found accounts:", accounts)
 
       // Assign user to accounts
-      const userAccountsData = accounts.map(account => ({
-        user_id: authUser.user.id,
-        account_id: account.id
-      }))
+      if (accounts && accounts.length > 0) {
+        const userAccountsData = accounts.map(account => ({
+          user_id: authUser.user.id,
+          account_id: account.id
+        }))
 
-      const { error: userAccountsError } = await supabaseAdmin
-        .from('user_accounts')
-        .insert(userAccountsData)
+        const { error: userAccountsError } = await supabaseAdmin
+          .from('user_accounts')
+          .insert(userAccountsData)
 
-      if (userAccountsError) {
-        console.error("User accounts error:", userAccountsError)
-        throw userAccountsError
+        if (userAccountsError) {
+          console.error("User accounts error:", userAccountsError)
+          throw userAccountsError
+        }
+
+        console.log("User assigned to accounts")
       }
-
-      console.log("User assigned to accounts")
     }
 
     return new Response(
@@ -105,7 +111,7 @@ serve(async (req) => {
         error: error.message 
       }),
       { 
-        status: 500, 
+        status: 400, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     )
