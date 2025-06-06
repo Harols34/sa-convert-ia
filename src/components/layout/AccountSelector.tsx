@@ -9,6 +9,7 @@ const AccountSelector: React.FC = () => {
   const { user } = useAuth();
   const { selectedAccountId, setSelectedAccountId, userAccounts, isLoading } = useAccount();
 
+  // Mostrar para todos los usuarios autenticados, no solo superAdmin
   if (!user || isLoading) {
     return null;
   }

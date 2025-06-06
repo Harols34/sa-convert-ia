@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/layout/Layout";
@@ -10,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/context/AuthContext";
+import { useAccount } from "@/context/AccountContext";
 import { Prompt, PromptType } from "@/hooks/usePrompts";
 
 export default function PromptsPage() {
@@ -20,6 +22,7 @@ export default function PromptsPage() {
   const [isActivating, setIsActivating] = useState(false);
   const navigate = useNavigate();
   const { isAuthenticated, user, loading } = useAuth();
+  const { selectedAccountId } = useAccount();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -38,15 +41,25 @@ export default function PromptsPage() {
 
   useEffect(() => {
     fetchPrompts();
-  }, []);
+  }, [selectedAccountId]);
 
   const fetchPrompts = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
+      console.log("Fetching prompts with account filter:", selectedAccountId);
+      
+      let query = supabase
         .from("prompts")
         .select("*")
         .order("updated_at", { ascending: false });
+
+      // Aplicar filtro de cuenta si hay una seleccionada y no es 'all'
+      if (selectedAccountId && selectedAccountId !== 'all') {
+        console.log("Filtering prompts by account:", selectedAccountId);
+        query = query.eq('account_id', selectedAccountId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -55,6 +68,7 @@ export default function PromptsPage() {
         type: prompt.type as PromptType
       })) || [];
       
+      console.log("Prompts loaded:", typedPrompts.length);
       setPrompts(typedPrompts);
     } catch (error) {
       console.error("Error fetching prompts:", error);
@@ -148,7 +162,7 @@ export default function PromptsPage() {
                 {prompts.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-8 text-gray-500">
-                      No hay prompts disponibles
+                      No hay prompts disponibles para la cuenta seleccionada
                     </TableCell>
                   </TableRow>
                 ) : (
