@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Account, UserAccount } from '@/lib/types';
+import { Account } from '@/lib/types';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
@@ -36,9 +36,12 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Optimized account loading with better error handling
-  const loadUserAccounts = async () => {
-    if (!user || !isAuthenticated) return;
+  // Optimized account loading
+  const loadUserAccounts = React.useCallback(async () => {
+    if (!user || !isAuthenticated) {
+      setIsLoading(false);
+      return;
+    }
 
     try {
       console.log("Loading user accounts for user:", user.id, "role:", user.role);
@@ -55,7 +58,6 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
           return;
         }
         
-        console.log("SuperAdmin accounts loaded:", accounts?.length || 0);
         const formattedAccounts = (accounts || []).map(account => ({
           ...account,
           status: account.status as 'active' | 'inactive'
@@ -89,14 +91,13 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
           status: ua.accounts.status as 'active' | 'inactive'
         })).filter(Boolean) || [];
         
-        console.log("Regular user accounts loaded:", accounts.length);
         setUserAccounts(accounts as Account[]);
       }
     } catch (error) {
       console.error('Error loading user accounts:', error);
       toast.error('Error al cargar las cuentas del usuario');
     }
-  };
+  }, [user, isAuthenticated]);
 
   // Load all accounts (for SuperAdmin)
   const loadAccounts = async () => {
@@ -124,6 +125,35 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
       toast.error('Error al cargar las cuentas');
     }
   };
+
+  // Auto-select account logic
+  const handleAccountSelection = React.useCallback(() => {
+    if (userAccounts.length === 0) {
+      setSelectedAccountId(null);
+      return;
+    }
+
+    // For single account users, auto-select
+    if (userAccounts.length === 1) {
+      console.log("Auto-selecting single account:", userAccounts[0].id);
+      setSelectedAccountId(userAccounts[0].id);
+      return;
+    }
+
+    // For multiple accounts, check saved preference
+    const savedAccountId = localStorage.getItem('selectedAccountId');
+    if (savedAccountId && userAccounts.some(acc => acc.id === savedAccountId)) {
+      console.log("Using saved account selection:", savedAccountId);
+      setSelectedAccountId(savedAccountId);
+    } else if (user?.role === 'superAdmin') {
+      // SuperAdmin defaults to 'all'
+      setSelectedAccountId('all');
+    } else {
+      // Regular users default to first account
+      console.log("Defaulting to first account:", userAccounts[0].id);
+      setSelectedAccountId(userAccounts[0].id);
+    }
+  }, [userAccounts, user?.role]);
 
   // Create new account
   const createAccount = async (name: string): Promise<boolean> => {
@@ -273,22 +303,6 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
           if (user.role === 'superAdmin') {
             await loadAccounts();
           }
-
-          // Handle account selection
-          if (mounted) {
-            const savedAccountId = localStorage.getItem('selectedAccountId');
-            
-            if (user.role === 'superAdmin') {
-              setSelectedAccountId(savedAccountId || 'all');
-            } else {
-              // Auto-select first account for regular users
-              setTimeout(() => {
-                if (mounted && userAccounts.length > 0 && !selectedAccountId) {
-                  setSelectedAccountId(userAccounts[0].id);
-                }
-              }, 200);
-            }
-          }
         } catch (error) {
           console.error('Error initializing accounts:', error);
         } finally {
@@ -298,6 +312,9 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
         }
       } else {
         if (mounted) {
+          setUserAccounts([]);
+          setAllAccounts([]);
+          setSelectedAccountId(null);
           setIsLoading(false);
         }
       }
@@ -308,11 +325,18 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
     return () => {
       mounted = false;
     };
-  }, [user, isAuthenticated]);
+  }, [user, isAuthenticated, loadUserAccounts]);
+
+  // Handle account selection after accounts are loaded
+  useEffect(() => {
+    if (!isLoading && userAccounts.length > 0) {
+      handleAccountSelection();
+    }
+  }, [isLoading, userAccounts, handleAccountSelection]);
 
   // Update localStorage when account selection changes
   useEffect(() => {
-    if (selectedAccountId) {
+    if (selectedAccountId && selectedAccountId !== 'all') {
       localStorage.setItem('selectedAccountId', selectedAccountId);
     } else {
       localStorage.removeItem('selectedAccountId');
