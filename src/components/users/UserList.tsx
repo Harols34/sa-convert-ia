@@ -1,422 +1,307 @@
+
 import { useState, useEffect, useCallback } from "react";
-import { User } from "@/lib/types";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { 
-  MoreHorizontal, 
-  Edit, 
-  Trash2, 
-  UserPlus,
-  Search,
-  RefreshCw,
-  AlertTriangle
-} from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Link, useNavigate } from "react-router-dom";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useAuth } from "@/context/AuthContext";
+import UserEditModal from "./UserEditModal";
+import { Edit2, Plus, Search, Trash2, Users, RefreshCw } from "lucide-react";
+
+interface User {
+  id: string;
+  email: string;
+  created_at: string;
+  last_sign_in_at?: string;
+  profile?: {
+    full_name?: string;
+    role?: string;
+    language?: string;
+  };
+}
 
 export default function UserList() {
   const [users, setUsers] = useState<User[]>([]);
-  const [authUsers, setAuthUsers] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
-
-  // Fetch all user emails and auth data
-  const fetchUserData = useCallback(async () => {
-    try {
-      console.log("Fetching user data from getAllUserEmails...");
-      // Add a timestamp to prevent caching
-      const { data, error } = await supabase.functions.invoke('getAllUserEmails', {
-        body: { timestamp: new Date().getTime() }
-      });
-      
-      if (error) {
-        console.error("Error invoking getAllUserEmails:", error);
-        toast.error("Error al obtener datos de usuarios");
-        return { emailMap: {}, authUsers: [], userDataMap: {} };
-      }
-      
-      console.log("User data received:", data);
-      
-      if (data?.usersData) {
-        setAuthUsers(data.usersData);
-      }
-      
-      return { 
-        emailMap: data?.userEmails || {}, 
-        authUsers: data?.usersData || [],
-        userDataMap: data?.userData || {}
-      };
-    } catch (e) {
-      console.error("Error invoking getAllUserEmails:", e);
-      toast.error("Error al conectar con el servidor");
-      return { emailMap: {}, authUsers: [], userDataMap: {} };
-    }
-  }, []);
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+  const [editUserId, setEditUserId] = useState<string | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const { user: currentUser } = useAuth();
 
   const fetchUsers = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
     try {
-      console.log("Obteniendo usuarios...");
-      
-      // Get user emails, roles and auth data first
-      const { emailMap, authUsers, userDataMap } = await fetchUserData();
-      console.log("Auth users:", authUsers);
-      console.log("User data map with roles:", userDataMap);
-      
-      if (authUsers.length === 0) {
-        console.log("No se encontraron usuarios autenticados");
-        setError("No se encontraron usuarios en el sistema");
-        setIsLoading(false);
-        return;
+      setLoading(true);
+
+      // Get all user emails from edge function
+      const { data: usersData, error: usersError } = await supabase.functions.invoke('getAllUserEmails', {
+        body: { timestamp: new Date().getTime() }
+      });
+
+      if (usersError) {
+        throw usersError;
       }
-      
+
       // Get all profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
+        .select('*');
+
       if (profilesError) {
-        console.error("Error al obtener perfiles:", profilesError);
-        console.log("Continuing with auth data only");
+        throw profilesError;
       }
-      
-      console.log("Perfiles obtenidos:", profiles);
-      
-      // Create a map of profiles by user ID for easy lookup
-      const profileMap = {};
-      if (profiles && profiles.length > 0) {
-        profiles.forEach(profile => {
-          profileMap[profile.id] = profile;
-        });
-      }
-      
-      // If we have no profiles but have auth users, create user objects from auth data with roles
-      if ((!profiles || profiles.length === 0) && authUsers.length > 0) {
-        console.log("No profiles found, creating users from auth data with roles");
-        
-        // Map the auth users to match the User interface
-        const mappedUsers: User[] = authUsers.map(authUser => {
-          const userData = userDataMap[authUser.id] || {};
-          return {
-            id: authUser.id,
-            name: authUser.email.split('@')[0] || 'Usuario',
-            email: authUser.email,
-            role: userData.role || 'agent', // Use role from userDataMap if available
-            avatar: null,
-            dailyQueryLimit: 100, // Default values
-            queriesUsed: 0,
-            language: 'es', // Default language
-            created_at: authUser.createdAt,
-            updated_at: null
-          };
-        });
-        
-        console.log("Usuarios mapeados desde auth con roles:", mappedUsers);
-        setUsers(mappedUsers);
-        setIsLoading(false);
-        return;
-      }
-      
-      // If we have profiles, map them with emails and roles from auth/userData
-      if (profiles && profiles.length > 0) {
-        // Map the profile data to match the User interface and include emails and roles
-        const mappedUsers: User[] = profiles.map(profile => {
-          // Use role from profile if available, otherwise from userDataMap, default to agent
-          const role = profile.role || (userDataMap[profile.id]?.role) || 'agent';
-          
-          return {
-            id: profile.id,
-            name: profile.full_name || emailMap[profile.id]?.split('@')[0] || '',
-            email: emailMap[profile.id] || '',
-            role: (role as User["role"]), // Cast to User["role"] type
-            avatar: profile.avatar_url,
-            dailyQueryLimit: 100, // Default values
-            queriesUsed: 0,
-            language: (profile.language as 'es' | 'en') || 'es',
+
+      // Merge user data with profiles
+      const mergedUsers = Object.entries(usersData?.userData || {}).map(([id, userData]: [string, any]) => {
+        const profile = profiles?.find(p => p.id === id);
+        return {
+          id,
+          email: userData.email,
+          created_at: userData.created_at,
+          last_sign_in_at: userData.last_sign_in_at,
+          profile: profile ? {
             full_name: profile.full_name,
-            avatar_url: profile.avatar_url,
-            created_at: profile.created_at,
-            updated_at: profile.updated_at
-          };
-        });
-        
-        console.log("Usuarios mapeados desde perfiles con roles correctos:", mappedUsers);
-        setUsers(mappedUsers);
-      } else {
-        // If we have auth users but no corresponding profiles, create users with proper roles
-        console.log("No profiles found for auth users, creating users with roles from userDataMap");
-        
-        const dummyUsers: User[] = authUsers.map(authUser => {
-          const userData = userDataMap[authUser.id] || {};
-          return {
-            id: authUser.id,
-            name: authUser.email.split('@')[0] || 'Usuario',
-            email: authUser.email,
-            role: userData.role || 'agent', // Use role from userDataMap
-            avatar: null,
-            dailyQueryLimit: 100,
-            queriesUsed: 0,
-            language: 'es',
-            created_at: authUser.createdAt,
-            updated_at: null
-          };
-        });
-        
-        console.log("Usuarios mapeados desde auth con roles (sin perfiles):", dummyUsers);
-        setUsers(dummyUsers);
-      }
-    } catch (error) {
-      console.error("Error obteniendo usuarios:", error);
-      setError("Hubo un problema al cargar la lista de usuarios.");
+            role: profile.role,
+            language: profile.language
+          } : undefined
+        };
+      });
+
+      setUsers(mergedUsers);
+    } catch (error: any) {
+      console.error("Error fetching users:", error);
       toast.error("Error al cargar usuarios", {
-        description: "Hubo un problema al cargar la lista de usuarios.",
+        description: error.message || "Hubo un problema al cargar la lista de usuarios.",
         duration: 3000,
       });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [fetchUserData]);
+  }, []);
 
-  // Fetch users on mount and when dependencies change
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
 
-  // Force refresh users
-  const handleRefreshUsers = () => {
-    toast.info("Actualizando lista de usuarios...");
+  const filteredUsers = users.filter(user =>
+    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.profile?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const deleteUser = async () => {
+    if (!deleteUserId) return;
+
+    try {
+      const { error } = await supabase.functions.invoke('deleteUser', {
+        body: { userId: deleteUserId }
+      });
+
+      if (error) throw error;
+
+      toast.success("Usuario eliminado exitosamente");
+      fetchUsers();
+    } catch (error: any) {
+      console.error("Error deleting user:", error);
+      toast.error("Error al eliminar usuario", {
+        description: error.message || "Hubo un problema al eliminar el usuario.",
+        duration: 3000,
+      });
+    } finally {
+      setDeleteUserId(null);
+    }
+  };
+
+  const getRoleColor = (role?: string) => {
+    switch (role) {
+      case 'superAdmin':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'admin':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'qualityAnalyst':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'supervisor':
+        return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'agent':
+        return 'bg-green-100 text-green-800 border-green-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const handleEditUser = (userId: string) => {
+    setEditUserId(userId);
+    setIsEditModalOpen(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditUserId(null);
+  };
+
+  const handleEditSuccess = () => {
     fetchUsers();
   };
 
-  const deleteUser = async (userId: string) => {
-    if (confirm("¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer.")) {
-      try {
-        // Delete user from auth
-        const { error } = await supabase.functions.invoke('deleteUser', {
-          body: { userId }
-        });
-        
-        if (error) throw error;
-        
-        // User profile will be deleted automatically through RLS cascade
-        setUsers(users.filter(user => user.id !== userId));
-        
-        toast.success("Usuario eliminado", {
-          description: "El usuario ha sido eliminado exitosamente.",
-          duration: 3000,
-        });
-      } catch (error) {
-        console.error("Error al eliminar usuario:", error);
-        toast.error("Error al eliminar usuario", {
-          description: "Hubo un problema al eliminar el usuario.",
-          duration: 3000,
-        });
-      }
-    }
-  };
-
-  const filteredUsers = users.filter(
-    user => 
-      user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.role?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'superAdmin':
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100";
-      case 'admin':
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100";
-      case 'qualityAnalyst':
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100";
-      case 'supervisor':
-        return "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100";
-      case 'agent':
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100";
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
-    }
-  };
-
-  const translateRole = (role: string) => {
-    switch (role) {
-      case 'superAdmin':
-        return "Super Admin";
-      case 'admin':
-        return "Administrador";
-      case 'qualityAnalyst':
-        return "Analista de Calidad";
-      case 'supervisor':
-        return "Supervisor";
-      case 'agent':
-        return "Agente";
-      default:
-        return role;
-    }
-  };
-
-  if (error) {
+  if (loading) {
     return (
-      <div className="p-8 text-center bg-white rounded-lg shadow-sm border">
-        <Alert variant="destructive" className="mb-4">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-        <Button onClick={fetchUsers}>Intentar de nuevo</Button>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="space-y-4 bg-white rounded-lg shadow-sm border p-6">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="animate-pulse">
-            <div className="h-16 bg-secondary rounded-lg"></div>
-          </div>
-        ))}
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-in bg-white">
-      <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
-        <div className="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4">
+    <>
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              <CardTitle>Lista de Usuarios ({filteredUsers.length})</CardTitle>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchUsers}
+                disabled={loading}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Actualizar
+              </Button>
+              <Button size="sm" onClick={() => window.location.href = '/users/new'}>
+                <Plus className="h-4 w-4 mr-2" />
+                Crear Usuario
+              </Button>
+            </div>
+          </div>
+          
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
-              placeholder="Buscar usuarios..."
+              placeholder="Buscar por email o nombre..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 w-full md:w-80"
+              className="pl-10"
             />
           </div>
-          <Button 
-            variant="outline" 
-            onClick={handleRefreshUsers}
-            size="icon"
-            title="Refrescar usuarios"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </div>
-        <Button asChild>
-          <Link to="/users/new">
-            <UserPlus className="mr-2 h-4 w-4" /> Crear Usuario
-          </Link>
-        </Button>
-      </div>
-
-      {authUsers.length > 0 && users.length === 0 && (
-        <Alert className="mb-4">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Información</AlertTitle>
-          <AlertDescription>
-            Se encontraron {authUsers.length} usuarios autenticados pero no hay perfiles correspondientes.
-            Puede ser necesario crear perfiles para estos usuarios.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="glass-card dark:glass-card-dark p-6 animate-slide-in-bottom bg-white border rounded-md">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Usuario</TableHead>
-              <TableHead>Correo</TableHead>
-              <TableHead>Rol</TableHead>
-              <TableHead>Idioma</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredUsers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
-                  <div className="flex flex-col items-center justify-center">
-                    <p className="text-sm text-muted-foreground mb-2">No se encontraron usuarios</p>
-                    <Button asChild variant="outline" size="sm">
-                      <Link to="/users/new">
-                        <UserPlus className="mr-2 h-4 w-4" /> Crear Usuario
-                      </Link>
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div className="flex items-center">
-                      <Avatar className="mr-2 h-8 w-8">
-                        <AvatarImage src={user.avatar} alt={user.name} />
-                        <AvatarFallback>
-                          {user.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="font-medium">{user.name || 'Usuario'}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{user.email || "N/A"}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={`${getRoleBadgeColor(user.role)}`}>
-                      {translateRole(user.role)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{user.language === 'en' ? 'Inglés' : 'Español'}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-white">
-                        <DropdownMenuItem asChild>
-                          <Link to={`/users/edit/${user.id}`} className="flex w-full cursor-pointer">
-                            <Edit className="mr-2 h-4 w-4" /> Editar
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => deleteUser(user.id)}
-                          className="text-red-600 focus:text-red-600"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" /> Eliminar
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+        </CardHeader>
+        
+        <CardContent>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Usuario</TableHead>
+                  <TableHead>Rol</TableHead>
+                  <TableHead>Idioma</TableHead>
+                  <TableHead>Último acceso</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{user.profile?.full_name || 'Sin nombre'}</span>
+                        <span className="text-sm text-muted-foreground">{user.email}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={getRoleColor(user.profile?.role)}>
+                        {user.profile?.role || 'Sin rol'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span className="capitalize">{user.profile?.language || 'es'}</span>
+                    </TableCell>
+                    <TableCell>
+                      {user.last_sign_in_at 
+                        ? new Date(user.last_sign_in_at).toLocaleDateString()
+                        : 'Nunca'
+                      }
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditUser(user.id)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        {currentUser?.role === "superAdmin" && user.id !== currentUser.id && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setDeleteUserId(user.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filteredUsers.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8">
+                      <div className="text-muted-foreground">
+                        {searchTerm ? 'No se encontraron usuarios que coincidan con la búsqueda.' : 'No hay usuarios registrados.'}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <UserEditModal
+        userId={editUserId}
+        isOpen={isEditModalOpen}
+        onClose={handleCloseEditModal}
+        onSuccess={handleEditSuccess}
+      />
+
+      <AlertDialog open={!!deleteUserId} onOpenChange={() => setDeleteUserId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. ¿Deseas eliminar este usuario permanentemente?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={deleteUser}>
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

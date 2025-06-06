@@ -61,15 +61,13 @@ export function useCallList() {
         .order('created_at', { ascending: false })
         .limit(100);
 
-      // Apply account filter - CRÍTICO: Solo filtrar si hay una cuenta específica seleccionada
+      // Aplicar filtro de cuenta para TODOS los roles (no solo superAdmin)
       if (selectedAccountId && selectedAccountId !== 'all') {
         console.log("Filtering by account:", selectedAccountId);
         query = query.eq('account_id', selectedAccountId);
-      } else {
-        console.log("No account filter applied - showing all calls or account 'all' selected");
       }
 
-      // Additional filters based on user role
+      // Solo aplicar filtro de agente si el usuario es 'agent'
       if (user.role === 'agent') {
         console.log("Agent filter applied - only showing calls for agent:", user.id);
         query = query.eq('agent_id', user.id);

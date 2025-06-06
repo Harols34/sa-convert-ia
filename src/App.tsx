@@ -7,7 +7,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "./context/AuthContext";
 import { AccountProvider } from "./context/AccountContext";
-import { UserProvider } from "./hooks/useUser";
 
 // Pages
 import Index from "./pages/Index";
@@ -31,10 +30,18 @@ import AssignUsers from "./pages/AssignUsers";
 
 import "./App.css";
 
+// Optimize QueryClient with better defaults
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 10 * 60 * 1000, // 10 minutes
+      gcTime: 30 * 60 * 1000, // 30 minutes
+      retry: 1,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+    },
+    mutations: {
       retry: 1,
     },
   },
@@ -47,34 +54,31 @@ function App() {
         <TooltipProvider>
           <Router>
             <AuthProvider>
-              <UserProvider>
-                <AccountProvider>
-                  <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-                    <Routes>
-                      <Route path="/" element={<Index />} />
-                      <Route path="/login" element={<Login />} />
-                      <Route path="/analytics" element={<Analytics />} />
-                      <Route path="/calls/*" element={<Calls />} />
-                      <Route path="/agents" element={<Agents />} />
-                      <Route path="/workforce" element={<Workforce />} />
-                      <Route path="/tools" element={<Tools />} />
-                      <Route path="/chat" element={<Chat />} />
-                      <Route path="/behaviors" element={<Behaviors />} />
-                      <Route path="/tipificaciones" element={<Tipificaciones />} />
-                      <Route path="/prompts/*" element={<Prompts />} />
-                      <Route path="/users" element={<Users />} />
-                      <Route path="/users/new" element={<CreateUser />} />
-                      <Route path="/accounts/*" element={<AccountsPage />} />
-                      <Route path="/accounts/new" element={<CreateAccount />} />
-                      <Route path="/accounts/assign" element={<AssignUsers />} />
-                      <Route path="/settings" element={<Settings />} />
-                      <Route path="/dashboard" element={<Navigate to="/analytics" replace />} />
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </div>
-                  <Toaster />
-                </AccountProvider>
-              </UserProvider>
+              <AccountProvider>
+                <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 w-full">
+                  <Routes>
+                    <Route path="/" element={<Index />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/analytics" element={<Analytics />} />
+                    <Route path="/calls/*" element={<Calls />} />
+                    <Route path="/agents" element={<Agents />} />
+                    <Route path="/workforce" element={<Workforce />} />
+                    <Route path="/tools" element={<Tools />} />
+                    <Route path="/chat" element={<Chat />} />
+                    <Route path="/behaviors" element={<Behaviors />} />
+                    <Route path="/tipificaciones" element={<Tipificaciones />} />
+                    <Route path="/prompts/*" element={<Prompts />} />
+                    <Route path="/users/*" element={<Users />} />
+                    <Route path="/accounts/*" element={<AccountsPage />} />
+                    <Route path="/accounts/new" element={<CreateAccount />} />
+                    <Route path="/accounts/assign" element={<AssignUsers />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/dashboard" element={<Navigate to="/analytics" replace />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </div>
+                <Toaster />
+              </AccountProvider>
             </AuthProvider>
           </Router>
         </TooltipProvider>

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { Session, User } from '@supabase/supabase-js';
 import { useNavigate } from "react-router-dom";
@@ -141,7 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
+      (event, currentSession) => {
         console.log("Auth event:", event);
 
         if (!mounted) return;
@@ -159,17 +158,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               console.log("Setting session for user:", currentSession.user.id);
               setSession(currentSession);
               
-              try {
-                const userData = await fetchUserData(currentSession.user.id, currentSession);
-                if (mounted) {
-                  setUser(userData);
+              // Defer data fetching to prevent issues
+              setTimeout(async () => {
+                try {
+                  const userData = await fetchUserData(currentSession.user.id, currentSession);
+                  if (mounted) {
+                    setUser(userData);
+                  }
+                } catch (error) {
+                  console.error("Failed to fetch user data on auth change:", error);
+                  if (mounted) {
+                    setUser(createFallbackUser(currentSession.user.id, currentSession));
+                  }
                 }
-              } catch (error) {
-                console.error("Failed to fetch user data on auth change:", error);
-                if (mounted) {
-                  setUser(createFallbackUser(currentSession.user.id, currentSession));
-                }
-              }
+              }, 0);
             }
             setLoading(false);
             break;
