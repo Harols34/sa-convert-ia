@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart3,
   Phone,
@@ -14,33 +14,45 @@ import {
   Building2,
   ChevronDown,
   ChevronRight,
-  UserPlus,
-  PlusCircle,
   ChevronLeft,
-  Menu,
-  Home,
-  Shield,
   Briefcase,
+  Shield,
+  Bell,
+  Search,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import NotificationDropdown from "./NotificationDropdown";
+import { toast } from "sonner";
 
 interface SidebarProps {
   isOpen?: boolean;
   closeSidebar?: () => void;
   collapsed?: boolean;
   setCollapsed?: (collapsed: boolean) => void;
+  onSearchOpen?: () => void;
 }
 
-const Sidebar = ({ isOpen, closeSidebar, collapsed = false, setCollapsed }: SidebarProps) => {
+const Sidebar = ({ isOpen, closeSidebar, collapsed = false, setCollapsed, onSearchOpen }: SidebarProps) => {
   const location = useLocation();
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
 
   const toggleSection = (section: string) => {
-    if (collapsed) return; // Don't expand sections when collapsed
+    if (collapsed) return;
     setExpandedSections(prev =>
       prev.includes(section)
         ? prev.filter(s => s !== section)
@@ -51,7 +63,6 @@ const Sidebar = ({ isOpen, closeSidebar, collapsed = false, setCollapsed }: Side
   const isActive = (path: string) => location.pathname === path;
   const isInSection = (basePath: string) => location.pathname.startsWith(basePath);
 
-  // Check if user is superAdmin or admin
   const canManageUsers = user?.role === "superAdmin" || user?.role === "admin";
   const isSuperAdmin = user?.role === "superAdmin";
 
@@ -62,7 +73,48 @@ const Sidebar = ({ isOpen, closeSidebar, collapsed = false, setCollapsed }: Side
     }
   };
 
-  // Organize menu items by categories
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate("/login");
+      toast.success("Sesión cerrada correctamente");
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+      toast.error("Error al cerrar sesión");
+    }
+  };
+
+  // Get page title based on current route
+  const getPageTitle = () => {
+    const path = location.pathname;
+    switch (true) {
+      case path === '/analytics':
+        return 'Análisis';
+      case path.startsWith('/calls'):
+        return 'Llamadas';
+      case path === '/agents':
+        return 'Agentes';
+      case path === '/workforce':
+        return 'Supervisión';
+      case path === '/chat':
+        return 'Chat IA';
+      case path === '/behaviors':
+        return 'Comportamientos';
+      case path === '/tipificaciones':
+        return 'Tipificaciones';
+      case path.startsWith('/prompts'):
+        return 'Prompts';
+      case path.startsWith('/users'):
+        return 'Usuarios';
+      case path.startsWith('/accounts'):
+        return 'Cuentas';
+      case path === '/settings':
+        return 'Configuración';
+      default:
+        return 'ConvertIA Analytics';
+    }
+  };
+
   const menuCategories = [
     {
       label: "Operación",
@@ -131,7 +183,6 @@ const Sidebar = ({ isOpen, closeSidebar, collapsed = false, setCollapsed }: Side
     }
   ];
 
-  // Add admin categories
   if (canManageUsers) {
     menuCategories.push({
       label: "Administración",
@@ -170,7 +221,6 @@ const Sidebar = ({ isOpen, closeSidebar, collapsed = false, setCollapsed }: Side
     }
   }
 
-  // Settings category
   menuCategories.push({
     label: "Configuración",
     icon: Settings,
@@ -184,7 +234,7 @@ const Sidebar = ({ isOpen, closeSidebar, collapsed = false, setCollapsed }: Side
     ]
   });
 
-  const MenuItem = ({ item, categoryCollapsed = false }: { item: any; categoryCollapsed?: boolean }) => {
+  const MenuItem = ({ item }: { item: any }) => {
     const Icon = item.icon;
     const hasSubmenu = item.hasSubmenu && item.submenuItems;
     const isExpanded = expandedSections.includes(item.path);
@@ -271,90 +321,227 @@ const Sidebar = ({ isOpen, closeSidebar, collapsed = false, setCollapsed }: Side
   };
 
   return (
-    <div className={cn(
-      "h-full bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out",
-      collapsed ? "w-16" : "w-64",
-      isOpen ? "block" : "hidden md:flex"
-    )}>
-      {/* Header */}
+    <TooltipProvider>
       <div className={cn(
-        "p-4 border-b border-gray-200 flex items-center",
-        collapsed ? "justify-center" : "justify-between"
+        "h-full bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out",
+        collapsed ? "w-16" : "w-64",
+        isOpen ? "block" : "hidden md:flex"
       )}>
+        {/* Header with Logo */}
+        <div className={cn(
+          "p-4 border-b border-gray-200 flex items-center",
+          collapsed ? "justify-center" : "justify-between"
+        )}>
+          {!collapsed ? (
+            <div className="flex items-center gap-3">
+              <img 
+                src="https://www.convertia.com/favicon/favicon-convertia.png" 
+                alt="Convert-IA Logo" 
+                className="h-8 w-8" 
+              />
+              <div>
+                <h1 className="text-lg font-bold text-primary">ConvertIA</h1>
+                <p className="text-xs text-muted-foreground">Analytics Platform</p>
+              </div>
+            </div>
+          ) : (
+            <img 
+              src="https://www.convertia.com/favicon/favicon-convertia.png" 
+              alt="Convert-IA Logo" 
+              className="h-8 w-8" 
+            />
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleToggleCollapse}
+            className="h-8 w-8 p-0 hover:bg-gray-100"
+          >
+            <ChevronLeft className={cn("h-4 w-4 transition-transform", collapsed && "rotate-180")} />
+          </Button>
+        </div>
+
+        {/* Current Page Title - Desktop Only */}
         {!collapsed && (
-          <div>
-            <h1 className="text-xl font-bold text-primary">ConvertIA</h1>
-            <p className="text-xs text-muted-foreground">Analytics Platform</p>
+          <div className="hidden md:block px-4 py-3 border-b border-gray-100">
+            <p className="text-sm font-medium text-gray-900">{getPageTitle()}</p>
+            <p className="text-xs text-gray-500">Módulo actual</p>
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleToggleCollapse}
-          className={cn(
-            "h-8 w-8 p-0 hover:bg-gray-100",
-            collapsed ? "mx-auto" : ""
-          )}
-        >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </Button>
-      </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-3 space-y-6 overflow-y-auto">
-        {menuCategories.map((category, categoryIndex) => {
-          const CategoryIcon = category.icon;
-          
-          return (
-            <div key={category.label}>
-              {/* Category Header */}
-              {!collapsed && (
-                <div className="flex items-center gap-2 px-3 py-2 mb-2">
-                  <CategoryIcon className="h-4 w-4 text-gray-500" />
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    {category.label}
-                  </span>
-                </div>
-              )}
-              
-              {/* Category Items */}
-              <div className="space-y-1">
-                {category.items.map((item) => (
-                  <MenuItem key={item.path} item={item} categoryCollapsed={collapsed} />
-                ))}
+        {/* Search Button */}
+        <div className="p-3 border-b border-gray-100">
+          {!collapsed ? (
+            <Button
+              variant="outline"
+              onClick={onSearchOpen}
+              className="w-full justify-start text-muted-foreground hover:bg-gray-50"
+            >
+              <Search className="mr-2 h-4 w-4" />
+              Buscar módulos...
+              <div className="ml-auto flex items-center gap-0.5">
+                <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                  <span className="text-xs">⌘</span>K
+                </kbd>
               </div>
-              
-              {/* Divider between categories */}
-              {categoryIndex < menuCategories.length - 1 && (
-                <div className={cn(
-                  "border-t border-gray-200 mt-4",
-                  collapsed ? "mx-1" : "mx-3"
-                )} />
-              )}
-            </div>
-          );
-        })}
-      </nav>
+            </Button>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={onSearchOpen}
+                  className="w-full"
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Buscar módulos</p>
+                <p className="text-xs text-muted-foreground">⌘K</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
 
-      {/* Footer */}
-      {!collapsed && (
-        <div className="p-4 border-t border-gray-200">
-          <div className="flex items-center gap-3 px-3 py-2">
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-xs font-medium text-primary">
-                {(user?.name || user?.full_name || "U").charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
-                {user?.name || user?.full_name || "Usuario"}
-              </p>
-              <p className="text-xs text-gray-500 truncate">{user?.role}</p>
-            </div>
+        {/* Navigation */}
+        <nav className="flex-1 p-3 space-y-6 overflow-y-auto">
+          {menuCategories.map((category, categoryIndex) => {
+            const CategoryIcon = category.icon;
+            
+            return (
+              <div key={category.label}>
+                {!collapsed && (
+                  <div className="flex items-center gap-2 px-3 py-2 mb-2">
+                    <CategoryIcon className="h-4 w-4 text-gray-500" />
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      {category.label}
+                    </span>
+                  </div>
+                )}
+                
+                <div className="space-y-1">
+                  {category.items.map((item) => (
+                    <MenuItem key={item.path} item={item} />
+                  ))}
+                </div>
+                
+                {categoryIndex < menuCategories.length - 1 && (
+                  <div className={cn(
+                    "border-t border-gray-200 mt-4",
+                    collapsed ? "mx-1" : "mx-3"
+                  )} />
+                )}
+              </div>
+            );
+          })}
+        </nav>
+
+        {/* Footer with Notifications and User */}
+        <div className="p-3 border-t border-gray-200 space-y-3">
+          {/* Notifications */}
+          <div className={cn("flex", collapsed ? "justify-center" : "justify-start")}>
+            {collapsed ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <NotificationDropdown />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>Notificaciones</p>
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <NotificationDropdown />
+            )}
+          </div>
+
+          {/* User Profile */}
+          <div className={cn("flex items-center", collapsed ? "justify-center" : "gap-3")}>
+            {collapsed ? (
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={user?.avatar_url || user?.avatar} />
+                          <AvatarFallback className="bg-primary/10 text-primary">
+                            {(user?.name || user?.full_name || "U").charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p>{user?.name || user?.full_name || "Usuario"}</p>
+                    <p className="text-xs text-muted-foreground">{user?.role}</p>
+                  </TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent className="w-56" align="center" forceMount>
+                  <DropdownMenuLabel>
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">
+                        {user?.name || user?.full_name || "Usuario"}
+                      </p>
+                      <p className="text-xs leading-none text-muted-foreground">
+                        {user?.email}
+                      </p>
+                      <p className="text-xs leading-none text-muted-foreground capitalize">
+                        {user?.role}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate("/settings")}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Configuración
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Cerrar sesión
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={user?.avatar_url || user?.avatar} />
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {(user?.name || user?.full_name || "U").charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {user?.name || user?.full_name || "Usuario"}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">{user?.role}</p>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-48" align="end">
+                    <DropdownMenuItem onClick={() => navigate("/settings")}>
+                      Configuración
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                      Cerrar sesión
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
           </div>
         </div>
-      )}
-    </div>
+      </div>
+    </TooltipProvider>
   );
 };
 

@@ -55,7 +55,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   
   if (!isMounted) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-gray-50">
+      <div className="w-full h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
           <p className="text-muted-foreground">Cargando...</p>
@@ -65,7 +65,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }
 
   return (
-    <div className="w-full h-screen flex bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <div className="w-full h-screen flex bg-background overflow-hidden">
       {/* Sidebar */}
       <div className={`
         fixed inset-y-0 left-0 z-50 transition-all duration-300 ease-in-out
@@ -78,6 +78,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           closeSidebar={() => setSidebarOpen(false)}
           collapsed={sidebarCollapsed}
           setCollapsed={setSidebarCollapsed}
+          onSearchOpen={() => setSearchOpen(true)}
         />
       </div>
 
@@ -91,8 +92,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       
       {/* Main content */}
       <div className="flex-1 flex flex-col w-full h-full overflow-hidden">
-        {/* Top bar for mobile */}
-        <div className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-white px-4 shadow-sm dark:bg-gray-900 md:hidden shrink-0">
+        {/* Mobile top bar */}
+        <div className="md:hidden sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 shadow-sm shrink-0">
           <Button
             variant="ghost"
             size="icon"
@@ -125,28 +126,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        {/* Desktop search bar */}
-        <div className="hidden md:block sticky top-0 z-30 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 shrink-0">
-          <div className="flex h-14 items-center gap-4 px-6">
-            <Button
-              variant="outline"
-              onClick={() => setSearchOpen(true)}
-              className="h-9 w-64 justify-start text-muted-foreground hover:bg-gray-50"
-            >
-              <Search className="mr-2 h-4 w-4" />
-              Buscar módulos...
-              <div className="ml-auto flex items-center gap-0.5">
-                <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-                  <span className="text-xs">⌘</span>K
-                </kbd>
-              </div>
-            </Button>
-          </div>
-        </div>
-
-        {/* Page content */}
+        {/* Page content - optimized spacing */}
         <main className="flex-1 w-full h-full overflow-auto">
-          <div className="w-full h-full p-4 md:p-6">
+          <div className="w-full h-full p-3 md:p-4">
             {children}
           </div>
         </main>
