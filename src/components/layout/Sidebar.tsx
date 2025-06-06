@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { 
@@ -159,22 +158,16 @@ export default function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
     },
   ];
 
-  // CORREGIDO: Filtrar elementos del menú según el rol del usuario
-  // SuperAdmin siempre ve todos los módulos
-  const filteredMenuItems = menuItems.filter(item => {
-    if (!user?.role) return false;
-    
-    // SuperAdmin siempre tiene acceso a todo
-    if (user.role === 'superAdmin') {
-      console.log("SuperAdmin user - showing all menu items");
-      return true;
-    }
-    
-    // Para otros roles, verificar permisos específicos
-    return item.roles.includes(user.role);
-  });
+  // CORREGIDO: SuperAdmin ve TODOS los módulos sin excepción
+  const filteredMenuItems = user?.role === 'superAdmin' 
+    ? menuItems // SuperAdmin ve todos los módulos
+    : menuItems.filter(item => {
+        if (!user?.role) return false;
+        return item.roles.includes(user.role);
+      });
 
   console.log("User role:", user?.role);
+  console.log("Is SuperAdmin:", user?.role === 'superAdmin');
   console.log("Filtered menu items:", filteredMenuItems.map(item => item.name));
 
   return (
@@ -237,7 +230,7 @@ export default function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
           </div>
         </div>
 
-        {/* Filtro de cuentas - Solo mostrar para usuarios normales */}
+        {/* Filtro de cuentas - Solo mostrar para usuarios NO SuperAdmin */}
         {(!collapsed || isHovering) && user?.role !== 'superAdmin' && (
           <div className="py-2">
             <AccountFilter />

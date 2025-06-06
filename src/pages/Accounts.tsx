@@ -39,11 +39,12 @@ export default function AccountsPage() {
     };
   }, []);
 
-  // CORREGIDO: Verificar permisos para SuperAdmin únicamente
+  // CORREGIDO: Solo verificar que esté autenticado y tenga el rol SuperAdmin
   useEffect(() => {
     if (!loading && isAuthenticated && user) {
       console.log("Checking access for user:", user.email, "role:", user.role);
       
+      // Solo SuperAdmin puede acceder a gestión de cuentas
       if (user.role !== 'superAdmin') {
         console.log("Access denied - user is not SuperAdmin");
         toast.error("Acceso denegado", {
@@ -78,6 +79,7 @@ export default function AccountsPage() {
     );
   }
 
+  // SOLO verificar que sea SuperAdmin
   if (user?.role !== 'superAdmin') {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -87,10 +89,6 @@ export default function AccountsPage() {
         </div>
       </div>
     );
-  }
-
-  if (!isAuthenticated || user?.role !== 'superAdmin') {
-    return null;
   }
 
   return (
