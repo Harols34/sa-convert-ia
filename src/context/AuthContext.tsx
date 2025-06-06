@@ -32,11 +32,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [initialized, setInitialized] = useState(false);
   const navigate = useNavigate();
 
-  // Helper function to validate language
-  const validateLanguage = (lang: string | null | undefined): 'es' | 'en' => {
-    return (lang === 'es' || lang === 'en') ? lang : 'es';
-  };
-
   // Optimized user data fetching
   const fetchUserData = useCallback(async (userId: string, currentSession: Session) => {
     try {
@@ -82,7 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           full_name: newProfile.full_name || '',
           avatar: newProfile.avatar_url,
           avatar_url: newProfile.avatar_url,
-          language: validateLanguage(newProfile.language),
+          language: newProfile.language === 'es' || newProfile.language === 'en' ? newProfile.language : 'es',
           dailyQueryLimit: 20,
           queriesUsed: 0,
           created_at: newProfile.created_at,
@@ -97,7 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           full_name: data.full_name || '',
           avatar: data.avatar_url,
           avatar_url: data.avatar_url,
-          language: validateLanguage(data.language),
+          language: data.language === 'es' || data.language === 'en' ? data.language : 'es',
           dailyQueryLimit: 20,
           queriesUsed: 0,
           created_at: data.created_at,
