@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Sidebar from "./Sidebar";
-import Navbar from "./Navbar";
 import GlobalSearch from "./GlobalSearch";
 import { Button } from "@/components/ui/button";
 import { Menu, Search } from "lucide-react";
@@ -56,7 +55,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   
   if (!isMounted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="w-full h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
           <p className="text-muted-foreground">Cargando...</p>
@@ -66,12 +65,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="w-full h-screen flex bg-gray-50 dark:bg-gray-900 overflow-hidden">
       {/* Sidebar */}
       <div className={`
-        fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-in-out
+        fixed inset-y-0 left-0 z-50 transition-all duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
         md:translate-x-0 md:static md:inset-0
+        ${sidebarCollapsed ? 'md:w-16' : 'md:w-64'}
       `}>
         <Sidebar 
           isOpen={sidebarOpen} 
@@ -90,12 +90,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       )}
       
       {/* Main content */}
-      <div className={`
-        flex-1 flex flex-col transition-all duration-300 ease-in-out
-        ${sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'}
-      `}>
+      <div className="flex-1 flex flex-col w-full h-full overflow-hidden">
         {/* Top bar for mobile */}
-        <div className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-white px-4 shadow-sm dark:bg-gray-900 md:hidden">
+        <div className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-white px-4 shadow-sm dark:bg-gray-900 md:hidden shrink-0">
           <Button
             variant="ghost"
             size="icon"
@@ -129,7 +126,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         {/* Desktop search bar */}
-        <div className="hidden md:block sticky top-0 z-30 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        <div className="hidden md:block sticky top-0 z-30 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 shrink-0">
           <div className="flex h-14 items-center gap-4 px-6">
             <Button
               variant="outline"
@@ -148,8 +145,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         {/* Page content */}
-        <main className="flex-1 overflow-auto">
-          <div className="p-4 md:p-6">
+        <main className="flex-1 w-full h-full overflow-auto">
+          <div className="w-full h-full p-4 md:p-6">
             {children}
           </div>
         </main>

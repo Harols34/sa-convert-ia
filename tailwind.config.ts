@@ -14,9 +14,9 @@ export default {
   theme: {
     container: {
       center: true,
-      padding: "2rem",
+      padding: "0",
       screens: {
-        "2xl": "1400px",
+        "2xl": "100%",
       },
     },
     extend: {
@@ -80,6 +80,24 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      width: {
+        'full': '100%',
+        'screen': '100vw',
+      },
+      height: {
+        'full': '100%',
+        'screen': '100vh',
+      },
+      maxWidth: {
+        'none': 'none',
+        'full': '100%',
+        'screen': '100vw',
+      },
+      maxHeight: {
+        'none': 'none',
+        'full': '100%',
+        'screen': '100vh',
       },
       keyframes: {
         "accordion-down": {
@@ -153,6 +171,15 @@ export default {
         },
         ".text-balance": {
           "text-wrap": "balance",
+        },
+        ".full-screen": {
+          "@apply w-full h-full": {},
+        },
+        ".full-width": {
+          "@apply w-full": {},
+        },
+        ".full-height": {
+          "@apply h-full": {},
         },
       });
     }),

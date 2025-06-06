@@ -92,6 +92,11 @@
     @apply border-border;
   }
 
+  html, body, #root {
+    @apply w-full h-full m-0 p-0;
+    overflow: hidden;
+  }
+
   body {
     @apply bg-white text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
@@ -263,5 +268,18 @@
     to {
       opacity: 1;
     }
+  }
+
+  /* Full screen utilities */
+  .full-screen {
+    @apply w-full h-full;
+  }
+
+  .full-width {
+    @apply w-full;
+  }
+
+  .full-height {
+    @apply h-full;
   }
 }
