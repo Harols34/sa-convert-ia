@@ -22,10 +22,13 @@ const AccountSelector: React.FC = () => {
     setSelectedAccountId(accountId);
   };
 
+  // Use undefined instead of empty string for unselected state
+  const selectValue = selectedAccountId || undefined;
+
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b">
       <Building2 className="h-4 w-4 text-muted-foreground" />
-      <Select value={selectedAccountId || ''} onValueChange={handleAccountChange}>
+      <Select value={selectValue} onValueChange={handleAccountChange}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Seleccionar cuenta" />
         </SelectTrigger>
