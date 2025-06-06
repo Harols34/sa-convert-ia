@@ -5,15 +5,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { validateCallStatus } from "@/components/calls/detail/CallUtils";
 
-// Cache para almacenar las llamadas ya cargadas
+// Cache con TTL más largo para reducir consultas
 const callCache = new Map<string, {
   data: Call,
   timestamp: number,
   transcriptSegments: any[]
 }>();
 
-// TTL en milisegundos (5 minutos)
-const CACHE_TTL = 5 * 60 * 1000;
+// TTL en milisegundos (10 minutos)
+const CACHE_TTL = 10 * 60 * 1000;
 
 export function useCallData(id: string | undefined) {
   const [call, setCall] = useState<Call | null>(null);
@@ -21,16 +21,19 @@ export function useCallData(id: string | undefined) {
   const [transcriptSegments, setTranscriptSegments] = useState<any[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   
-  // Referencia para cancelar operaciones si el componente se desmonta
   const isMounted = useRef(true);
 
-  // Verificar cache
   useEffect(() => {
-    if (!id) return;
+    if (!id || id === '*' || id === 'undefined' || id === 'null') {
+      setIsLoading(false);
+      setLoadError("ID de llamada inválido");
+      return;
+    }
     
     const now = Date.now();
     const cachedData = callCache.get(id);
     
+    // Usar cache si está disponible y no ha expirado
     if (cachedData && now - cachedData.timestamp < CACHE_TTL) {
       console.log("Using cached call data for ID:", id);
       setCall(cachedData.data);
@@ -41,7 +44,7 @@ export function useCallData(id: string | undefined) {
     }
     
     const loadCallData = async () => {
-      if (!id || !isMounted.current) return;
+      if (!isMounted.current) return;
       
       setIsLoading(true);
       setLoadError(null);
@@ -49,18 +52,25 @@ export function useCallData(id: string | undefined) {
       try {
         console.log("Loading call data for ID:", id);
         
-        const { data: callData, error: callError } = await supabase
+        // Timeout para evitar consultas largas
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Call fetch timeout')), 5000)
+        );
+        
+        const queryPromise = supabase
           .from('calls')
           .select('*')
           .eq('id', id)
           .single();
+          
+        const { data: callData, error: callError } = await Promise.race([queryPromise, timeoutPromise]) as any;
           
         if (callError) {
           console.error("Error loading call:", callError);
           if (isMounted.current) {
             setLoadError(`Error loading call: ${callError.message}`);
           }
-          throw callError;
+          return;
         }
         
         if (!callData) {
@@ -131,72 +141,78 @@ export function useCallData(id: string | undefined) {
           }
         }
         
-        if (callData.id) {
-          console.log("Loading feedback data for call:", callData.id);
-          
-          const { data: feedbackData, error: feedbackError } = await supabase
-            .from('feedback')
-            .select('*')
-            .eq('call_id', callData.id)
-            .maybeSingle();
+        // Solo cargar feedback si realmente es necesario
+        if (callData.id && isMounted.current) {
+          try {
+            const feedbackTimeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Feedback fetch timeout')), 3000)
+            );
             
-          if (feedbackError && feedbackError.code !== 'PGRST116') {
-            console.error("Error loading feedback:", feedbackError);
-          }
-          
-          if (feedbackData) {
-            console.log("Feedback loaded:", feedbackData);
+            const feedbackQueryPromise = supabase
+              .from('feedback')
+              .select('*')
+              .eq('call_id', callData.id)
+              .maybeSingle();
+              
+            const { data: feedbackData, error: feedbackError } = await Promise.race([feedbackQueryPromise, feedbackTimeoutPromise]) as any;
             
-            let behaviorsAnalysis: BehaviorAnalysis[] = [];
-            
-            if (feedbackData.behaviors_analysis) {
-              try {
-                if (typeof feedbackData.behaviors_analysis === 'string') {
-                  console.log("Converting behaviors_analysis from string");
-                  const parsed = JSON.parse(feedbackData.behaviors_analysis);
-                  behaviorsAnalysis = validateBehaviorsAnalysis(parsed);
-                } else if (Array.isArray(feedbackData.behaviors_analysis)) {
-                  console.log("Validating behaviors_analysis array");
-                  behaviorsAnalysis = validateBehaviorsAnalysis(feedbackData.behaviors_analysis);
-                } else {
-                  console.error("behaviors_analysis is not in expected format:", feedbackData.behaviors_analysis);
-                  behaviorsAnalysis = [];
-                }
-                
-                console.log("Validated behaviors analysis:", behaviorsAnalysis);
-              } catch (e) {
-                console.error("Error parsing behaviors_analysis:", e);
-                behaviorsAnalysis = [];
-              }
+            if (feedbackError && feedbackError.code !== 'PGRST116') {
+              console.error("Error loading feedback:", feedbackError);
             }
             
-            const typedFeedback: Feedback = {
-              positive: feedbackData.positive || [],
-              negative: feedbackData.negative || [],
-              opportunities: feedbackData.opportunities || [],
-              score: feedbackData.score || 0,
-              behaviors_analysis: behaviorsAnalysis,
-              call_id: feedbackData.call_id,
-              id: feedbackData.id,
-              created_at: feedbackData.created_at,
-              updated_at: feedbackData.updated_at,
-              sentiment: feedbackData.sentiment,
-              topics: feedbackData.topics,
-              entities: feedbackData.entities
-            };
-            
-            callObject.feedback = typedFeedback;
+            if (feedbackData && isMounted.current) {
+              console.log("Feedback loaded:", feedbackData);
+              
+              let behaviorsAnalysis: BehaviorAnalysis[] = [];
+              
+              if (feedbackData.behaviors_analysis) {
+                try {
+                  if (typeof feedbackData.behaviors_analysis === 'string') {
+                    const parsed = JSON.parse(feedbackData.behaviors_analysis);
+                    behaviorsAnalysis = validateBehaviorsAnalysis(parsed);
+                  } else if (Array.isArray(feedbackData.behaviors_analysis)) {
+                    behaviorsAnalysis = validateBehaviorsAnalysis(feedbackData.behaviors_analysis);
+                  } else {
+                    console.error("behaviors_analysis is not in expected format:", feedbackData.behaviors_analysis);
+                    behaviorsAnalysis = [];
+                  }
+                } catch (e) {
+                  console.error("Error parsing behaviors_analysis:", e);
+                  behaviorsAnalysis = [];
+                }
+              }
+              
+              const typedFeedback: Feedback = {
+                positive: feedbackData.positive || [],
+                negative: feedbackData.negative || [],
+                opportunities: feedbackData.opportunities || [],
+                score: feedbackData.score || 0,
+                behaviors_analysis: behaviorsAnalysis,
+                call_id: feedbackData.call_id,
+                id: feedbackData.id,
+                created_at: feedbackData.created_at,
+                updated_at: feedbackData.updated_at,
+                sentiment: feedbackData.sentiment,
+                topics: feedbackData.topics,
+                entities: feedbackData.entities
+              };
+              
+              callObject.feedback = typedFeedback;
+            }
+          } catch (error) {
+            console.error("Error loading feedback:", error);
+            // Continue without feedback data
           }
         }
         
-        // Guardar en caché
-        callCache.set(id, {
-          data: callObject,
-          timestamp: Date.now(),
-          transcriptSegments: segments
-        });
-        
+        // Guardar en caché solo si el montaje está activo
         if (isMounted.current) {
+          callCache.set(id, {
+            data: callObject,
+            timestamp: Date.now(),
+            transcriptSegments: segments
+          });
+          
           setCall(callObject);
           setIsLoading(false);
           setLoadError(null);
@@ -206,9 +222,6 @@ export function useCallData(id: string | undefined) {
         console.error("Error loading data:", error);
         if (isMounted.current) {
           setLoadError(error instanceof Error ? error.message : "Unknown error");
-          toast.error("Error al cargar la llamada", {
-            description: "No se pudieron obtener los datos de la llamada"
-          });
           setIsLoading(false);
         }
       }
@@ -216,7 +229,6 @@ export function useCallData(id: string | undefined) {
 
     loadCallData();
     
-    // Cleanup función para prevenir problemas de actualización si el componente es desmontado
     return () => {
       isMounted.current = false;
     };

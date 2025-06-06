@@ -47,7 +47,10 @@ export default function LoginForm({ language = "es" }: LoginFormProps) {
   });
 
   const onSubmit = async (values: LoginFormValues) => {
+    if (isLoading) return; // Prevent double submission
+    
     setIsLoading(true);
+    
     try {
       console.log("Attempting login for:", values.email);
       
@@ -58,43 +61,31 @@ export default function LoginForm({ language = "es" }: LoginFormProps) {
 
       if (error) {
         console.error("Login error:", error);
-        throw error;
+        
+        let errorMessage = "Error al iniciar sesión";
+        
+        if (error.message?.includes("Invalid login credentials")) {
+          errorMessage = "Credenciales incorrectas";
+        } else if (error.message?.includes("Email not confirmed")) {
+          errorMessage = "Debes confirmar tu email antes de iniciar sesión";
+        } else if (error.message?.includes("Too many requests")) {
+          errorMessage = "Demasiados intentos. Intenta de nuevo más tarde";
+        }
+        
+        toast.error(errorMessage);
+        return;
       }
 
       if (data.session) {
         console.log("Login successful, session established");
-        
-        // Redirect to app - the AuthContext will handle the rest
-        const lastPath = localStorage.getItem('lastPath');
-        const validLastPath = lastPath && 
-                            lastPath !== '/login' && 
-                            lastPath !== '/' && 
-                            !lastPath.includes('undefined');
-        
-        if (validLastPath) {
-          console.log("Redirecting to last path:", lastPath);
-          localStorage.removeItem('lastPath');
-          navigate(lastPath, { replace: true });
-        } else {
-          console.log("Redirecting to analytics");
-          navigate("/analytics", { replace: true });
-        }
-
         toast.success(language === "es" ? "Inicio de sesión exitoso" : "Login successful");
+        
+        // Let AuthContext handle the navigation
+        // The AuthProvider will automatically redirect based on lastPath or to analytics
       }
     } catch (error: any) {
-      console.error("Login error:", error);
-      let errorMessage = "Error al iniciar sesión";
-      
-      if (error.message?.includes("Invalid login credentials")) {
-        errorMessage = "Credenciales incorrectas";
-      } else if (error.message?.includes("Email not confirmed")) {
-        errorMessage = "Debes confirmar tu email antes de iniciar sesión";
-      } else if (error.message?.includes("Too many requests")) {
-        errorMessage = "Demasiados intentos. Intenta de nuevo más tarde";
-      }
-      
-      toast.error(errorMessage);
+      console.error("Unexpected login error:", error);
+      toast.error("Error inesperado. Intenta nuevamente");
     } finally {
       setIsLoading(false);
     }
@@ -118,6 +109,7 @@ export default function LoginForm({ language = "es" }: LoginFormProps) {
                   }
                   type="email"
                   autoComplete="email"
+                  disabled={isLoading}
                   {...field}
                 />
               </FormControl>
@@ -139,6 +131,7 @@ export default function LoginForm({ language = "es" }: LoginFormProps) {
                   placeholder="••••••••"
                   type="password"
                   autoComplete="current-password"
+                  disabled={isLoading}
                   {...field}
                 />
               </FormControl>
