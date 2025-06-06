@@ -112,6 +112,7 @@ export type Database = {
           name: string
           prompt: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           account_id?: string | null
@@ -123,6 +124,7 @@ export type Database = {
           name: string
           prompt: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           account_id?: string | null
@@ -134,6 +136,7 @@ export type Database = {
           name?: string
           prompt?: string
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -437,6 +440,7 @@ export type Database = {
           name: string
           type: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           account_id?: string | null
@@ -447,6 +451,7 @@ export type Database = {
           name: string
           type: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           account_id?: string | null
@@ -457,6 +462,7 @@ export type Database = {
           name?: string
           type?: string
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
