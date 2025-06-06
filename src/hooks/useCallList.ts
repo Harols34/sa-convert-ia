@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useAccount } from "@/context/AccountContext";
@@ -40,7 +40,7 @@ export function useCallList() {
   const { user, session } = useAuth();
   const { selectedAccountId } = useAccount();
 
-  const loadCalls = async (filters?: any, forceRefresh?: boolean) => {
+  const loadCalls = useCallback(async (filters?: any, forceRefresh?: boolean) => {
     if (!session || !user) {
       setLoading(false);
       return;
@@ -59,11 +59,29 @@ export function useCallList() {
       let query = supabase
         .from('calls')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100); // Limit results to improve performance
 
-      // Apply account filter based on user selection
-      if (selectedAccountId && selectedAccountId !== 'all') {
-        query = query.eq('account_id', selectedAccountId);
+      // Apply filters based on user role and account selection
+      if (user.role === 'superAdmin') {
+        // SuperAdmin can see all calls or filter by account
+        if (selectedAccountId && selectedAccountId !== 'all') {
+          query = query.eq('account_id', selectedAccountId);
+        }
+      } else if (user.role === 'admin') {
+        // Admin can only see calls from their assigned accounts
+        if (selectedAccountId && selectedAccountId !== 'all') {
+          query = query.eq('account_id', selectedAccountId);
+        } else {
+          // If no specific account selected, don't load any calls
+          setCalls([]);
+          setLoading(false);
+          setIsRefreshing(false);
+          return;
+        }
+      } else {
+        // Agents can only see their own calls
+        query = query.eq('agent_id', user.id);
       }
 
       const { data, error: callsError } = await query;
@@ -106,15 +124,15 @@ export function useCallList() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [session, user, selectedAccountId]);
 
-  const fetchCalls = (filters?: any, forceRefresh?: boolean) => {
+  const fetchCalls = useCallback((filters?: any, forceRefresh?: boolean) => {
     loadCalls(filters, forceRefresh);
-  };
+  }, [loadCalls]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     loadCalls(undefined, true);
-  };
+  }, [loadCalls]);
 
   const deleteCall = async (callId: string) => {
     try {
@@ -170,12 +188,14 @@ export function useCallList() {
 
   // Load calls when user, session or selected account changes
   useEffect(() => {
-    loadCalls();
-  }, [user, session, selectedAccountId]);
+    if (user && session) {
+      loadCalls();
+    }
+  }, [user, session, selectedAccountId, loadCalls]);
 
-  const refreshCalls = () => {
+  const refreshCalls = useCallback(() => {
     loadCalls();
-  };
+  }, [loadCalls]);
 
   return {
     calls,

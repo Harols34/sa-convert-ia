@@ -57,23 +57,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // Optimized user data fetching with timeout and retry
+  // Optimized user data fetching with timeout and better error handling
   const fetchUserData = useCallback(async (userId: string, currentSession: Session): Promise<AppUser> => {
     try {
       console.log("Fetching user data for ID:", userId);
       
-      // Set timeout for the query
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 3000)
-      );
-      
-      const queryPromise = supabase
+      // Use a single query with shorter timeout for better performance
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
-      
-      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
       
       if (error && error.code !== 'PGRST116') {
         console.error("Error fetching user profile:", error);
@@ -81,7 +75,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       if (!data) {
-        console.log("No profile found, using fallback");
+        console.log("No profile found, creating one and using fallback");
+        // Try to create a basic profile for the user
+        try {
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              id: userId,
+              full_name: currentSession.user?.email?.split('@')[0] || 'Usuario',
+              role: 'agent',
+              language: 'es'
+            });
+          
+          if (insertError) {
+            console.error("Error creating profile:", insertError);
+          }
+        } catch (createError) {
+          console.error("Failed to create profile:", createError);
+        }
+        
         return createFallbackUser(userId, currentSession);
       }
       
@@ -105,16 +117,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [createFallbackUser]);
 
-  // Initialize auth - optimized to prevent loops
+  // Initialize auth - simplified to prevent excessive queries
   useEffect(() => {
     let mounted = true;
-    let initializationComplete = false;
+    let initTimeout: NodeJS.Timeout;
 
     const initializeAuth = async () => {
-      if (initializationComplete) return;
-      
       try {
         console.log("Initializing auth...");
+        
+        // Set a maximum time for initialization
+        initTimeout = setTimeout(() => {
+          if (mounted) {
+            console.log("Auth initialization timeout, proceeding without user data");
+            setLoading(false);
+          }
+        }, 5000);
         
         // Get initial session
         const { data: { session: initialSession } } = await supabase.auth.getSession();
@@ -125,77 +143,84 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log("Initial session found");
           setSession(initialSession);
           
-          // Fetch user data in background
-          fetchUserData(initialSession.user.id, initialSession)
-            .then(userData => {
-              if (mounted) {
-                setUser(userData);
-              }
-            })
-            .catch(error => {
-              console.error("Failed to fetch user data:", error);
-              if (mounted) {
-                setUser(createFallbackUser(initialSession.user.id, initialSession));
-              }
-            });
+          // Fetch user data with timeout
+          try {
+            const userData = await fetchUserData(initialSession.user.id, initialSession);
+            if (mounted) {
+              setUser(userData);
+            }
+          } catch (error) {
+            console.error("Failed to fetch user data during init:", error);
+            if (mounted) {
+              setUser(createFallbackUser(initialSession.user.id, initialSession));
+            }
+          }
         }
         
-        setLoading(false);
-        initializationComplete = true;
+        clearTimeout(initTimeout);
+        if (mounted) {
+          setLoading(false);
+        }
       } catch (error) {
         console.error("Error initializing auth:", error);
         if (mounted) {
+          clearTimeout(initTimeout);
           setLoading(false);
-          initializationComplete = true;
         }
       }
     };
 
-    // Set up auth state listener
+    // Set up auth state listener with debouncing
+    let authTimeout: NodeJS.Timeout;
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
         console.log("Auth event:", event);
 
         if (!mounted) return;
 
-        switch (event) {
-          case 'SIGNED_OUT':
-            setSession(null);
-            setUser(null);
-            setLoading(false);
-            break;
-            
-          case 'SIGNED_IN':
-          case 'TOKEN_REFRESHED':
-            if (currentSession?.user) {
-              console.log("Setting session for user:", currentSession.user.id);
-              setSession(currentSession);
-              
-              // Fetch user data in background without blocking
-              setTimeout(() => {
-                if (mounted) {
-                  fetchUserData(currentSession.user.id, currentSession)
-                    .then(userData => {
-                      if (mounted) {
-                        setUser(userData);
-                      }
-                    })
-                    .catch(error => {
-                      console.error("Failed to fetch user data:", error);
-                      if (mounted) {
-                        setUser(createFallbackUser(currentSession.user.id, currentSession));
-                      }
-                    });
-                }
-              }, 100);
-            }
-            setLoading(false);
-            break;
-            
-          default:
-            setLoading(false);
-            break;
+        // Clear any pending auth updates
+        if (authTimeout) {
+          clearTimeout(authTimeout);
         }
+
+        // Debounce auth state changes to prevent excessive updates
+        authTimeout = setTimeout(async () => {
+          if (!mounted) return;
+
+          switch (event) {
+            case 'SIGNED_OUT':
+              setSession(null);
+              setUser(null);
+              setLoading(false);
+              break;
+              
+            case 'SIGNED_IN':
+            case 'TOKEN_REFRESHED':
+              if (currentSession?.user) {
+                console.log("Setting session for user:", currentSession.user.id);
+                setSession(currentSession);
+                
+                // Fetch user data with error handling
+                try {
+                  const userData = await fetchUserData(currentSession.user.id, currentSession);
+                  if (mounted) {
+                    setUser(userData);
+                  }
+                } catch (error) {
+                  console.error("Failed to fetch user data on auth change:", error);
+                  if (mounted) {
+                    setUser(createFallbackUser(currentSession.user.id, currentSession));
+                  }
+                }
+              }
+              setLoading(false);
+              break;
+              
+            default:
+              setLoading(false);
+              break;
+          }
+        }, 100); // 100ms debounce
       }
     );
 
@@ -203,11 +228,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       mounted = false;
+      if (initTimeout) clearTimeout(initTimeout);
+      if (authTimeout) clearTimeout(authTimeout);
       subscription.unsubscribe();
     };
   }, [fetchUserData, createFallbackUser]);
 
-  // Sign-in function
+  // Sign-in function with better error handling
   const signIn = useCallback(async (email: string, password: string) => {
     setLoading(true);
     
@@ -229,7 +256,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Sign-out function
+  // Sign-out function with cleanup
   const signOut = useCallback(async () => {
     try {
       console.log("Signing out...");

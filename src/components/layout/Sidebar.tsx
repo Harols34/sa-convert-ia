@@ -116,15 +116,25 @@ export default function Sidebar() {
     return menuItems.filter((item) => item.role.includes(user.role));
   }, [user]);
 
-  // Get current account info
+  // Get current account info - only for users who need it
   const getCurrentAccount = React.useMemo(() => {
+    if (!user) return 'Cargando...';
+    
+    // Only show account info for roles that use accounts
+    if (user.role !== 'superAdmin' && user.role !== 'admin') {
+      return null; // Don't show account selector for agents
+    }
+    
     if (!selectedAccountId || selectedAccountId === 'all') {
-      return user?.role === 'superAdmin' ? 'Todas las cuentas' : 'Sin cuenta';
+      return user.role === 'superAdmin' ? 'Todas las cuentas' : 'Sin cuenta';
     }
     
     const account = userAccounts.find(acc => acc.id === selectedAccountId);
     return account?.name || 'Cuenta no encontrada';
-  }, [selectedAccountId, userAccounts, user?.role]);
+  }, [selectedAccountId, userAccounts, user]);
+
+  // Check if user needs account display
+  const shouldShowAccounts = user && (user.role === 'superAdmin' || user.role === 'admin') && userAccounts.length > 0;
 
   if (!user) {
     return (
@@ -174,8 +184,8 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Account Filter - Only show when not collapsed */}
-      {!collapsed && !accountsLoading && userAccounts.length > 0 && (
+      {/* Account Filter - Only show for superAdmin and admin with accounts */}
+      {!collapsed && !accountsLoading && shouldShowAccounts && getCurrentAccount && (
         <div className="shrink-0 p-4 pb-2">
           <div className="bg-white rounded-lg border p-3">
             <div className="flex items-center gap-2 mb-2">
@@ -195,7 +205,7 @@ export default function Sidebar() {
       )}
 
       {/* Collapsed account indicator */}
-      {collapsed && !accountsLoading && (
+      {collapsed && !accountsLoading && shouldShowAccounts && (
         <div className="mx-2 mb-2 p-2 bg-white rounded-lg border text-center shrink-0">
           <Building2 className="h-4 w-4 mx-auto text-muted-foreground" />
         </div>
