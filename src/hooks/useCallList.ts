@@ -1,6 +1,8 @@
+
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
+import { useAccount } from "@/context/AccountContext";
 import { toast } from "sonner";
 
 export interface Call {
@@ -36,6 +38,7 @@ export function useCallList() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const { user, session } = useAuth();
+  const { selectedAccountId } = useAccount();
 
   const loadCalls = async (filters?: any, forceRefresh?: boolean) => {
     if (!session || !user) {
@@ -51,36 +54,16 @@ export function useCallList() {
       }
       setError(null);
       
-      console.log("Loading calls for user:", user.role);
+      console.log("Loading calls for user:", user.role, "selected account:", selectedAccountId);
       
       let query = supabase
         .from('calls')
         .select('*')
         .order('created_at', { ascending: false });
 
-      // If not superAdmin, filter by user's accounts
-      if (user.role !== 'superAdmin') {
-        // Get user's account IDs first
-        const { data: userAccounts, error: accountsError } = await supabase
-          .from('user_accounts')
-          .select('account_id')
-          .eq('user_id', user.id);
-
-        if (accountsError) {
-          throw accountsError;
-        }
-
-        const accountIds = userAccounts?.map(ua => ua.account_id) || [];
-        
-        if (accountIds.length === 0) {
-          // User has no accounts assigned, return empty array
-          setCalls([]);
-          setLoading(false);
-          setIsRefreshing(false);
-          return;
-        }
-
-        query = query.in('account_id', accountIds);
+      // Apply account filter based on user selection
+      if (selectedAccountId && selectedAccountId !== 'all') {
+        query = query.eq('account_id', selectedAccountId);
       }
 
       const { data, error: callsError } = await query;
@@ -185,9 +168,10 @@ export function useCallList() {
     }
   };
 
+  // Load calls when user, session or selected account changes
   useEffect(() => {
     loadCalls();
-  }, [user, session]);
+  }, [user, session, selectedAccountId]);
 
   const refreshCalls = () => {
     loadCalls();

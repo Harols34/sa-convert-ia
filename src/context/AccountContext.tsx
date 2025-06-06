@@ -45,13 +45,6 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
         status: 'active' as const,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
-      },
-      {
-        id: 'demo-account-2',
-        name: 'Cuenta Demo Secundaria',
-        status: 'active' as const,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
       }
     ];
   };
@@ -77,7 +70,6 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
 
           if (error) {
             console.error("Error loading accounts for SuperAdmin:", error);
-            // Use fallback accounts
             const fallbackAccounts = createFallbackAccounts();
             setUserAccounts(fallbackAccounts);
             setAllAccounts(fallbackAccounts);
@@ -93,60 +85,47 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
           setAllAccounts(formattedAccounts);
         } catch (error) {
           console.error("Network error loading accounts:", error);
-          // Use fallback accounts
           const fallbackAccounts = createFallbackAccounts();
           setUserAccounts(fallbackAccounts);
           setAllAccounts(fallbackAccounts);
         }
       } else {
         try {
-          // Regular users see only assigned accounts
-          const { data: userAccountsData, error } = await supabase
-            .from('user_accounts')
-            .select(`
-              account_id,
-              accounts!inner (
-                id,
-                name,
-                created_at,
-                updated_at,
-                status
-              )
-            `)
-            .eq('user_id', user.id);
+          // Regular users see only assigned accounts through RLS policies
+          const { data: accounts, error } = await supabase
+            .from('accounts')
+            .select('*')
+            .order('name');
 
           if (error) {
             console.error("Error loading user accounts:", error);
-            // Use fallback single account for regular users
-            const fallbackAccounts = [createFallbackAccounts()[0]];
+            const fallbackAccounts = createFallbackAccounts();
             setUserAccounts(fallbackAccounts);
             return;
           }
 
-          const accounts = userAccountsData?.map(ua => ({
-            ...ua.accounts,
-            status: ua.accounts.status as 'active' | 'inactive'
-          })).filter(Boolean) || [];
+          const formattedAccounts = (accounts || []).map(account => ({
+            ...account,
+            status: account.status as 'active' | 'inactive'
+          }));
           
           // If no accounts found, provide fallback
-          if (accounts.length === 0) {
-            const fallbackAccounts = [createFallbackAccounts()[0]];
+          if (formattedAccounts.length === 0) {
+            const fallbackAccounts = createFallbackAccounts();
             setUserAccounts(fallbackAccounts);
           } else {
-            setUserAccounts(accounts as Account[]);
+            setUserAccounts(formattedAccounts);
           }
         } catch (error) {
           console.error("Network error loading user accounts:", error);
-          // Use fallback single account
-          const fallbackAccounts = [createFallbackAccounts()[0]];
+          const fallbackAccounts = createFallbackAccounts();
           setUserAccounts(fallbackAccounts);
         }
       }
     } catch (error) {
       console.error('Unexpected error loading user accounts:', error);
-      // Always provide fallback
       const fallbackAccounts = createFallbackAccounts();
-      setUserAccounts(user?.role === 'superAdmin' ? fallbackAccounts : [fallbackAccounts[0]]);
+      setUserAccounts(fallbackAccounts);
     } finally {
       setIsLoading(false);
     }
@@ -319,26 +298,23 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
   // Get accounts for specific user
   const getUserAccounts = async (userId: string): Promise<Account[]> => {
     try {
-      const { data: userAccountsData, error } = await supabase
-        .from('user_accounts')
+      const { data: accounts, error } = await supabase
+        .from('accounts')
         .select(`
-          account_id,
-          accounts!inner (
-            id,
-            name,
-            created_at,
-            updated_at,
-            status
-          )
+          *,
+          user_accounts!inner(user_id)
         `)
-        .eq('user_id', userId);
+        .eq('user_accounts.user_id', userId);
 
       if (error) throw error;
 
-      return userAccountsData?.map(ua => ({
-        ...ua.accounts,
-        status: ua.accounts.status as 'active' | 'inactive'
-      })).filter(Boolean) as Account[] || [];
+      return (accounts || []).map(account => ({
+        id: account.id,
+        name: account.name,
+        status: account.status as 'active' | 'inactive',
+        created_at: account.created_at,
+        updated_at: account.updated_at
+      }));
     } catch (error) {
       console.error('Error getting user accounts:', error);
       return [];

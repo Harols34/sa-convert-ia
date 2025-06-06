@@ -50,8 +50,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error && error.code !== 'PGRST116') {
         console.error("Error fetching user profile:", error);
-        // Don't throw error, create default user instead
-        console.log("Creating fallback user data");
         return createFallbackUser(userId, currentSession);
       }
       
@@ -78,7 +76,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return createFallbackUser(userId, currentSession);
     } catch (error) {
       console.error("Error in fetchUserData:", error);
-      // Create fallback user instead of failing
       return createFallbackUser(userId, currentSession);
     }
   }, []);
@@ -163,7 +160,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setLoading(false);
             setInitialized(true);
           }
-        }, 5000);
+        }, 3000); // Reduced from 5000 to 3000
 
         // Set up auth state listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
