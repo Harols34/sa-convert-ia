@@ -54,7 +54,10 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
           .order('name');
 
         if (error) throw error;
-        setUserAccounts(accounts || []);
+        setUserAccounts((accounts || []).map(account => ({
+          ...account,
+          status: account.status as 'active' | 'inactive'
+        })));
       } else {
         // Usuario normal ve solo sus cuentas asignadas
         const { data: userAccountsData, error } = await supabase
@@ -73,7 +76,10 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
 
         if (error) throw error;
 
-        const accounts = userAccountsData?.map(ua => ua.accounts).filter(Boolean) || [];
+        const accounts = userAccountsData?.map(ua => ({
+          ...ua.accounts,
+          status: ua.accounts.status as 'active' | 'inactive'
+        })).filter(Boolean) || [];
         setUserAccounts(accounts as Account[]);
       }
     } catch (error) {
@@ -93,7 +99,10 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
         .order('name');
 
       if (error) throw error;
-      setAllAccounts(accounts || []);
+      setAllAccounts((accounts || []).map(account => ({
+        ...account,
+        status: account.status as 'active' | 'inactive'
+      })));
     } catch (error) {
       console.error('Error loading all accounts:', error);
       toast.error('Error al cargar las cuentas');
@@ -225,7 +234,10 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
 
       if (error) throw error;
 
-      return userAccountsData?.map(ua => ua.accounts).filter(Boolean) as Account[] || [];
+      return userAccountsData?.map(ua => ({
+        ...ua.accounts,
+        status: ua.accounts.status as 'active' | 'inactive'
+      })).filter(Boolean) as Account[] || [];
     } catch (error) {
       console.error('Error getting user accounts:', error);
       return [];

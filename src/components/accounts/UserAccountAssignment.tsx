@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAccount } from '@/context/AccountContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -51,7 +50,7 @@ const UserAccountAssignment: React.FC = () => {
           full_name: profile.full_name,
           role: profile.role as any,
           avatar_url: profile.avatar_url,
-          language: profile.language,
+          language: (profile.language === 'es' || profile.language === 'en') ? profile.language : 'es',
           dailyQueryLimit: 0,
           queriesUsed: 0,
           userAccounts
