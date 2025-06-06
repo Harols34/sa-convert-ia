@@ -1,4 +1,3 @@
-
 import React from "react";
 
 export interface User {
@@ -14,6 +13,21 @@ export interface User {
   language?: 'es' | 'en';
   created_at?: string;
   updated_at?: string;
+}
+
+export interface Account {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  status: "active" | "inactive";
+}
+
+export interface UserAccount {
+  id: string;
+  user_id: string;
+  account_id: string;
+  created_at: string;
 }
 
 export interface Call {
@@ -36,8 +50,9 @@ export interface Call {
   reason?: string;
   tipificacionId?: string | null;
   speaker_analysis?: any;
-  statusSummary?: string; // Field for brief status summary (max 4 words)
-  contractCompliance?: ContractCompliance; // New field for contract compliance
+  statusSummary?: string;
+  contractCompliance?: ContractCompliance;
+  account_id?: string | null;
 }
 
 export interface ContractCompliance {
@@ -95,6 +110,7 @@ export interface Behavior {
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
+  account_id?: string | null;
 }
 
 export interface Tipificacion {
@@ -105,6 +121,7 @@ export interface Tipificacion {
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
+  account_id?: string | null;
 }
 
 export interface DashboardCard {

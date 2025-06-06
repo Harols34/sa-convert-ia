@@ -9,8 +9,33 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      accounts: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       agents: {
         Row: {
+          account_id: string | null
           created_at: string | null
           id: string
           join_date: string
@@ -21,6 +46,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          account_id?: string | null
           created_at?: string | null
           id?: string
           join_date?: string
@@ -31,6 +57,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          account_id?: string | null
           created_at?: string | null
           id?: string
           join_date?: string
@@ -40,7 +67,15 @@ export type Database = {
           updated_at?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "agents_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       app_settings: {
         Row: {
@@ -68,6 +103,7 @@ export type Database = {
       }
       behaviors: {
         Row: {
+          account_id: string | null
           created_at: string
           created_by: string | null
           description: string | null
@@ -78,6 +114,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          account_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -88,6 +125,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          account_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -97,10 +135,19 @@ export type Database = {
           prompt?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "behaviors_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       call_chat_messages: {
         Row: {
+          account_id: string | null
           call_id: string
           content: string
           id: string
@@ -109,6 +156,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          account_id?: string | null
           call_id: string
           content: string
           id?: string
@@ -117,6 +165,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          account_id?: string | null
           call_id?: string
           content?: string
           id?: string
@@ -125,6 +174,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "call_chat_messages_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "call_chat_messages_call_id_fkey"
             columns: ["call_id"]
@@ -136,6 +192,7 @@ export type Database = {
       }
       calls: {
         Row: {
+          account_id: string | null
           agent_id: string | null
           agent_name: string
           audio_url: string
@@ -161,6 +218,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          account_id?: string | null
           agent_id?: string | null
           agent_name: string
           audio_url: string
@@ -186,6 +244,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          account_id?: string | null
           agent_id?: string | null
           agent_name?: string
           audio_url?: string
@@ -212,6 +271,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "calls_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "calls_tipificacion_id_fkey"
             columns: ["tipificacion_id"]
             isOneToOne: false
@@ -222,6 +288,7 @@ export type Database = {
       }
       chat_messages: {
         Row: {
+          account_id: string | null
           call_id: string | null
           content: string
           id: string
@@ -230,6 +297,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          account_id?: string | null
           call_id?: string | null
           content: string
           id?: string
@@ -238,6 +306,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          account_id?: string | null
           call_id?: string | null
           content?: string
           id?: string
@@ -246,6 +315,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "chat_messages_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "chat_messages_call_id_fkey"
             columns: ["call_id"]
@@ -257,6 +333,7 @@ export type Database = {
       }
       feedback: {
         Row: {
+          account_id: string | null
           behaviors_analysis: Json | null
           call_id: string
           created_at: string
@@ -271,6 +348,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          account_id?: string | null
           behaviors_analysis?: Json | null
           call_id: string
           created_at?: string
@@ -285,6 +363,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          account_id?: string | null
           behaviors_analysis?: Json | null
           call_id?: string
           created_at?: string
@@ -299,6 +378,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "feedback_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "feedback_call_id_fkey"
             columns: ["call_id"]
@@ -343,6 +429,7 @@ export type Database = {
       }
       prompts: {
         Row: {
+          account_id: string | null
           active: boolean
           content: string
           created_at: string
@@ -352,6 +439,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          account_id?: string | null
           active?: boolean
           content: string
           created_at?: string
@@ -361,6 +449,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          account_id?: string | null
           active?: boolean
           content?: string
           created_at?: string
@@ -369,10 +458,19 @@ export type Database = {
           type?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "prompts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tipificaciones: {
         Row: {
+          account_id: string | null
           created_at: string | null
           description: string | null
           id: string
@@ -382,6 +480,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          account_id?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
@@ -391,6 +490,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          account_id?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
@@ -399,7 +499,15 @@ export type Database = {
           type?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tipificaciones_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       training_plans: {
         Row: {
@@ -448,6 +556,35 @@ export type Database = {
           report_content?: string
         }
         Relationships: []
+      }
+      user_accounts: {
+        Row: {
+          account_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_accounts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_settings: {
         Row: {
@@ -534,6 +671,14 @@ export type Database = {
           p_is_active: boolean
         }
         Returns: string
+      }
+      get_user_accounts: {
+        Args: Record<PropertyKey, never>
+        Returns: string[]
+      }
+      is_super_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
       }
     }
     Enums: {

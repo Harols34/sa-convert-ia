@@ -16,7 +16,8 @@ import {
   ChevronRight,
   Menu,
   X,
-  FileText
+  FileText,
+  Building2
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import AccountFilter from "@/components/accounts/AccountFilter";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -87,58 +89,80 @@ export default function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
       name: "Analítica",
       path: "/analytics",
       icon: <BarChart3 />,
+      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"],
     },
     {
       name: "Llamadas",
       path: "/calls",
       icon: <Phone />,
+      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"],
     },
     {
       name: "Agentes",
       path: "/agents",
       icon: <Users />,
+      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"],
     },
     {
       name: "Workforce",
       path: "/workforce",
       icon: <BriefcaseBusiness />,
+      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor"],
     },
     {
       name: "Herramientas",
       path: "/tools",
       icon: <Wrench />,
+      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor"],
     },
     {
       name: "Chat IA",
       path: "/chat",
       icon: <MessageSquareText />,
+      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"],
     },
     {
       name: "Comportamientos",
       path: "/behaviors",
       icon: <CheckSquare />,
+      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor"],
     },
     {
       name: "Tipificaciones",
       path: "/tipificaciones",
       icon: <Folder />,
+      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor"],
     },
     {
       name: "Prompts",
       path: "/prompts",
       icon: <FileText />,
+      roles: ["superAdmin", "admin", "qualityAnalyst"],
     },
     {
       name: "Usuarios",
       path: "/users",
       icon: <User />,
+      roles: ["superAdmin", "admin"],
+    },
+    {
+      name: "Cuentas",
+      path: "/accounts",
+      icon: <Building2 />,
+      roles: ["superAdmin"],
     },
     {
       name: "Configuración",
       path: "/settings",
       icon: <Cog />,
+      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"],
     },
   ];
+
+  // Filtrar elementos del menú según el rol del usuario
+  const filteredMenuItems = menuItems.filter(item => 
+    user?.role && item.roles.includes(user.role)
+  );
 
   return (
     <>
@@ -199,10 +223,18 @@ export default function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
             )}
           </div>
         </div>
+
+        {/* Filtro de cuentas - Solo mostrar si no está colapsado o si está hover */}
+        {(!collapsed || isHovering) && (
+          <div className="py-2">
+            <AccountFilter />
+          </div>
+        )}
+
         <ScrollArea className="flex-1 overflow-auto py-2">
           <TooltipProvider delayDuration={0}>
             <nav className="space-y-1">
-              {menuItems.map((item) => (
+              {filteredMenuItems.map((item) => (
                 <Tooltip key={item.path} delayDuration={200}>
                   <TooltipTrigger asChild>
                     <Link
