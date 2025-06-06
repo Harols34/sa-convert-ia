@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Search, Filter, Calendar, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -30,25 +31,17 @@ export interface CallFilters {
 }
 
 export interface CallListFiltersProps {
+  filters: CallFilters;
   onFilterChange: (filters: CallFilters) => void;
+  totalCalls: number;
 }
 
-const initialFilters: CallFilters = {
-  search: "",
-  status: "all",
-  result: "",
-  tipificacionId: "",
-  agentId: "",
-  dateRange: undefined
-};
-
-export default function CallListFilters({ onFilterChange }: CallListFiltersProps) {
-  const [filters, setFilters] = useState<CallFilters>(initialFilters);
+export default function CallListFilters({ filters, onFilterChange, totalCalls }: CallListFiltersProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [tipificaciones, setTipificaciones] = useState<Tipificacion[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
   const [activeFilterCount, setActiveFilterCount] = useState(0);
-  const [searchInputValue, setSearchInputValue] = useState(""); 
+  const [searchInputValue, setSearchInputValue] = useState(filters.search || ""); 
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   
   // Load tipificaciones and agents for filters
@@ -92,21 +85,20 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
   useEffect(() => {
     let count = 0;
     if (filters.status && filters.status !== "all") count++;
-    if (filters.result) count++;
-    if (filters.tipificacionId) count++;
-    if (filters.agentId) count++;
+    if (filters.result && filters.result !== "all") count++;
+    if (filters.tipificacionId && filters.tipificacionId !== "all") count++;
+    if (filters.agentId && filters.agentId !== "all") count++;
     if (filters.dateRange) count++;
     if (filters.search) count++;
     setActiveFilterCount(count);
   }, [filters]);
   
-  // Apply filters whenever they change
+  // Update search input when filters change externally
   useEffect(() => {
-    console.log("Aplicando filtros:", filters);
-    onFilterChange(filters);
-  }, [filters, onFilterChange]);
+    setSearchInputValue(filters.search || "");
+  }, [filters.search]);
   
-  // Optimized search with even shorter debounce (100ms) para mayor rapidez
+  // Optimized search with debounce
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setSearchInputValue(newValue);
@@ -116,11 +108,11 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
       clearTimeout(searchTimeout);
     }
     
-    // Create new timeout with shorter delay (100ms)
+    // Create new timeout
     const newTimeout = setTimeout(() => {
       console.log("Aplicando búsqueda desde input:", newValue);
-      setFilters(prev => ({ ...prev, search: newValue }));
-    }, 100);
+      onFilterChange({ ...filters, search: newValue });
+    }, 300);
     
     setSearchTimeout(newTimeout);
   };
@@ -132,16 +124,24 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
         clearTimeout(searchTimeout);
       }
       console.log("Búsqueda inmediata con tecla Enter:", searchInputValue);
-      setFilters(prev => ({ ...prev, search: searchInputValue }));
+      onFilterChange({ ...filters, search: searchInputValue });
     }
   };
   
   const updateFilter = (key: keyof CallFilters, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    onFilterChange({ ...filters, [key]: value });
   };
   
   const clearFilters = () => {
-    setFilters(initialFilters);
+    const clearedFilters: CallFilters = {
+      search: "",
+      status: "all",
+      result: "all",
+      tipificacionId: "all",
+      agentId: "all",
+      dateRange: undefined
+    };
+    onFilterChange(clearedFilters);
     setSearchInputValue(""); 
   };
 
@@ -174,7 +174,7 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
               className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground"
               onClick={() => {
                 setSearchInputValue('');
-                setFilters(prev => ({ ...prev, search: '' }));
+                onFilterChange({ ...filters, search: '' });
               }}
               aria-label="Limpiar búsqueda"
             >
@@ -221,6 +221,23 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
                 </div>
                 
                 <div className="space-y-2">
+                  <label className="text-sm font-medium">Resultado</label>
+                  <Select 
+                    value={filters.result} 
+                    onValueChange={(value) => updateFilter('result', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos los resultados" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los resultados</SelectItem>
+                      <SelectItem value="venta">Venta</SelectItem>
+                      <SelectItem value="no venta">No Venta</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
                   <label className="text-sm font-medium">Tipificación</label>
                   <Select 
                     value={filters.tipificacionId} 
@@ -230,7 +247,7 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
                       <SelectValue placeholder="Todas las tipificaciones" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all_tipificaciones">Todas las tipificaciones</SelectItem>
+                      <SelectItem value="all">Todas las tipificaciones</SelectItem>
                       {tipificaciones.map(tip => (
                         <SelectItem key={tip.id} value={tip.id}>
                           {tip.name}
@@ -250,7 +267,7 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
                       <SelectValue placeholder="Todos los asesores" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all_agents">Todos los asesores</SelectItem>
+                      <SelectItem value="all">Todos los asesores</SelectItem>
                       {agents.map(agent => (
                         <SelectItem key={agent.id} value={agent.id}>
                           {agent.name}
@@ -337,22 +354,32 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
             </Badge>
           )}
           
-          {filters.tipificacionId && (
+          {filters.result && filters.result !== "all" && (
             <Badge variant="secondary" className="flex items-center gap-1">
-              Tipificación: {tipificaciones.find(t => t.id === filters.tipificacionId)?.name || 'Desconocida'}
+              Resultado: {filters.result === "venta" ? "Venta" : "No Venta"}
               <X 
                 className="h-3 w-3 ml-1 cursor-pointer" 
-                onClick={() => updateFilter('tipificacionId', 'all_tipificaciones')} 
+                onClick={() => updateFilter('result', 'all')} 
               />
             </Badge>
           )}
           
-          {filters.agentId && (
+          {filters.tipificacionId && filters.tipificacionId !== "all" && (
+            <Badge variant="secondary" className="flex items-center gap-1">
+              Tipificación: {tipificaciones.find(t => t.id === filters.tipificacionId)?.name || 'Desconocida'}
+              <X 
+                className="h-3 w-3 ml-1 cursor-pointer" 
+                onClick={() => updateFilter('tipificacionId', 'all')} 
+              />
+            </Badge>
+          )}
+          
+          {filters.agentId && filters.agentId !== "all" && (
             <Badge variant="secondary" className="flex items-center gap-1">
               Asesor: {agents.find(a => a.id === filters.agentId)?.name || 'Desconocido'}
               <X 
                 className="h-3 w-3 ml-1 cursor-pointer" 
-                onClick={() => updateFilter('agentId', 'all_agents')} 
+                onClick={() => updateFilter('agentId', 'all')} 
               />
             </Badge>
           )}
@@ -379,6 +406,11 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
           )}
         </div>
       )}
+      
+      {/* Results counter */}
+      <div className="text-sm text-muted-foreground">
+        Mostrando {totalCalls} llamada{totalCalls !== 1 ? 's' : ''}
+      </div>
     </div>
   );
 }

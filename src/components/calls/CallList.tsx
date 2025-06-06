@@ -26,9 +26,9 @@ export default function CallList() {
   const [filters, setFilters] = useState<CallFilters>({
     search: "",
     status: "all",
-    result: "",
-    tipificacionId: "",
-    agentId: "",
+    result: "all",
+    tipificacionId: "all",
+    agentId: "all",
     dateRange: undefined,
   });
 
@@ -82,7 +82,9 @@ export default function CallList() {
       </div>
 
       <CallListFilters
+        filters={filters}
         onFilterChange={handleFilterChange}
+        totalCalls={calls.length}
       />
 
       <Card className="overflow-hidden shadow-md border-gray-200">
