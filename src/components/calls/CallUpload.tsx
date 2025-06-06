@@ -6,8 +6,13 @@ import useCallUpload from "./upload/useCallUpload";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { PromptSelectionModal } from "./PromptSelectionModal";
+import { useState } from "react";
 
 export default function CallUpload() {
+  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [selectedPrompts, setSelectedPrompts] = useState<{ summary?: string; feedback?: string }>({});
+  
   const {
     files,
     isUploading,
@@ -32,6 +37,16 @@ export default function CallUpload() {
       </div>
     );
   }
+
+  const handleUploadClick = () => {
+    if (files.length === 0) return;
+    setShowPromptModal(true);
+  };
+
+  const handlePromptConfirm = (prompts: { summary?: string; feedback?: string }) => {
+    setSelectedPrompts(prompts);
+    uploadFiles();
+  };
 
   return (
     <div className="space-y-6 animate-fade-in transition-all duration-300">
@@ -61,7 +76,13 @@ export default function CallUpload() {
         files={files}
         onRemoveFile={removeFile}
         isUploading={isUploading}
-        onUploadFiles={uploadFiles}
+        onUploadFiles={handleUploadClick}
+      />
+
+      <PromptSelectionModal
+        open={showPromptModal}
+        onOpenChange={setShowPromptModal}
+        onConfirm={handlePromptConfirm}
       />
     </div>
   );
