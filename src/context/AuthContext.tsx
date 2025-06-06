@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { Session, User } from '@supabase/supabase-js';
 import { useNavigate, useLocation } from "react-router-dom";
@@ -28,14 +29,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
   // Optimized user data fetching with better error handling
   const fetchUserData = useCallback(async (userId: string) => {
-    if (!userId) {
-      console.error("No userId provided to fetchUserData");
-      setLoading(false);
+    if (!userId || initialized) {
+      console.log("Skipping fetchUserData - already initialized or no userId");
       return;
     }
 
@@ -48,48 +49,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', userId)
         .maybeSingle();
       
-      if (error) {
+      if (error && error.code !== 'PGRST116') {
         console.error("Error fetching user profile:", error);
+        throw error;
+      }
+      
+      if (!data && error?.code === 'PGRST116') {
+        // No profile found, create one
+        console.log("Creating default profile for user");
+        const userEmail = session?.user?.email || 'usuario@example.com';
         
-        if (error.code === 'PGRST116') {
-          // No profile found, create one
-          console.log("No profile found, creating default profile");
-          const userEmail = session?.user?.email || 'usuario@example.com';
-          
-          const { data: newProfile, error: insertError } = await supabase
-            .from('profiles')
-            .insert({
-              id: userId,
-              full_name: userEmail.split('@')[0] || 'Usuario',
-              role: 'agent',
-              language: 'es'
-            })
-            .select()
-            .single();
-          
-          if (insertError) {
-            console.error("Error creating default profile:", insertError);
-            setLoading(false);
-            return;
-          }
-          
-          setUser({
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert({
             id: userId,
-            email: userEmail,
-            role: newProfile.role as AppUser["role"],
-            name: newProfile.full_name || '',
-            full_name: newProfile.full_name || '',
-            avatar: newProfile.avatar_url,
-            avatar_url: newProfile.avatar_url,
-            language: newProfile.language === 'es' || newProfile.language === 'en' ? newProfile.language : 'es',
-            dailyQueryLimit: 20,
-            queriesUsed: 0,
-            created_at: newProfile.created_at,
-            updated_at: newProfile.updated_at
-          });
-        } else {
-          throw error;
+            full_name: userEmail.split('@')[0] || 'Usuario',
+            role: 'agent',
+            language: 'es'
+          })
+          .select()
+          .single();
+        
+        if (insertError) {
+          console.error("Error creating default profile:", insertError);
+          setLoading(false);
+          return;
         }
+        
+        setUser({
+          id: userId,
+          email: userEmail,
+          role: newProfile.role as AppUser["role"],
+          name: newProfile.full_name || '',
+          full_name: newProfile.full_name || '',
+          avatar: newProfile.avatar_url,
+          avatar_url: newProfile.avatar_url,
+          language: newProfile.language === 'es' || newProfile.language === 'en' ? newProfile.language : 'es',
+          dailyQueryLimit: 20,
+          queriesUsed: 0,
+          created_at: newProfile.created_at,
+          updated_at: newProfile.updated_at
+        });
       } else if (data) {
         setUser({
           id: userId,
@@ -109,20 +109,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log("User data loaded successfully with role:", data.role);
       }
       
+      setInitialized(true);
     } catch (error) {
       console.error("Error in fetchUserData:", error);
       toast.error("Error al cargar los datos del usuario");
     } finally {
       setLoading(false);
     }
-  }, [session?.user?.email]);
+  }, [session?.user?.email, initialized]);
 
-  // Optimized auth state management
+  // Initialize auth only once
   useEffect(() => {
     let mounted = true;
-    let sessionCheckTimeout: NodeJS.Timeout;
 
     const initializeAuth = async () => {
+      if (initialized) return;
+      
       try {
         console.log("Initializing auth...");
         
@@ -130,9 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (error) {
           console.error("Error getting session:", error);
-          if (mounted) {
-            setLoading(false);
-          }
+          if (mounted) setLoading(false);
           return;
         }
         
@@ -140,58 +140,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (initialSession?.user) {
             console.log("Found initial session for user:", initialSession.user.id);
             setSession(initialSession);
-            fetchUserData(initialSession.user.id);
+            await fetchUserData(initialSession.user.id);
           } else {
             console.log("No initial session found");
             setLoading(false);
+            setInitialized(true);
           }
         }
       } catch (error) {
         console.error("Error checking session:", error);
         if (mounted) {
           setLoading(false);
+          setInitialized(true);
         }
       }
     };
 
-    // Set up auth state listener with optimized event handling
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        console.log("Auth event:", event, "Session exists:", !!currentSession);
+        console.log("Auth event:", event);
 
         if (!mounted) return;
-
-        // Clear any existing timeout
-        if (sessionCheckTimeout) {
-          clearTimeout(sessionCheckTimeout);
-        }
 
         switch (event) {
           case 'SIGNED_OUT':
             setSession(null);
             setUser(null);
             setLoading(false);
+            setInitialized(true);
             break;
             
           case 'SIGNED_IN':
           case 'TOKEN_REFRESHED':
-            if (currentSession?.user) {
+            if (currentSession?.user && !initialized) {
               console.log("Setting session for user:", currentSession.user.id);
               setSession(currentSession);
-              
-              // Defer user data fetching slightly to avoid blocking
-              sessionCheckTimeout = setTimeout(() => {
-                if (mounted) {
-                  fetchUserData(currentSession.user.id);
-                }
-              }, 100);
-            }
-            break;
-            
-          case 'USER_UPDATED':
-            if (currentSession?.user && user) {
-              // Update session but keep existing user data
-              setSession(currentSession);
+              await fetchUserData(currentSession.user.id);
             }
             break;
             
@@ -203,23 +188,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     initializeAuth();
 
-    // Safety timeout to prevent infinite loading
-    const safetyTimeout = setTimeout(() => {
-      if (mounted && loading) {
-        console.warn("Auth initialization timeout reached, forcing loading to false");
-        setLoading(false);
-      }
-    }, 10000);
-
     return () => {
       mounted = false;
       subscription.unsubscribe();
-      clearTimeout(safetyTimeout);
-      if (sessionCheckTimeout) {
-        clearTimeout(sessionCheckTimeout);
-      }
     };
-  }, [fetchUserData, loading, user]);
+  }, []); // Remove dependencies to prevent re-initialization
 
   // Optimized sign-in function
   const signIn = async (email: string, password: string) => {
@@ -251,6 +224,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear local state first
       setSession(null);
       setUser(null);
+      setInitialized(false);
       
       // Then sign out from Supabase
       const { error } = await supabase.auth.signOut();
@@ -259,11 +233,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("Error during sign out:", error);
       }
       
-      // Navigate to login regardless of signOut result
+      // Navigate to login
       navigate('/login');
     } catch (error) {
       console.error("Unexpected error signing out:", error);
-      // Still navigate to login page
       navigate('/login');
     }
   };
@@ -282,9 +255,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data.session) {
         console.log("Session refreshed successfully");
         setSession(data.session);
-        if (data.session.user && !user) {
-          await fetchUserData(data.session.user.id);
-        }
       }
     } catch (error) {
       console.error("Unexpected error refreshing session:", error);
