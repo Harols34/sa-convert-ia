@@ -10,7 +10,7 @@ export interface Call {
   agent_name: string;
   date: string;
   duration: number;
-  status: string;
+  status: "pending" | "transcribing" | "analyzing" | "complete" | "error";
   sentiment?: string;
   result?: string;
   product?: string;
