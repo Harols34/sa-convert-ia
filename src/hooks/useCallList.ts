@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -12,7 +11,7 @@ export interface Call {
   duration: number;
   status: "pending" | "transcribing" | "analyzing" | "complete" | "error";
   sentiment?: string;
-  result?: string;
+  result?: "" | "venta" | "no venta";
   product?: string;
   reason?: string;
   account_id?: string;
@@ -103,6 +102,9 @@ export function useCallList() {
         audioUrl: call.audio_url || '',
         audio_url: call.audio_url || '',
         status: call.status as "pending" | "transcribing" | "analyzing" | "complete" | "error",
+        result: (call.result === "venta" || call.result === "no venta" || call.result === "") ? 
+                call.result as "" | "venta" | "no venta" : 
+                undefined,
       })) as Call[];
       
       setCalls(transformedCalls);
