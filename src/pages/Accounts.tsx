@@ -2,9 +2,7 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import Footer from "@/components/layout/Footer";
-import Navbar from "@/components/layout/Navbar";
-import Sidebar from "@/components/layout/Sidebar";
+import Layout from "@/components/layout/Layout";
 import AccountList from "@/components/accounts/AccountList";
 import AccountForm from "@/components/accounts/AccountForm";
 import UserAccountAssignment from "@/components/accounts/UserAccountAssignment";
@@ -14,30 +12,8 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AccountsPage() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigate = useNavigate();
   const { user, isAuthenticated, loading } = useAuth();
-
-  // Get sidebar collapsed state from localStorage
-  useEffect(() => {
-    const savedState = localStorage.getItem('sidebar-collapsed');
-    if (savedState !== null) {
-      setSidebarCollapsed(savedState === 'true');
-    }
-    
-    // Listen for changes to localStorage
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'sidebar-collapsed') {
-        setSidebarCollapsed(e.newValue === 'true');
-      }
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, []);
 
   // CORREGIDO: Solo verificar que esté autenticado y tenga el rol SuperAdmin
   useEffect(() => {
@@ -92,90 +68,79 @@ export default function AccountsPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
-      <Navbar toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-      <div className="flex flex-1">
-        <Sidebar isOpen={sidebarOpen} closeSidebar={() => setSidebarOpen(false)} />
-        <main className={`flex-1 p-4 md:p-6 transition-all duration-300 bg-white ${sidebarCollapsed ? 'ml-0 md:ml-16' : 'ml-0 md:ml-64'}`}>
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <>
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-                    <div>
-                      <h2 className="text-3xl font-bold tracking-tight">Gestión de Cuentas</h2>
-                      <p className="text-muted-foreground">
-                        Administrar cuentas y asignaciones de usuarios
-                      </p>
-                    </div>
-                    <div className="flex gap-2 mt-4 md:mt-0">
-                      <Button onClick={() => navigate("/accounts/assign")} variant="outline">
-                        <Users className="mr-2 h-4 w-4" /> Asignar Usuarios
-                      </Button>
-                      <Button onClick={() => navigate("/accounts/new")}>
-                        <Building2 className="mr-2 h-4 w-4" /> Nueva Cuenta
-                      </Button>
-                    </div>
-                  </div>
-                  <AccountList />
-                </>
-              }
-            />
-            <Route
-              path="/new"
-              element={
-                <>
-                  <div className="flex items-center mb-6">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigate("/accounts")}
-                      className="mr-4"
-                    >
-                      <ArrowLeft className="h-4 w-4 mr-2" /> Volver
-                    </Button>
-                    <div>
-                      <h2 className="text-3xl font-bold tracking-tight">Crear Nueva Cuenta</h2>
-                      <p className="text-muted-foreground">
-                        Agregar una nueva cuenta al sistema
-                      </p>
-                    </div>
-                  </div>
-                  <AccountForm />
-                </>
-              }
-            />
-            <Route
-              path="/assign"
-              element={
-                <>
-                  <div className="flex items-center mb-6">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigate("/accounts")}
-                      className="mr-4"
-                    >
-                      <ArrowLeft className="h-4 w-4 mr-2" /> Volver
-                    </Button>
-                    <div>
-                      <h2 className="text-3xl font-bold tracking-tight">Asignar Usuarios a Cuentas</h2>
-                      <p className="text-muted-foreground">
-                        Gestionar las asignaciones de usuarios a cuentas
-                      </p>
-                    </div>
-                  </div>
-                  <UserAccountAssignment />
-                </>
-              }
-            />
-          </Routes>
-        </main>
-      </div>
-      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-0 md:ml-16' : 'ml-0 md:ml-64'}`}>
-        <Footer />
-      </div>
-    </div>
+    <Layout>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-3xl font-bold tracking-tight">Gestión de Cuentas</h2>
+                  <p className="text-muted-foreground">
+                    Administrar cuentas y asignaciones de usuarios
+                  </p>
+                </div>
+                <div className="flex gap-2 mt-4 md:mt-0">
+                  <Button onClick={() => navigate("/accounts/assign")} variant="outline">
+                    <Users className="mr-2 h-4 w-4" /> Asignar Usuarios
+                  </Button>
+                  <Button onClick={() => navigate("/accounts/new")}>
+                    <Building2 className="mr-2 h-4 w-4" /> Nueva Cuenta
+                  </Button>
+                </div>
+              </div>
+              <AccountList />
+            </div>
+          }
+        />
+        <Route
+          path="/new"
+          element={
+            <div className="space-y-6">
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate("/accounts")}
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" /> Volver
+                </Button>
+                <div>
+                  <h2 className="text-3xl font-bold tracking-tight">Crear Nueva Cuenta</h2>
+                  <p className="text-muted-foreground">
+                    Agregar una nueva cuenta al sistema
+                  </p>
+                </div>
+              </div>
+              <AccountForm />
+            </div>
+          }
+        />
+        <Route
+          path="/assign"
+          element={
+            <div className="space-y-6">
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate("/accounts")}
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" /> Volver
+                </Button>
+                <div>
+                  <h2 className="text-3xl font-bold tracking-tight">Asignar Usuarios a Cuentas</h2>
+                  <p className="text-muted-foreground">
+                    Gestionar las asignaciones de usuarios a cuentas
+                  </p>
+                </div>
+              </div>
+              <UserAccountAssignment />
+            </div>
+          }
+        />
+      </Routes>
+    </Layout>
   );
 }
