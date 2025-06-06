@@ -31,17 +31,25 @@ export interface CallFilters {
 }
 
 export interface CallListFiltersProps {
-  filters: CallFilters;
   onFilterChange: (filters: CallFilters) => void;
-  totalCalls: number;
 }
 
-export default function CallListFilters({ filters, onFilterChange, totalCalls }: CallListFiltersProps) {
+const initialFilters: CallFilters = {
+  search: "",
+  status: "all",
+  result: "",
+  tipificacionId: "",
+  agentId: "",
+  dateRange: undefined
+};
+
+export default function CallListFilters({ onFilterChange }: CallListFiltersProps) {
+  const [filters, setFilters] = useState<CallFilters>(initialFilters);
   const [showFilters, setShowFilters] = useState(false);
   const [tipificaciones, setTipificaciones] = useState<Tipificacion[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
   const [activeFilterCount, setActiveFilterCount] = useState(0);
-  const [searchInputValue, setSearchInputValue] = useState(filters.search || ""); 
+  const [searchInputValue, setSearchInputValue] = useState(""); 
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   
   // Load tipificaciones and agents for filters
@@ -85,20 +93,21 @@ export default function CallListFilters({ filters, onFilterChange, totalCalls }:
   useEffect(() => {
     let count = 0;
     if (filters.status && filters.status !== "all") count++;
-    if (filters.result && filters.result !== "all") count++;
-    if (filters.tipificacionId && filters.tipificacionId !== "all") count++;
-    if (filters.agentId && filters.agentId !== "all") count++;
+    if (filters.result) count++;
+    if (filters.tipificacionId) count++;
+    if (filters.agentId) count++;
     if (filters.dateRange) count++;
     if (filters.search) count++;
     setActiveFilterCount(count);
   }, [filters]);
   
-  // Update search input when filters change externally
+  // Apply filters whenever they change
   useEffect(() => {
-    setSearchInputValue(filters.search || "");
-  }, [filters.search]);
+    console.log("Aplicando filtros:", filters);
+    onFilterChange(filters);
+  }, [filters, onFilterChange]);
   
-  // Optimized search with debounce
+  // Optimized search with even shorter debounce (100ms) para mayor rapidez
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setSearchInputValue(newValue);
@@ -108,11 +117,11 @@ export default function CallListFilters({ filters, onFilterChange, totalCalls }:
       clearTimeout(searchTimeout);
     }
     
-    // Create new timeout
+    // Create new timeout with shorter delay (100ms)
     const newTimeout = setTimeout(() => {
       console.log("Aplicando búsqueda desde input:", newValue);
-      onFilterChange({ ...filters, search: newValue });
-    }, 300);
+      setFilters(prev => ({ ...prev, search: newValue }));
+    }, 100);
     
     setSearchTimeout(newTimeout);
   };
@@ -124,24 +133,16 @@ export default function CallListFilters({ filters, onFilterChange, totalCalls }:
         clearTimeout(searchTimeout);
       }
       console.log("Búsqueda inmediata con tecla Enter:", searchInputValue);
-      onFilterChange({ ...filters, search: searchInputValue });
+      setFilters(prev => ({ ...prev, search: searchInputValue }));
     }
   };
   
   const updateFilter = (key: keyof CallFilters, value: any) => {
-    onFilterChange({ ...filters, [key]: value });
+    setFilters(prev => ({ ...prev, [key]: value }));
   };
   
   const clearFilters = () => {
-    const clearedFilters: CallFilters = {
-      search: "",
-      status: "all",
-      result: "all",
-      tipificacionId: "all",
-      agentId: "all",
-      dateRange: undefined
-    };
-    onFilterChange(clearedFilters);
+    setFilters(initialFilters);
     setSearchInputValue(""); 
   };
 
@@ -174,7 +175,7 @@ export default function CallListFilters({ filters, onFilterChange, totalCalls }:
               className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground"
               onClick={() => {
                 setSearchInputValue('');
-                onFilterChange({ ...filters, search: '' });
+                setFilters(prev => ({ ...prev, search: '' }));
               }}
               aria-label="Limpiar búsqueda"
             >
@@ -221,23 +222,6 @@ export default function CallListFilters({ filters, onFilterChange, totalCalls }:
                 </div>
                 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Resultado</label>
-                  <Select 
-                    value={filters.result} 
-                    onValueChange={(value) => updateFilter('result', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todos los resultados" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los resultados</SelectItem>
-                      <SelectItem value="venta">Venta</SelectItem>
-                      <SelectItem value="no venta">No Venta</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
                   <label className="text-sm font-medium">Tipificación</label>
                   <Select 
                     value={filters.tipificacionId} 
@@ -247,7 +231,7 @@ export default function CallListFilters({ filters, onFilterChange, totalCalls }:
                       <SelectValue placeholder="Todas las tipificaciones" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas las tipificaciones</SelectItem>
+                      <SelectItem value="all_tipificaciones">Todas las tipificaciones</SelectItem>
                       {tipificaciones.map(tip => (
                         <SelectItem key={tip.id} value={tip.id}>
                           {tip.name}
@@ -267,7 +251,7 @@ export default function CallListFilters({ filters, onFilterChange, totalCalls }:
                       <SelectValue placeholder="Todos los asesores" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos los asesores</SelectItem>
+                      <SelectItem value="all_agents">Todos los asesores</SelectItem>
                       {agents.map(agent => (
                         <SelectItem key={agent.id} value={agent.id}>
                           {agent.name}
@@ -354,32 +338,22 @@ export default function CallListFilters({ filters, onFilterChange, totalCalls }:
             </Badge>
           )}
           
-          {filters.result && filters.result !== "all" && (
-            <Badge variant="secondary" className="flex items-center gap-1">
-              Resultado: {filters.result === "venta" ? "Venta" : "No Venta"}
-              <X 
-                className="h-3 w-3 ml-1 cursor-pointer" 
-                onClick={() => updateFilter('result', 'all')} 
-              />
-            </Badge>
-          )}
-          
-          {filters.tipificacionId && filters.tipificacionId !== "all" && (
+          {filters.tipificacionId && (
             <Badge variant="secondary" className="flex items-center gap-1">
               Tipificación: {tipificaciones.find(t => t.id === filters.tipificacionId)?.name || 'Desconocida'}
               <X 
                 className="h-3 w-3 ml-1 cursor-pointer" 
-                onClick={() => updateFilter('tipificacionId', 'all')} 
+                onClick={() => updateFilter('tipificacionId', 'all_tipificaciones')} 
               />
             </Badge>
           )}
           
-          {filters.agentId && filters.agentId !== "all" && (
+          {filters.agentId && (
             <Badge variant="secondary" className="flex items-center gap-1">
               Asesor: {agents.find(a => a.id === filters.agentId)?.name || 'Desconocido'}
               <X 
                 className="h-3 w-3 ml-1 cursor-pointer" 
-                onClick={() => updateFilter('agentId', 'all')} 
+                onClick={() => updateFilter('agentId', 'all_agents')} 
               />
             </Badge>
           )}
@@ -406,11 +380,6 @@ export default function CallListFilters({ filters, onFilterChange, totalCalls }:
           )}
         </div>
       )}
-      
-      {/* Results counter */}
-      <div className="text-sm text-muted-foreground">
-        Mostrando {totalCalls} llamada{totalCalls !== 1 ? 's' : ''}
-      </div>
     </div>
   );
 }

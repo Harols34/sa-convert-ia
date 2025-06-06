@@ -1,6 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0'
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,124 +10,90 @@ const corsHeaders = {
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    // Create a Supabase client with service role key
-    const supabaseAdmin = createClient(
+    // Obtener datos del request
+    const { email, password, fullName, role, language } = await req.json()
+    
+    console.log("Creando usuario:", { email, fullName, role, language })
+    
+    // Validar datos
+    if (!email || !password || !fullName || !role) {
+      throw new Error('Faltan campos obligatorios: email, password, fullName, role')
+    }
+    
+    // Crear cliente Supabase con la key de servicio para operaciones admin
+    const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
     )
-
-    const { email, password, name, role, language = 'es' } = await req.json()
-
-    console.log('Creating user:', { email, name, role, language })
-
-    // Validate required fields
-    if (!email || !password || !name || !role) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Missing required fields: email, password, name, role' 
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      )
-    }
-
-    // Create user in Supabase Auth
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    
+    // Crear usuario en Auth
+    console.log("Creando usuario en Auth...")
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
-      email_confirm: true,
+      email_confirm: true, // Auto-confirmar email para desarrollo
       user_metadata: {
-        full_name: name,
-        role: role,
-        language: language || 'es'
+        full_name: fullName
       }
     })
-
+    
     if (authError) {
-      console.error('Auth error:', authError)
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: authError.message 
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      )
+      console.error("Error al crear usuario en Auth:", authError)
+      throw authError
     }
-
-    if (!authData.user) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Failed to create user' 
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      )
-    }
-
-    // Update the profile with the role and other info
-    const { error: profileError } = await supabaseAdmin
+    
+    console.log("Usuario creado exitosamente en Auth:", authData.user.id)
+    
+    // Crear perfil para el usuario
+    console.log("Creando perfil para el usuario...")
+    const { error: profileError } = await supabase
       .from('profiles')
       .upsert({
         id: authData.user.id,
-        full_name: name,
-        role: role,
+        full_name: fullName,
+        role,
         language: language || 'es'
       })
-
+    
     if (profileError) {
-      console.error('Profile error:', profileError)
-      // Don't fail completely if profile update fails, user was created
-      console.log('Profile update failed but user was created successfully')
+      console.error("Error al crear perfil:", profileError)
+      
+      // Si falla la creación del perfil, intentar eliminar el usuario de Auth
+      try {
+        await supabase.auth.admin.deleteUser(authData.user.id)
+      } catch (e) {
+        console.error("Error al eliminar usuario tras fallo de perfil:", e)
+      }
+      
+      throw profileError
     }
-
-    console.log('User created successfully:', authData.user.id)
-
+    
+    console.log("Perfil creado exitosamente")
+    
     return new Response(
       JSON.stringify({ 
         success: true, 
-        user: {
-          id: authData.user.id,
-          email: authData.user.email,
-          name: name,
-          role: role,
-          language: language
-        }
+        message: "Usuario creado exitosamente", 
+        userId: authData.user.id 
       }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
-
+    
   } catch (error) {
-    console.error('Unexpected error:', error)
+    console.error("Error en la función createUser:", error)
+    
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: 'Internal server error: ' + error.message 
+      JSON.stringify({
+        success: false,
+        error: error.message
       }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      { 
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     )
   }

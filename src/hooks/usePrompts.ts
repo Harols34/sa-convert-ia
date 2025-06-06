@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAccount } from "@/context/AccountContext";
-import { useAuth } from "@/context/AuthContext";
 
 export type PromptType = "summary" | "feedback";
 
@@ -15,21 +14,19 @@ export interface Prompt {
   active: boolean;
   updated_at: string;
   account_id?: string;
-  user_id?: string;
 }
 
 export function usePrompts(type?: PromptType) {
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [loading, setLoading] = useState(false);
   const { selectedAccountId } = useAccount();
-  const { user } = useAuth();
 
   const fetchPrompts = useCallback(async () => {
-    if (!type || !user) return;
+    if (!type) return;
     
     try {
       setLoading(true);
-      console.log("Fetching prompts for type:", type, "account:", selectedAccountId, "user:", user.id);
+      console.log("Fetching prompts for type:", type, "account:", selectedAccountId);
       
       let query = supabase
         .from("prompts")
@@ -37,12 +34,10 @@ export function usePrompts(type?: PromptType) {
         .eq("type", type)
         .order("updated_at", { ascending: false });
 
-      // Filtrar por prompts del usuario o de la cuenta (si no es personal)
+      // Aplicar filtro de cuenta si hay una seleccionada y no es 'all'
       if (selectedAccountId && selectedAccountId !== 'all') {
-        query = query.or(`user_id.eq.${user.id},and(account_id.eq.${selectedAccountId},user_id.is.null)`);
-      } else {
-        // Solo mostrar prompts del usuario si no hay cuenta seleccionada
-        query = query.eq('user_id', user.id);
+        console.log("Filtering prompts by account:", selectedAccountId);
+        query = query.eq('account_id', selectedAccountId);
       }
 
       const { data, error } = await query;
@@ -63,7 +58,7 @@ export function usePrompts(type?: PromptType) {
     } finally {
       setLoading(false);
     }
-  }, [type, selectedAccountId, user]);
+  }, [type, selectedAccountId]);
 
   useEffect(() => {
     fetchPrompts();
@@ -76,8 +71,7 @@ export function usePrompts(type?: PromptType) {
     try {
       const promptData = {
         ...p,
-        account_id: selectedAccountId && selectedAccountId !== 'all' ? selectedAccountId : null,
-        user_id: user?.id || null
+        account_id: selectedAccountId && selectedAccountId !== 'all' ? selectedAccountId : null
       };
       
       const { data, error } = await supabase.from("prompts").insert([promptData]).select();

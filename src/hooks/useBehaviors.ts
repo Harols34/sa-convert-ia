@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAccount } from "@/context/AccountContext";
-import { useAuth } from "@/context/AuthContext";
 
 export interface Behavior {
   id: string;
@@ -14,33 +13,27 @@ export interface Behavior {
   created_at: string;
   updated_at: string;
   account_id?: string;
-  user_id?: string;
 }
 
 export function useBehaviors() {
   const [behaviors, setBehaviors] = useState<Behavior[]>([]);
   const [loading, setLoading] = useState(false);
   const { selectedAccountId } = useAccount();
-  const { user } = useAuth();
 
   const fetchBehaviors = useCallback(async () => {
-    if (!user) return;
-    
     try {
       setLoading(true);
-      console.log("Fetching behaviors with account filter:", selectedAccountId, "user:", user.id);
+      console.log("Fetching behaviors with account filter:", selectedAccountId);
       
       let query = supabase
         .from("behaviors")
         .select("*")
         .order("updated_at", { ascending: false });
 
-      // Filtrar por comportamientos del usuario o de la cuenta (si no es personal)
+      // Aplicar filtro de cuenta si hay una seleccionada y no es 'all'
       if (selectedAccountId && selectedAccountId !== 'all') {
-        query = query.or(`user_id.eq.${user.id},and(account_id.eq.${selectedAccountId},user_id.is.null)`);
-      } else {
-        // Solo mostrar comportamientos del usuario si no hay cuenta seleccionada
-        query = query.eq('user_id', user.id);
+        console.log("Filtering behaviors by account:", selectedAccountId);
+        query = query.eq('account_id', selectedAccountId);
       }
 
       const { data, error } = await query;
@@ -55,7 +48,7 @@ export function useBehaviors() {
     } finally {
       setLoading(false);
     }
-  }, [selectedAccountId, user]);
+  }, [selectedAccountId]);
 
   useEffect(() => {
     fetchBehaviors();
@@ -65,8 +58,7 @@ export function useBehaviors() {
     try {
       const newBehavior = {
         ...behaviorData,
-        account_id: selectedAccountId && selectedAccountId !== 'all' ? selectedAccountId : null,
-        user_id: user?.id || null
+        account_id: selectedAccountId && selectedAccountId !== 'all' ? selectedAccountId : null
       };
       
       const { data, error } = await supabase
