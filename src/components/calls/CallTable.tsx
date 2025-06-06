@@ -1,6 +1,5 @@
-
 import { Call } from "@/lib/types";
-import { MoreVertical, Edit, Trash2 } from "lucide-react";
+import { MoreVertical, Edit, Trash2, Info } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +26,8 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { memo } from "react";
+import { memo, useState } from "react";
+import { CallAnalysisInfo } from "./CallAnalysisInfo";
 
 interface CallTableProps {
   calls: Call[];
@@ -78,33 +78,69 @@ const StatusBadge = memo(({ status }: { status: string }) => {
 
 StatusBadge.displayName = 'StatusBadge';
 
-const ActionCell = memo(({ id, onDeleteCall }: { id: string, onDeleteCall: (id: string) => void }) => (
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <Button variant="ghost" className="h-8 w-8 p-0">
-        <span className="sr-only">Abrir menú</span>
-        <MoreVertical className="h-4 w-4" />
-      </Button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="end">
-      <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-      <DropdownMenuItem asChild>
-        <Link to={`/calls/${id}`}>
-          <Edit className="mr-2 h-4 w-4" />
-          Editar
-        </Link>
-      </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem
-        onClick={() => onDeleteCall(id)}
-        className="text-red-500 focus:text-red-500"
-      >
-        <Trash2 className="mr-2 h-4 w-4" />
-        Eliminar
-      </DropdownMenuItem>
-    </DropdownMenuContent>
-  </DropdownMenu>
-));
+const ActionCell = memo(({ 
+  id, 
+  onDeleteCall, 
+  call 
+}: { 
+  id: string; 
+  onDeleteCall: (id: string) => void;
+  call: Call;
+}) => {
+  const [showAnalysisInfo, setShowAnalysisInfo] = useState(false);
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="h-8 w-8 p-0">
+            <span className="sr-only">Abrir menú</span>
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => setShowAnalysisInfo(true)}>
+            <Info className="mr-2 h-4 w-4" />
+            Ver Análisis
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link to={`/calls/${id}`}>
+              <Edit className="mr-2 h-4 w-4" />
+              Editar
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => onDeleteCall(id)}
+            className="text-red-500 focus:text-red-500"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Eliminar
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <CallAnalysisInfo
+        open={showAnalysisInfo}
+        onOpenChange={setShowAnalysisInfo}
+        callData={{
+          id: call.id,
+          title: call.title,
+          prompts: {
+            summary: "Prompt de resumen aplicado", // This would come from actual data
+            feedback: "Prompt de feedback aplicado", // This would come from actual data
+          },
+          behaviors: [
+            // This would come from actual behavior data associated with the call
+            { name: "Saludo", description: "Evaluación del saludo inicial" },
+            { name: "Cierre", description: "Evaluación del cierre de la llamada" }
+          ]
+        }}
+      />
+    </>
+  );
+});
 
 ActionCell.displayName = 'ActionCell';
 
@@ -184,7 +220,13 @@ export const CallTable = memo(({
     {
       id: "actions",
       header: "Acciones",
-      cell: ({ row }) => <ActionCell id={row.original.id} onDeleteCall={onDeleteCall} />,
+      cell: ({ row }) => (
+        <ActionCell 
+          id={row.original.id} 
+          onDeleteCall={onDeleteCall}
+          call={row.original}
+        />
+      ),
     },
   ];
 

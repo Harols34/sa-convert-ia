@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAccount } from "@/context/AccountContext";
+import { useAuth } from "@/context/AuthContext";
 
 export type PromptType = "summary" | "feedback";
 
@@ -14,19 +15,21 @@ export interface Prompt {
   active: boolean;
   updated_at: string;
   account_id?: string;
+  user_id?: string;
 }
 
 export function usePrompts(type?: PromptType) {
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [loading, setLoading] = useState(false);
   const { selectedAccountId } = useAccount();
+  const { user } = useAuth();
 
   const fetchPrompts = useCallback(async () => {
-    if (!type) return;
+    if (!type || !user?.id) return;
     
     try {
       setLoading(true);
-      console.log("Fetching prompts for type:", type, "account:", selectedAccountId);
+      console.log("Fetching prompts for type:", type, "account:", selectedAccountId, "user:", user?.id);
       
       let query = supabase
         .from("prompts")
@@ -34,10 +37,17 @@ export function usePrompts(type?: PromptType) {
         .eq("type", type)
         .order("updated_at", { ascending: false });
 
-      // Aplicar filtro de cuenta si hay una seleccionada y no es 'all'
+      // Show prompts that are either:
+      // 1. Created by the current user (user_id matches)
+      // 2. Associated with the selected account (if account is selected and user has access)
+      // 3. Global prompts (no user_id and no account_id)
+      
       if (selectedAccountId && selectedAccountId !== 'all') {
-        console.log("Filtering prompts by account:", selectedAccountId);
-        query = query.eq('account_id', selectedAccountId);
+        console.log("Filtering prompts by account:", selectedAccountId, "and user:", user?.id);
+        query = query.or(`account_id.eq.${selectedAccountId},user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
+      } else {
+        // Show user's personal prompts and global prompts
+        query = query.or(`user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
       }
 
       const { data, error } = await query;
@@ -58,7 +68,7 @@ export function usePrompts(type?: PromptType) {
     } finally {
       setLoading(false);
     }
-  }, [type, selectedAccountId]);
+  }, [type, selectedAccountId, user?.id]);
 
   useEffect(() => {
     fetchPrompts();
@@ -71,7 +81,8 @@ export function usePrompts(type?: PromptType) {
     try {
       const promptData = {
         ...p,
-        account_id: selectedAccountId && selectedAccountId !== 'all' ? selectedAccountId : null
+        account_id: selectedAccountId && selectedAccountId !== 'all' ? selectedAccountId : null,
+        user_id: user?.id || null
       };
       
       const { data, error } = await supabase.from("prompts").insert([promptData]).select();
@@ -103,6 +114,18 @@ export function usePrompts(type?: PromptType) {
   // Utility to activate just one prompt for this type
   const togglePromptActive = async (promptId: string) => {
     try {
+      // First deactivate all prompts of this type for this user/account context
+      const deactivateQuery = supabase.from("prompts").update({ active: false }).eq("type", type!);
+      
+      if (selectedAccountId && selectedAccountId !== 'all') {
+        deactivateQuery.or(`account_id.eq.${selectedAccountId},user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
+      } else {
+        deactivateQuery.or(`user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
+      }
+      
+      await deactivateQuery;
+      
+      // Then activate the selected prompt
       const { error } = await supabase.from("prompts").update({ active: true }).eq("id", promptId);
       
       if (error) throw error;

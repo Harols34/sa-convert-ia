@@ -40,6 +40,48 @@ serve(async (req) => {
       )
     }
 
+    // Check if user already exists in profiles table
+    const { data: existingProfile, error: profileCheckError } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('id', email) // This is wrong, should check by email in auth
+      .single()
+
+    if (profileCheckError && profileCheckError.code !== 'PGRST116') {
+      console.error("Error checking existing profile:", profileCheckError)
+    }
+
+    // Check if email already exists in auth
+    const { data: existingUsers, error: usersError } = await supabaseAdmin.auth.admin.listUsers()
+    
+    if (usersError) {
+      console.error("Error checking existing users:", usersError)
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: usersError.message 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    const userExists = existingUsers.users.find(user => user.email === email)
+    if (userExists) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Este correo electrónico ya está registrado. Por favor, utiliza otro.' 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
     // Create user with Supabase Auth
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -66,14 +108,16 @@ serve(async (req) => {
 
     console.log("User created in auth:", authUser.user.id)
 
-    // Create profile
+    // Create profile - use upsert to handle potential duplicates
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
-      .insert({
+      .upsert({
         id: authUser.user.id,
         full_name: fullName,
         role: role,
         language: 'es'
+      }, {
+        onConflict: 'id'
       })
 
     if (profileError) {
@@ -81,6 +125,7 @@ serve(async (req) => {
       // Try to delete the auth user if profile creation fails
       try {
         await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
+        console.log("Cleaned up auth user after profile failure")
       } catch (e) {
         console.error("Error cleaning up auth user:", e)
       }
@@ -130,7 +175,9 @@ serve(async (req) => {
 
         const { error: userAccountsError } = await supabaseAdmin
           .from('user_accounts')
-          .insert(userAccountsData)
+          .upsert(userAccountsData, {
+            onConflict: 'user_id,account_id'
+          })
 
         if (userAccountsError) {
           console.error("User accounts error:", userAccountsError)

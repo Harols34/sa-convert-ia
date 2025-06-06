@@ -81,7 +81,7 @@ const menuItems: MenuItem[] = [
     name: "Prompts",
     href: "/prompts",
     icon: <FileText className="h-4 w-4" />,
-    role: ["superAdmin", "admin"],
+    role: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"],
   },
   {
     name: "Usuarios",
