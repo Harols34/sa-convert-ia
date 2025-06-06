@@ -3,6 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
 
 interface CallAnalysisInfoProps {
   open: boolean;
@@ -26,7 +28,17 @@ export function CallAnalysisInfo({ open, onOpenChange, callData }: CallAnalysisI
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh]">
         <DialogHeader>
-          <DialogTitle>Información del Análisis - {callData.title}</DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle>Información del Análisis - {callData.title}</DialogTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onOpenChange(false)}
+              className="h-6 w-6"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </DialogHeader>
         
         <ScrollArea className="max-h-[60vh]">

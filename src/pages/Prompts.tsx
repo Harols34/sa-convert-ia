@@ -5,14 +5,14 @@ import Layout from "@/components/layout/Layout";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, MessageSquare, ToggleRight, ToggleLeft, Loader2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Pencil, Trash2, MessageSquare, ToggleRight, ToggleLeft, Loader2, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/context/AuthContext";
 import { useAccount } from "@/context/AccountContext";
 import { Prompt, PromptType } from "@/hooks/usePrompts";
+import { PromptDialog } from "@/components/prompts/PromptDialog";
 
 export default function PromptsPage() {
   const [prompts, setPrompts] = useState<Prompt[]>([]);
@@ -20,7 +20,8 @@ export default function PromptsPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [isActivating, setIsActivating] = useState(false);
-  const navigate = useNavigate();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
   const { isAuthenticated, user, loading } = useAuth();
   const { selectedAccountId } = useAccount();
 
@@ -30,14 +31,14 @@ export default function PromptsPage() {
         toast.error("Sesión expirada", {
           description: "Por favor inicia sesión para continuar"
         });
-        navigate("/login", { replace: true });
+        // Don't navigate to avoid routing issues
       }
     };
     
     if (!loading) {
       checkAuth();
     }
-  }, [isAuthenticated, loading, navigate]);
+  }, [isAuthenticated, loading]);
 
   useEffect(() => {
     fetchPrompts();
@@ -53,10 +54,17 @@ export default function PromptsPage() {
         .select("*")
         .order("updated_at", { ascending: false });
 
-      // Aplicar filtro de cuenta si hay una seleccionada y no es 'all'
+      // Show prompts that are either:
+      // 1. Created by the current user (user_id matches)
+      // 2. Associated with the selected account (if account is selected and user has access)
+      // 3. Global prompts (no user_id and no account_id)
+      
       if (selectedAccountId && selectedAccountId !== 'all') {
-        console.log("Filtering prompts by account:", selectedAccountId);
-        query = query.eq('account_id', selectedAccountId);
+        console.log("Filtering prompts by account:", selectedAccountId, "and user:", user?.id);
+        query = query.or(`account_id.eq.${selectedAccountId},user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
+      } else {
+        // Show user's personal prompts and global prompts
+        query = query.or(`user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
       }
 
       const { data, error } = await query;
@@ -121,6 +129,21 @@ export default function PromptsPage() {
     }
   };
 
+  const handleEdit = (prompt: Prompt) => {
+    setSelectedPrompt(prompt);
+    setIsDialogOpen(true);
+  };
+
+  const handleCreate = () => {
+    setSelectedPrompt(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleSuccess = () => {
+    fetchPrompts();
+    setSelectedPrompt(null);
+  };
+
   if (loading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -142,12 +165,21 @@ export default function PromptsPage() {
               Gestiona los prompts para análisis y resúmenes de llamadas
             </p>
           </div>
-          <Button onClick={() => navigate("/prompts/new")} className="mt-4 md:mt-0 bg-green-600 text-white hover:bg-green-700">
+          <Button onClick={handleCreate} className="mt-4 md:mt-0 bg-green-600 text-white hover:bg-green-700">
             <MessageSquare className="mr-2 h-4 w-4" /> Nuevo Prompt
           </Button>
         </div>
 
         <Card className="overflow-hidden shadow-md border-gray-200">
+          <div className="p-4 border-b bg-gray-50">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold">Lista de Prompts</h3>
+              <Button onClick={handleCreate} size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Nuevo Prompt
+              </Button>
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader className="bg-gray-50">
@@ -197,7 +229,7 @@ export default function PromptsPage() {
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          onClick={() => navigate(`/prompts/edit/${prompt.id}`)} 
+                          onClick={() => handleEdit(prompt)} 
                           className="hover:bg-gray-100"
                         >
                           <Pencil className="h-4 w-4" />
@@ -221,6 +253,13 @@ export default function PromptsPage() {
             </Table>
           </div>
         </Card>
+
+        <PromptDialog
+          open={isDialogOpen}
+          onOpenChange={setIsDialogOpen}
+          prompt={selectedPrompt}
+          onSuccess={handleSuccess}
+        />
 
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent className="bg-white">
