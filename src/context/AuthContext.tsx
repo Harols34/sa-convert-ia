@@ -53,10 +53,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return createFallbackUser(userId, currentSession);
       }
       
-      if (!data && error?.code === 'PGRST116') {
+      if (!data) {
         console.log("No profile found, creating default profile");
         return await createDefaultProfile(userId, currentSession);
-      } else if (data) {
+      } else {
         return {
           id: userId,
           email: currentSession.user?.email || '',
@@ -72,8 +72,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           updated_at: data.updated_at
         };
       }
-      
-      return createFallbackUser(userId, currentSession);
     } catch (error) {
       console.error("Error in fetchUserData:", error);
       return createFallbackUser(userId, currentSession);
@@ -142,25 +140,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Initialize auth - simplified to prevent multiple initializations
+  // Initialize auth - simplified and faster
   useEffect(() => {
     if (initialized) return;
 
     let mounted = true;
-    let authTimeoutId: NodeJS.Timeout;
 
     const initializeAuth = async () => {
       try {
         console.log("Initializing auth...");
         
-        // Set timeout to prevent infinite loading
-        authTimeoutId = setTimeout(() => {
-          if (mounted && !user) {
-            console.warn("Auth initialization timeout reached, forcing loading to false");
-            setLoading(false);
-            setInitialized(true);
+        // Get initial session first
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        
+        if (mounted) {
+          if (initialSession?.user) {
+            console.log("Initial session found, setting up user");
+            setSession(initialSession);
+            
+            // Fetch user data asynchronously
+            setTimeout(async () => {
+              if (mounted) {
+                const userData = await fetchUserData(initialSession.user.id, initialSession);
+                if (mounted) {
+                  setUser(userData);
+                }
+              }
+            }, 0);
           }
-        }, 3000); // Reduced from 5000 to 3000
+          setLoading(false);
+          setInitialized(true);
+        }
 
         // Set up auth state listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -168,11 +178,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.log("Auth event:", event, "Session exists:", !!currentSession);
 
             if (!mounted) return;
-
-            // Clear timeout since we got a response
-            if (authTimeoutId) {
-              clearTimeout(authTimeoutId);
-            }
 
             switch (event) {
               case 'SIGNED_OUT':
@@ -183,16 +188,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 
               case 'SIGNED_IN':
               case 'TOKEN_REFRESHED':
-              case 'INITIAL_SESSION':
                 if (currentSession?.user) {
                   console.log("Setting session for user:", currentSession.user.id);
                   setSession(currentSession);
                   
-                  // Fetch user data without blocking
-                  const userData = await fetchUserData(currentSession.user.id, currentSession);
-                  if (mounted && userData) {
-                    setUser(userData);
-                  }
+                  // Fetch user data asynchronously
+                  setTimeout(async () => {
+                    if (mounted) {
+                      const userData = await fetchUserData(currentSession.user.id, currentSession);
+                      if (mounted) {
+                        setUser(userData);
+                      }
+                    }
+                  }, 0);
                 }
                 setLoading(false);
                 break;
@@ -204,21 +212,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         );
 
-        // Get initial session
-        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error("Error getting session:", error);
-          setLoading(false);
-        }
-
-        setInitialized(true);
-
         return () => {
           subscription.unsubscribe();
-          if (authTimeoutId) {
-            clearTimeout(authTimeoutId);
-          }
         };
       } catch (error) {
         console.error("Error initializing auth:", error);
@@ -233,11 +228,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       mounted = false;
-      if (authTimeoutId) {
-        clearTimeout(authTimeoutId);
-      }
     };
-  }, [fetchUserData]);
+  }, [fetchUserData, initialized]);
 
   // Sign-in function
   const signIn = async (email: string, password: string) => {

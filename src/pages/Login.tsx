@@ -10,33 +10,6 @@ const Login = () => {
   const location = useLocation();
   const { isAuthenticated, loading } = useAuth();
 
-  // Comprobación de token almacenado al cargar
-  useEffect(() => {
-    const checkStoredToken = () => {
-      const storedSession = localStorage.getItem('supabase.auth.token');
-      if (storedSession) {
-        try {
-          const sessionData = JSON.parse(storedSession);
-          const expiryTime = sessionData.expires_at ? sessionData.expires_at * 1000 : 0;
-          
-          // Add a 5-minute buffer to ensure token isn't about to expire
-          if (Date.now() < expiryTime - (5 * 60 * 1000)) {
-            console.log('Login page - Using stored valid session');
-            // No hacemos nada, el sistema AuthContext procesará este token
-          } else {
-            console.log('Login page - Stored session expired or near expiry, cleaning');
-            localStorage.removeItem('supabase.auth.token');
-          }
-        } catch (e) {
-          console.error('Error parsing stored session:', e);
-          localStorage.removeItem('supabase.auth.token');
-        }
-      }
-    };
-    
-    checkStoredToken();
-  }, []);
-
   // Redirigir si ya está autenticado
   useEffect(() => {
     if (!loading && isAuthenticated) {
@@ -53,24 +26,29 @@ const Login = () => {
         localStorage.removeItem('lastPath');
         navigate(lastPath, { replace: true });
       } else {
-        console.log("Already authenticated, redirecting to dashboard");
-        navigate("/dashboard", { replace: true });
+        console.log("Already authenticated, redirecting to analytics");
+        navigate("/analytics", { replace: true });
       }
     }
   }, [isAuthenticated, loading, navigate]);
 
   // Si todavía está cargando o ya autenticado, mostrar spinner
-  if (loading || isAuthenticated) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
           <p className="text-muted-foreground">
-            {loading ? "Verificando sesión..." : "Redirigiendo..."}
+            Verificando sesión...
           </p>
         </div>
       </div>
     );
+  }
+
+  // Si ya está autenticado, no mostrar nada mientras redirige
+  if (isAuthenticated) {
+    return null;
   }
 
   return (
