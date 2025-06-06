@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { Session, User } from '@supabase/supabase-js';
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User as AppUser } from "@/lib/types";
 import { toast } from "sonner";
@@ -37,7 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return (lang === 'es' || lang === 'en') ? lang : 'es';
   };
 
-  // Optimized user data fetching
+  // Optimized user data fetching with better error handling
   const fetchUserData = useCallback(async (userId: string, currentSession: Session) => {
     try {
       console.log("Fetching user data for ID:", userId);
@@ -50,44 +50,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error && error.code !== 'PGRST116') {
         console.error("Error fetching user profile:", error);
-        throw error;
+        // Don't throw error, create default user instead
+        console.log("Creating fallback user data");
+        return createFallbackUser(userId, currentSession);
       }
       
       if (!data && error?.code === 'PGRST116') {
-        // No profile found, create one
-        console.log("Creating default profile for user");
-        const userEmail = currentSession.user?.email || 'usuario@example.com';
-        
-        const { data: newProfile, error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: userId,
-            full_name: userEmail.split('@')[0] || 'Usuario',
-            role: 'agent',
-            language: 'es'
-          })
-          .select()
-          .single();
-        
-        if (insertError) {
-          console.error("Error creating default profile:", insertError);
-          return null;
-        }
-        
-        return {
-          id: userId,
-          email: userEmail,
-          role: newProfile.role as AppUser["role"],
-          name: newProfile.full_name || '',
-          full_name: newProfile.full_name || '',
-          avatar: newProfile.avatar_url,
-          avatar_url: newProfile.avatar_url,
-          language: validateLanguage(newProfile.language),
-          dailyQueryLimit: 20,
-          queriesUsed: 0,
-          created_at: newProfile.created_at,
-          updated_at: newProfile.updated_at
-        };
+        console.log("No profile found, creating default profile");
+        return await createDefaultProfile(userId, currentSession);
       } else if (data) {
         return {
           id: userId,
@@ -105,30 +75,107 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
       }
       
-      return null;
+      return createFallbackUser(userId, currentSession);
     } catch (error) {
       console.error("Error in fetchUserData:", error);
-      toast.error("Error al cargar los datos del usuario");
-      return null;
+      // Create fallback user instead of failing
+      return createFallbackUser(userId, currentSession);
     }
   }, []);
 
-  // Initialize auth
+  // Create fallback user for offline or error scenarios
+  const createFallbackUser = (userId: string, currentSession: Session): AppUser => {
+    const userEmail = currentSession.user?.email || 'usuario@example.com';
+    console.log("Creating fallback user for:", userEmail);
+    
+    return {
+      id: userId,
+      email: userEmail,
+      role: 'agent' as AppUser["role"],
+      name: userEmail.split('@')[0] || 'Usuario',
+      full_name: userEmail.split('@')[0] || 'Usuario',
+      avatar: null,
+      avatar_url: null,
+      language: 'es' as const,
+      dailyQueryLimit: 20,
+      queriesUsed: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  };
+
+  // Create default profile with better error handling
+  const createDefaultProfile = async (userId: string, currentSession: Session): Promise<AppUser> => {
+    try {
+      const userEmail = currentSession.user?.email || 'usuario@example.com';
+      
+      const { data: newProfile, error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          full_name: userEmail.split('@')[0] || 'Usuario',
+          role: 'agent',
+          language: 'es'
+        })
+        .select()
+        .single();
+      
+      if (insertError) {
+        console.error("Error creating default profile:", insertError);
+        return createFallbackUser(userId, currentSession);
+      }
+      
+      return {
+        id: userId,
+        email: userEmail,
+        role: newProfile.role as AppUser["role"],
+        name: newProfile.full_name || '',
+        full_name: newProfile.full_name || '',
+        avatar: newProfile.avatar_url,
+        avatar_url: newProfile.avatar_url,
+        language: validateLanguage(newProfile.language),
+        dailyQueryLimit: 20,
+        queriesUsed: 0,
+        created_at: newProfile.created_at,
+        updated_at: newProfile.updated_at
+      };
+    } catch (error) {
+      console.error("Error in createDefaultProfile:", error);
+      return createFallbackUser(userId, currentSession);
+    }
+  };
+
+  // Initialize auth - simplified to prevent multiple initializations
   useEffect(() => {
+    if (initialized) return;
+
     let mounted = true;
+    let authTimeoutId: NodeJS.Timeout;
 
     const initializeAuth = async () => {
-      if (initialized) return;
-      
       try {
         console.log("Initializing auth...");
         
-        // Set up auth state listener first
+        // Set timeout to prevent infinite loading
+        authTimeoutId = setTimeout(() => {
+          if (mounted && !user) {
+            console.warn("Auth initialization timeout reached, forcing loading to false");
+            setLoading(false);
+            setInitialized(true);
+          }
+        }, 5000);
+
+        // Set up auth state listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, currentSession) => {
-            console.log("Auth event:", event);
+            console.log("Auth event:", event, "Session exists:", !!currentSession);
 
             if (!mounted) return;
+
+            // Clear timeout since we got a response
+            if (authTimeoutId) {
+              clearTimeout(authTimeoutId);
+            }
 
             switch (event) {
               case 'SIGNED_OUT':
@@ -139,67 +186,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 
               case 'SIGNED_IN':
               case 'TOKEN_REFRESHED':
+              case 'INITIAL_SESSION':
                 if (currentSession?.user) {
                   console.log("Setting session for user:", currentSession.user.id);
                   setSession(currentSession);
                   
-                  // Defer user data fetching to prevent blocking
-                  setTimeout(async () => {
-                    if (mounted) {
-                      const userData = await fetchUserData(currentSession.user.id, currentSession);
-                      if (mounted && userData) {
-                        setUser(userData);
-                      }
-                      setLoading(false);
-                    }
-                  }, 0);
+                  // Fetch user data without blocking
+                  const userData = await fetchUserData(currentSession.user.id, currentSession);
+                  if (mounted && userData) {
+                    setUser(userData);
+                  }
                 }
+                setLoading(false);
                 break;
                 
               default:
-                if (mounted) {
-                  setLoading(false);
-                }
+                setLoading(false);
                 break;
             }
           }
         );
 
-        // Then check for existing session
+        // Get initial session
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error("Error getting session:", error);
+          setLoading(false);
         }
-        
-        if (mounted) {
-          if (initialSession?.user) {
-            console.log("Found initial session for user:", initialSession.user.id);
-            setSession(initialSession);
-            
-            // Defer user data fetching
-            setTimeout(async () => {
-              if (mounted) {
-                const userData = await fetchUserData(initialSession.user.id, initialSession);
-                if (mounted && userData) {
-                  setUser(userData);
-                }
-                setLoading(false);
-                setInitialized(true);
-              }
-            }, 0);
-          } else {
-            console.log("No initial session found");
-            setLoading(false);
-            setInitialized(true);
-          }
-        }
+
+        setInitialized(true);
 
         return () => {
           subscription.unsubscribe();
+          if (authTimeoutId) {
+            clearTimeout(authTimeoutId);
+          }
         };
       } catch (error) {
-        console.error("Error checking session:", error);
+        console.error("Error initializing auth:", error);
         if (mounted) {
           setLoading(false);
           setInitialized(true);
@@ -211,8 +236,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       mounted = false;
+      if (authTimeoutId) {
+        clearTimeout(authTimeoutId);
+      }
     };
-  }, []); // Empty dependency array to prevent re-initialization
+  }, [fetchUserData]);
 
   // Sign-in function
   const signIn = async (email: string, password: string) => {
