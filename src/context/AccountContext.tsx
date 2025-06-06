@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 
+// Multi-tenant account context for managing user access to different accounts
 interface AccountContextType {
   userAccounts: Account[];
   selectedAccountId: string | null;
