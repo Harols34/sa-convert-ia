@@ -13,6 +13,7 @@ export default function useCallUpload() {
   const [processedCount, setProcessedCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [processedFiles, setProcessedFiles] = useState<Set<string>>(new Set());
+  const [selectedPrompts, setSelectedPrompts] = useState<{ summary?: string; feedback?: string }>({});
   const navigate = useNavigate();
 
   // Verificar sesión al cargar el componente
@@ -133,7 +134,7 @@ export default function useCallUpload() {
     }
   };
 
-  // Procesar llamada individual - ACTUALIZADO para manejar cuentas
+  // Procesar llamada individual - ACTUALIZADO para usar prompts seleccionados
   const processCall = async (fileData: FileWithProgress) => {
     let callId = null;
     let progressInterval: any = null;
@@ -322,9 +323,24 @@ export default function useCallUpload() {
           // Mostrar progreso de transcripción
           await updateCallProgress(callId, 70, 'analyzing');
           
-          // Procesar llamada sin esperar el resultado completo
+          // Procesar llamada con prompts seleccionados
+          const processPayload: any = { 
+            callId, 
+            audioUrl: publicUrlData.publicUrl 
+          };
+          
+          // Agregar prompts seleccionados al payload
+          if (selectedPrompts.summary) {
+            processPayload.summaryPrompt = selectedPrompts.summary;
+          }
+          if (selectedPrompts.feedback) {
+            processPayload.feedbackPrompt = selectedPrompts.feedback;
+          }
+          
+          console.log("Procesando llamada con prompts:", processPayload);
+          
           supabase.functions.invoke('process-call', {
-            body: { callId, audioUrl: publicUrlData.publicUrl }
+            body: processPayload
           }).catch(e => console.error("Error en procesamiento background:", e));
           
           // Limpiar intervalo de simulación
@@ -470,7 +486,7 @@ export default function useCallUpload() {
     }
   };
 
-  const uploadFiles = async () => {
+  const uploadFiles = async (prompts?: { summary?: string; feedback?: string }) => {
     if (!currentUser) {
       console.error("No hay usuario autenticado");
       toast.error("No hay usuario autenticado", {
@@ -478,6 +494,12 @@ export default function useCallUpload() {
       });
       navigate("/login");
       return;
+    }
+
+    // Guardar los prompts seleccionados
+    if (prompts) {
+      setSelectedPrompts(prompts);
+      console.log("Prompts seleccionados para procesamiento:", prompts);
     }
     
     console.log("Iniciando proceso de carga con usuario:", currentUser.id);

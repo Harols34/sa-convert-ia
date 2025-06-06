@@ -1,267 +1,145 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import "https://deno.land/x/xhr@0.1.0/mod.ts"
-import OpenAI from "https://esm.sh/openai@4.28.0"
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
+import { corsHeaders } from "./utils/cors.ts";
+import { transcribeAudio } from "./services/transcriptionService.ts";
+import { generateSummary } from "./services/summaryService.ts";
+import { generateFeedback } from "./services/feedbackService.ts";
+import { updateCallInDatabase } from "./services/databaseService.ts";
 
-import { corsHeaders } from "./utils/cors.ts"
-import { validateRequest } from "./utils/validation.ts"
-import { transcribeAudio } from "./services/transcriptionService.ts"
-import { generateSummary } from "./services/summaryService.ts"
-import { generateFeedback } from "./services/feedbackService.ts"
-import { 
-  getCallData, 
-  getExistingFeedback, 
-  updateCallProcessing,
-  updateCallError,
-  updateCallWithTranscription,
-  updateCallWithSummary,
-  saveCompleteCall,
-  updateCallWithResult,
-  saveFeedback
-} from "./services/databaseService.ts"
-
-// Límite de tiempo máximo para evitar timeouts de la función
-const MAX_PROCESSING_TIME = 25000; // 25 segundos
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 serve(async (req) => {
-  // CORS preflight
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
   try {
-    // Parse request body
-    const requestData = await req.json()
-    const { callId, audioUrl, onlyFeedback } = validateRequest(requestData)
+    const { callId, audioUrl, summaryPrompt, feedbackPrompt } = await req.json();
     
-    console.log(`Procesando llamada ${callId} con URL: ${audioUrl}`)
-    console.log(`¿Solo generar feedback? ${onlyFeedback ? 'Sí' : 'No'}`)
-    
-    // Inicializar OpenAI
-    console.log("Inicializando cliente de OpenAI...")
-    const openaiKey = Deno.env.get('API de OPENAI')
-    
-    if (!openaiKey) {
-      throw new Error("API key de OpenAI no encontrada. Por favor configure la clave 'API de OPENAI' en las variables de entorno de Supabase.")
+    if (!callId || !audioUrl) {
+      throw new Error('Missing required parameters: callId and audioUrl');
     }
+
+    console.log(`Processing call ${callId} with custom prompts:`, {
+      hasSummaryPrompt: !!summaryPrompt,
+      hasFeedbackPrompt: !!feedbackPrompt
+    });
+
+    // Update status to transcribing
+    await updateCallInDatabase(supabase, callId, {
+      status: 'transcribing',
+      progress: 10
+    });
+
+    // Step 1: Transcribe audio
+    const transcription = await transcribeAudio(audioUrl);
     
-    const openai = new OpenAI({
-      apiKey: openaiKey
-    })
-    
-    // Obtener datos de la llamada
-    console.log("Obteniendo datos de la llamada...")
-    const call = await getCallData(callId)
-    console.log("Datos de la llamada obtenidos:", call)
-    
-    // If only feedback is required and feedback already exists
-    if (onlyFeedback) {
-      console.log("Generando solo feedback para la llamada...")
-      
-      // Verificar si ya existe feedback para esta llamada
-      const existingFeedback = await getExistingFeedback(callId)
-        
-      if (existingFeedback) {
-        console.log("Feedback ya existe para esta llamada:", existingFeedback)
-        return new Response(
-          JSON.stringify({ success: true, feedback: existingFeedback }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-      
-      // If there's transcription, generate feedback
-      if (call.transcription) {
-        // Generate feedback
-        const feedbackResult = await generateFeedback(openai, call)
-        
-        // Guardar feedback en la base de datos
-        const { data: savedFeedback, error: feedbackError } = await saveFeedback(feedbackResult.feedback)
-          
-        if (feedbackError) {
-          throw new Error(`Error al guardar el feedback: ${feedbackError.message}`)
-        }
-        
-        // Actualizar la llamada con el resultado
-        await updateCallWithResult(callId, feedbackResult.result, feedbackResult.product, feedbackResult.reason)
-          
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
-            feedback: savedFeedback,
-            result: feedbackResult.result,
-            product: feedbackResult.product,
-            reason: feedbackResult.reason,
-            status_summary: feedbackResult.reason
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      } else {
-        throw new Error("No hay transcripción disponible para generar feedback")
-      }
+    if (!transcription) {
+      throw new Error('Failed to transcribe audio');
     }
+
+    // Update with transcription
+    await updateCallInDatabase(supabase, callId, {
+      transcription,
+      status: 'analyzing',
+      progress: 40
+    });
+
+    // Step 2: Generate summary with custom prompt if provided
+    const summary = await generateSummary(transcription, summaryPrompt);
     
-    // For full processing flow
-    if (!call.transcription) {
-      try {
-        // Actualizar el estado de la llamada a "procesando"
-        await updateCallProcessing(callId, 20)
-          
-        // Transcribir audio
-        console.log("Comenzando transcripción con Whisper...")
-        const transcription = await transcribeAudio(openai, audioUrl)
-        console.log("Transcripción completada");
-        
-        // Actualizar progreso
-        await updateCallWithTranscription(callId, transcription, 40)
-        
-        // Generate summary
-        console.log("Generando resumen...")
-        const summary = await generateSummary(openai, transcription)
-        
-        // Actualizar progreso
-        await updateCallWithSummary(callId, summary, 70)
-        
-        // Generate feedback
-        console.log("Generando feedback...")
-        const feedbackResult = await generateFeedback(openai, {
-          ...call,
-          transcription: JSON.stringify(transcription),
-          summary
-        })
-        
-        // Calcular duración del audio basada en la transcripción
-        const duration = transcription.length > 0 
-          ? Math.ceil(transcription[transcription.length - 1].end)
-          : 0
-        
-        // Actualizar llamada con toda la información
-        console.log("Guardando resultados en la base de datos...")
-        const { error: updateError } = await saveCompleteCall(
-          callId, 
-          transcription, 
-          summary, 
-          duration, 
-          feedbackResult.result, 
-          feedbackResult.product, 
-          feedbackResult.reason
-        )
-          
-        if (updateError) {
-          throw new Error(`Error al actualizar la llamada: ${updateError.message}`)
-        }
-        
-        // Guardar feedback en la base de datos
-        try {
-          const { error: feedbackError } = await saveFeedback(feedbackResult.feedback)
-            
-          if (feedbackError) {
-            throw new Error(`Error al guardar el feedback: ${feedbackError.message}`)
-          }
-        } catch (error) {
-          console.error("Error al parsear o guardar el feedback:", error)
-        }
-        
-        return new Response(
-          JSON.stringify({ 
-            success: true,
-            message: "Llamada procesada correctamente",
-            data: {
-              transcription,
-              summary,
-              feedback: feedbackResult.feedback,
-              result: feedbackResult.result,
-              product: feedbackResult.product,
-              reason: feedbackResult.reason,
-              status_summary: feedbackResult.reason
-            }
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      } catch (processingError) {
-        console.error("Error en el procesamiento:", processingError);
-        
-        // Actualizar el estado a "error" pero permitir reintentos
-        await updateCallError(callId);
-          
-        throw processingError;
-      }
-    } else {
-      // If transcription exists but feedback needs generation
-      const existingFeedback = await getExistingFeedback(callId)
-      
-      if (existingFeedback) {
-        // Verificar si ya hay resultados
-        if (!call.result) {
-          // Generate only results
-          const feedbackResult = await generateFeedback(openai, call)
-          
-          // Update the call with the results
-          await updateCallWithResult(callId, feedbackResult.result, feedbackResult.product, feedbackResult.reason)
-            
-          return new Response(
-            JSON.stringify({ 
-              success: true,
-              message: "Resultados actualizados",
-              feedback: existingFeedback,
-              result: feedbackResult.result,
-              product: feedbackResult.product,
-              reason: feedbackResult.reason,
-              status_summary: feedbackResult.reason
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-        
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
-            message: "Feedback ya existente",
-            feedback: existingFeedback,
-            result: call.result,
-            product: call.product,
-            reason: call.reason,
-            status_summary: call.reason
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-      
-      // Generate feedback and classification
-      const feedbackResult = await generateFeedback(openai, call)
-      
-      // Save feedback
-      const { data: savedFeedback, error: feedbackError } = await saveFeedback(feedbackResult.feedback)
-        
-      if (feedbackError) {
-        throw new Error(`Error al guardar el feedback: ${feedbackError.message}`)
-      }
-      
-      // Update the call with the results
-      await updateCallWithResult(callId, feedbackResult.result, feedbackResult.product, feedbackResult.reason)
-      
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          feedback: savedFeedback,
-          result: feedbackResult.result,
-          product: feedbackResult.product,
-          reason: feedbackResult.reason,
-          status_summary: feedbackResult.reason
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // Update with summary
+    await updateCallInDatabase(supabase, callId, {
+      summary,
+      progress: 70
+    });
+
+    // Step 3: Generate feedback with custom prompt if provided
+    const feedbackResult = await generateFeedback(transcription, summary, feedbackPrompt);
+    
+    // Step 4: Update call with all results
+    await updateCallInDatabase(supabase, callId, {
+      status: 'completed',
+      progress: 100,
+      sentiment: feedbackResult.sentiment,
+      entities: feedbackResult.entities,
+      topics: feedbackResult.topics
+    });
+
+    // Step 5: Store feedback in feedback table
+    const { error: feedbackError } = await supabase
+      .from('feedback')
+      .insert({
+        call_id: callId,
+        score: feedbackResult.score,
+        positive: feedbackResult.positive,
+        negative: feedbackResult.negative,
+        opportunities: feedbackResult.opportunities,
+        sentiment: feedbackResult.sentiment,
+        entities: feedbackResult.entities,
+        topics: feedbackResult.topics,
+        behaviors_analysis: feedbackResult.behaviors_analysis || []
+      });
+
+    if (feedbackError) {
+      console.error('Error inserting feedback:', feedbackError);
     }
-  } catch (error) {
-    console.error("Error procesando la llamada:", error)
+
+    console.log(`Successfully processed call ${callId}`);
+
     return new Response(
       JSON.stringify({ 
-        success: false, 
-        error: error.message 
+        success: true, 
+        callId,
+        message: 'Call processed successfully',
+        usedCustomPrompts: {
+          summary: !!summaryPrompt,
+          feedback: !!feedbackPrompt
+        }
       }),
       { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
       }
-    )
+    );
+
+  } catch (error) {
+    console.error('Error processing call:', error);
+    
+    // Try to update call status to error if we have callId
+    const requestBody = await req.json().catch(() => ({}));
+    if (requestBody.callId) {
+      try {
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        await updateCallInDatabase(supabase, requestBody.callId, {
+          status: 'error',
+          progress: 0
+        });
+      } catch (updateError) {
+        console.error('Error updating call status to error:', updateError);
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        error: error.message,
+        details: error.stack 
+      }),
+      { 
+        status: 500,
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
+      }
+    );
   }
-})
+});

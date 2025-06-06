@@ -11,7 +11,6 @@ import { useState } from "react";
 
 export default function CallUpload() {
   const [showPromptModal, setShowPromptModal] = useState(false);
-  const [selectedPrompts, setSelectedPrompts] = useState<{ summary?: string; feedback?: string }>({});
   
   const {
     files,
@@ -44,8 +43,8 @@ export default function CallUpload() {
   };
 
   const handlePromptConfirm = (prompts: { summary?: string; feedback?: string }) => {
-    setSelectedPrompts(prompts);
-    uploadFiles();
+    setShowPromptModal(false);
+    uploadFiles(prompts);
   };
 
   return (
