@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -16,89 +15,64 @@ import { Skeleton } from "@/components/ui/skeleton";
 const CallControlPanelLazy = lazy(() => import("@/components/calls/CallControlPanel"));
 
 // Placeholder loading component
-const LoadingPlaceholder = () => (
-  <div className="space-y-4">
+const LoadingPlaceholder = () => <div className="space-y-4">
     <Skeleton className="h-8 w-64" />
     <Skeleton className="h-4 w-full" />
     <Skeleton className="h-64 w-full" />
-  </div>
-);
-
+  </div>;
 export default function CallsPage() {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useUser();
+  const {
+    user
+  } = useUser();
 
   // Check if user is admin or supervisor
   const isAdmin = user && (user.role === "admin" || user.role === "superAdmin" || user.role === "supervisor");
-  
+
   // Prevent flickering by using a key based on the location pathname
   const routeKey = location.pathname;
-
-  return (
-    <Layout>
+  return <Layout>
       <Routes>
-        <Route path="/" element={
-          <div key="calls-list" className="space-y-6 animate-fade-in">
+        <Route path="/" element={<div key="calls-list" className="space-y-6 animate-fade-in">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between">
               <div>
-                <h1 className="text-3xl font-bold tracking-tight text-foreground">Llamadas</h1>
+                
                 <p className="text-muted-foreground mt-1">
                   Ver, gestionar y analizar tus llamadas
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3 mt-4 md:mt-0">
-                {isAdmin && (
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setShowAdminPanel(!showAdminPanel)}
-                    className="hover-scale"
-                  >
+                {isAdmin && <Button variant="outline" onClick={() => setShowAdminPanel(!showAdminPanel)} className="hover-scale">
                     <Settings className="mr-2 h-4 w-4" /> 
                     {showAdminPanel ? "Ocultar Panel" : "Panel Admin"}
-                  </Button>
-                )}
-                <Button 
-                  onClick={() => navigate("/calls/upload")}
-                  className="hover-scale"
-                >
-                  <Plus className="mr-2 h-4 w-4" /> 
-                  Subir Llamadas
-                </Button>
+                  </Button>}
+                
               </div>
             </div>
             
             {/* Admin Panel */}
-            {isAdmin && showAdminPanel && (
-              <div className="animate-accordion-down">
+            {isAdmin && showAdminPanel && <div className="animate-accordion-down">
                 <div className="bg-card rounded-lg border p-6">
                   <h2 className="text-lg font-semibold mb-4">Panel de Administración</h2>
                   <Suspense fallback={<LoadingPlaceholder />}>
                     <CallControlPanelLazy />
                   </Suspense>
                 </div>
-              </div>
-            )}
+              </div>}
             
             {/* Calls List */}
             <div className="bg-card rounded-lg border">
               <CallList />
             </div>
-          </div>
-        } />
+          </div>} />
         
-        <Route path="/upload" element={
-          <div key="calls-upload" className="space-y-6 animate-fade-in">
+        <Route path="/upload" element={<div key="calls-upload" className="space-y-6 animate-fade-in">
             {/* Header */}
             <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => navigate("/calls")}
-                className="hover-scale"
-              >
+              <Button variant="ghost" size="sm" onClick={() => navigate("/calls")} className="hover-scale">
                 <ArrowLeft className="h-4 w-4 mr-2" /> 
                 Volver
               </Button>
@@ -114,19 +88,12 @@ export default function CallsPage() {
             <div className="bg-card rounded-lg border p-6">
               <CallUpload />
             </div>
-          </div>
-        } />
+          </div>} />
         
-        <Route path="/:id" element={
-          <div key="calls-detail" className="space-y-6 animate-fade-in">
+        <Route path="/:id" element={<div key="calls-detail" className="space-y-6 animate-fade-in">
             {/* Header */}
             <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => navigate("/calls")}
-                className="hover-scale"
-              >
+              <Button variant="ghost" size="sm" onClick={() => navigate("/calls")} className="hover-scale">
                 <ArrowLeft className="h-4 w-4 mr-2" /> 
                 Volver
               </Button>
@@ -140,9 +107,7 @@ export default function CallsPage() {
             
             {/* Call Detail */}
             <CallDetail />
-          </div>
-        } />
+          </div>} />
       </Routes>
-    </Layout>
-  );
+    </Layout>;
 }
