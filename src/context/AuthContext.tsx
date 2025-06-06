@@ -168,119 +168,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.info("Fetching user data for ID:", userId);
       
-      // Retry logic for profile fetch
-      let retryCount = 0;
-      const maxRetries = 3;
-      let userData = null;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
       
-      while (retryCount < maxRetries && !userData) {
-        try {
-          const { data, error } = await supabase
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No profile found, create one
+          console.info("No profile found, creating default profile");
+          const { data: newProfile, error: insertError } = await supabase
             .from('profiles')
-            .select('*')
-            .eq('id', userId)
+            .insert({
+              id: userId,
+              full_name: session?.user?.email?.split('@')[0] || 'Usuario',
+              role: 'agent',
+              language: 'es'
+            })
+            .select()
             .single();
           
-          if (error) {
-            if (error.code === 'PGRST116') {
-              // No profile found, create one
-              console.info("No profile found, creating default profile");
-              const { data: newProfile, error: insertError } = await supabase
-                .from('profiles')
-                .insert({
-                  id: userId,
-                  full_name: session?.user?.email?.split('@')[0] || 'Usuario',
-                  role: 'agent',
-                  language: 'es'
-                })
-                .select()
-                .single();
-              
-              if (insertError) {
-                console.error("Error creating default profile:", insertError);
-                // Si no puede crear el perfil, usar datos por defecto
-                userData = {
-                  id: userId,
-                  full_name: session?.user?.email?.split('@')[0] || 'Usuario',
-                  role: 'agent',
-                  language: 'es',
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString()
-                };
-              } else {
-                userData = newProfile;
-              }
-            } else {
-              console.error("Error fetching user profile:", error);
-              retryCount++;
-              if (retryCount < maxRetries) {
-                await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-              }
-            }
-          } else {
-            userData = data;
+          if (insertError) {
+            console.error("Error creating default profile:", insertError);
+            throw insertError;
           }
-        } catch (fetchError) {
-          console.error("Fetch attempt failed:", fetchError);
-          retryCount++;
-          if (retryCount < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-          }
+          
+          // Use the newly created profile
+          const appUser: AppUser = {
+            id: userId,
+            email: session?.user?.email || '',
+            role: newProfile.role || 'agent',
+            name: newProfile.full_name || '',
+            full_name: newProfile.full_name || '',
+            avatar: newProfile.avatar_url,
+            avatar_url: newProfile.avatar_url,
+            language: newProfile.language || 'es',
+            dailyQueryLimit: 20,
+            queriesUsed: 0,
+            created_at: newProfile.created_at,
+            updated_at: newProfile.updated_at
+          };
+          
+          console.info("User profile created successfully with role:", appUser.role);
+          setUser(appUser);
+        } else {
+          console.error("Error fetching user profile:", error);
+          throw error;
         }
-      }
-
-      // Create the app user object
-      if (userData) {
+      } else {
+        // Create the app user object from existing profile
         const appUser: AppUser = {
           id: userId,
           email: session?.user?.email || '',
-          role: userData.role || 'agent',
-          name: userData.full_name || '',
-          full_name: userData.full_name || '',
-          avatar: userData.avatar_url,
-          avatar_url: userData.avatar_url,
-          language: userData.language || 'es',
+          role: data.role || 'agent',
+          name: data.full_name || '',
+          full_name: data.full_name || '',
+          avatar: data.avatar_url,
+          avatar_url: data.avatar_url,
+          language: data.language || 'es',
           dailyQueryLimit: 20,
           queriesUsed: 0,
-          created_at: userData.created_at,
-          updated_at: userData.updated_at
+          created_at: data.created_at,
+          updated_at: data.updated_at
         };
         
         console.info("User data loaded with role:", appUser.role);
         setUser(appUser);
-      } else {
-        // Fallback user if all retries failed
-        const defaultUser: AppUser = {
-          id: userId,
-          email: session?.user?.email || '',
-          role: 'agent',
-          name: session?.user?.email?.split('@')[0] || 'Usuario',
-          full_name: session?.user?.email?.split('@')[0] || 'Usuario',
-          dailyQueryLimit: 20,
-          queriesUsed: 0,
-          language: 'es'
-        };
-        
-        console.info("Using fallback user data:", defaultUser);
-        setUser(defaultUser);
       }
       
       setLoading(false);
     } catch (error) {
       console.error("Error in fetchUserData:", error);
-      // Create a minimal user to prevent app crash
-      const fallbackUser: AppUser = {
-        id: userId,
-        email: session?.user?.email || '',
-        role: 'agent',
-        name: 'Usuario',
-        full_name: 'Usuario',
-        dailyQueryLimit: 20,
-        queriesUsed: 0,
-        language: 'es'
-      };
-      setUser(fallbackUser);
       setLoading(false);
+      toast.error("Error al cargar los datos del usuario");
     }
   };
 
