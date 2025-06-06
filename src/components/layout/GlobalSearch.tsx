@@ -21,6 +21,7 @@ interface SearchItem {
   category: string;
   icon: string;
   keywords: string[];
+  requiredRoles: string[];
 }
 
 interface GlobalSearchProps {
@@ -35,10 +36,7 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const canManageUsers = user?.role === "superAdmin" || user?.role === "admin";
-  const isSuperAdmin = user?.role === "superAdmin";
-
-  const searchItems: SearchItem[] = [
+  const allSearchItems: SearchItem[] = [
     {
       id: "analytics",
       title: "Análisis",
@@ -46,7 +44,8 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
       path: "/analytics",
       category: "Operación",
       icon: "📊",
-      keywords: ["analisis", "metricas", "estadisticas", "dashboard", "kpi"]
+      keywords: ["analisis", "metricas", "estadisticas", "dashboard", "kpi"],
+      requiredRoles: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"]
     },
     {
       id: "calls",
@@ -55,7 +54,8 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
       path: "/calls",
       category: "Operación",
       icon: "📞",
-      keywords: ["llamadas", "conversaciones", "grabaciones", "telefono"]
+      keywords: ["llamadas", "conversaciones", "grabaciones", "telefono"],
+      requiredRoles: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"]
     },
     {
       id: "agents",
@@ -64,7 +64,8 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
       path: "/agents",
       category: "Operación",
       icon: "👥",
-      keywords: ["agentes", "vendedores", "equipo", "personal"]
+      keywords: ["agentes", "vendedores", "equipo", "personal"],
+      requiredRoles: ["superAdmin", "admin", "qualityAnalyst", "supervisor"]
     },
     {
       id: "workforce",
@@ -73,7 +74,18 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
       path: "/workforce",
       category: "Operación",
       icon: "👁️",
-      keywords: ["supervision", "monitoreo", "control", "equipos"]
+      keywords: ["supervision", "monitoreo", "control", "equipos"],
+      requiredRoles: ["superAdmin", "admin", "supervisor"]
+    },
+    {
+      id: "tools",
+      title: "Herramientas",
+      description: "Herramientas de análisis y procesamiento",
+      path: "/tools",
+      category: "Operación",
+      icon: "🔧",
+      keywords: ["herramientas", "utilidades", "procesamiento"],
+      requiredRoles: ["superAdmin", "admin", "qualityAnalyst", "supervisor"]
     },
     {
       id: "chat",
@@ -82,7 +94,8 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
       path: "/chat",
       category: "IA",
       icon: "🤖",
-      keywords: ["chat", "ia", "artificial", "asistente", "bot"]
+      keywords: ["chat", "ia", "artificial", "asistente", "bot"],
+      requiredRoles: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"]
     },
     {
       id: "behaviors",
@@ -91,7 +104,8 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
       path: "/behaviors",
       category: "IA",
       icon: "🧠",
-      keywords: ["comportamientos", "patrones", "analisis", "conducta"]
+      keywords: ["comportamientos", "patrones", "analisis", "conducta"],
+      requiredRoles: ["superAdmin", "admin", "qualityAnalyst", "supervisor"]
     },
     {
       id: "tipificaciones",
@@ -100,7 +114,8 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
       path: "/tipificaciones",
       category: "IA",
       icon: "🏷️",
-      keywords: ["tipificaciones", "categorias", "etiquetas", "clasificacion"]
+      keywords: ["tipificaciones", "categorias", "etiquetas", "clasificacion"],
+      requiredRoles: ["superAdmin", "admin", "qualityAnalyst", "supervisor"]
     },
     {
       id: "prompts",
@@ -109,7 +124,28 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
       path: "/prompts",
       category: "IA",
       icon: "✏️",
-      keywords: ["prompts", "plantillas", "instrucciones", "ia"]
+      keywords: ["prompts", "plantillas", "instrucciones", "ia"],
+      requiredRoles: ["superAdmin", "admin"]
+    },
+    {
+      id: "users",
+      title: "Usuarios",
+      description: "Gestión de usuarios del sistema",
+      path: "/users",
+      category: "Administración",
+      icon: "👤",
+      keywords: ["usuarios", "cuentas", "perfiles", "administracion"],
+      requiredRoles: ["superAdmin", "admin"]
+    },
+    {
+      id: "accounts",
+      title: "Cuentas",
+      description: "Gestión de cuentas empresariales",
+      path: "/accounts",
+      category: "Administración",
+      icon: "🏢",
+      keywords: ["cuentas", "empresas", "organizaciones", "clientes"],
+      requiredRoles: ["superAdmin"]
     },
     {
       id: "settings",
@@ -118,42 +154,29 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
       path: "/settings",
       category: "Sistema",
       icon: "⚙️",
-      keywords: ["configuracion", "ajustes", "perfil", "sistema"]
+      keywords: ["configuracion", "ajustes", "perfil", "sistema"],
+      requiredRoles: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"]
     }
   ];
 
-  // Add admin-only items
-  if (canManageUsers) {
-    searchItems.push({
-      id: "users",
-      title: "Usuarios",
-      description: "Gestión de usuarios del sistema",
-      path: "/users",
-      category: "Administración",
-      icon: "👤",
-      keywords: ["usuarios", "cuentas", "perfiles", "administracion"]
-    });
-  }
-
-  if (isSuperAdmin) {
-    searchItems.push({
-      id: "accounts",
-      title: "Cuentas",
-      description: "Gestión de cuentas empresariales",
-      path: "/accounts",
-      category: "Administración",
-      icon: "🏢",
-      keywords: ["cuentas", "empresas", "organizaciones", "clientes"]
-    });
-  }
+  // Filter items based on user role
+  const getAvailableItems = useCallback(() => {
+    if (!user?.role) return [];
+    
+    return allSearchItems.filter(item => 
+      item.requiredRoles.includes(user.role)
+    );
+  }, [user?.role]);
 
   const filterItems = useCallback((searchQuery: string) => {
+    const availableItems = getAvailableItems();
+    
     if (!searchQuery.trim()) {
-      setFilteredItems(searchItems.slice(0, 8)); // Show first 8 items by default
+      setFilteredItems(availableItems.slice(0, 8)); // Show first 8 available items
       return;
     }
 
-    const filtered = searchItems.filter(item => {
+    const filtered = availableItems.filter(item => {
       const searchTerm = searchQuery.toLowerCase();
       return (
         item.title.toLowerCase().includes(searchTerm) ||
@@ -164,17 +187,20 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
 
     setFilteredItems(filtered);
     setSelectedIndex(0);
-  }, [searchItems]);
+  }, [getAvailableItems]);
 
   useEffect(() => {
-    filterItems(query);
-  }, [query, filterItems]);
+    if (open) {
+      filterItems(query);
+    }
+  }, [query, filterItems, open, user?.role]);
 
   useEffect(() => {
     if (!open) {
       setQuery("");
       setSelectedIndex(0);
     } else {
+      // Reset items when opening
       filterItems("");
     }
   }, [open, filterItems]);
@@ -214,6 +240,10 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
     onOpenChange(false);
   };
 
+  if (!user) {
+    return null; // Don't render search if no user
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl p-0 overflow-hidden">
@@ -223,7 +253,7 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar módulos, funciones..."
+              placeholder="Buscar módulos disponibles..."
               className="border-0 bg-transparent text-lg focus-visible:ring-0 focus-visible:ring-offset-0"
               autoFocus
             />
@@ -238,7 +268,7 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
           {filteredItems.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               <Search className="h-8 w-8 mx-auto mb-3 opacity-50" />
-              <p>No se encontraron resultados</p>
+              <p>No se encontraron módulos disponibles</p>
               <p className="text-sm">Intenta con otros términos de búsqueda</p>
             </div>
           ) : (
@@ -278,7 +308,7 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
         <div className="px-4 py-3 border-t bg-gray-50 text-xs text-muted-foreground">
           <div className="flex items-center justify-between">
             <span>Navega con ↑↓ • Selecciona con ↵</span>
-            <span>ESC para cerrar</span>
+            <span>ESC para cerrar • Solo módulos con acceso</span>
           </div>
         </div>
       </DialogContent>
