@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAccount } from '@/context/AccountContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Users, UserPlus, UserMinus, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import CreateHaroldUser from './CreateHaroldUser';
 import type { User, Account } from '@/lib/types';
 
 interface UserWithAccounts extends User {

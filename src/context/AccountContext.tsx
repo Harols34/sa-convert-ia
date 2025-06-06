@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Account, UserAccount } from '@/lib/types';
 import { supabase } from '@/integrations/supabase/client';
@@ -41,13 +40,13 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Cargar cuentas del usuario actual
+  // Cargar cuentas del usuario actual - ACTUALIZADO para manejar RLS
   const loadUserAccounts = async () => {
     if (!user) return;
 
     try {
       if (user.role === 'superAdmin') {
-        // SuperAdmin ve todas las cuentas
+        // SuperAdmin ve todas las cuentas activas
         const { data: accounts, error } = await supabase
           .from('accounts')
           .select('*')
@@ -60,7 +59,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
           status: account.status as 'active' | 'inactive'
         })));
       } else {
-        // Usuario normal ve solo sus cuentas asignadas
+        // Usuario normal ve solo sus cuentas asignadas (RLS se encarga del filtrado)
         const { data: userAccountsData, error } = await supabase
           .from('user_accounts')
           .select(`
@@ -89,11 +88,12 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     }
   };
 
-  // Cargar todas las cuentas (solo para SuperAdmin)
+  // Cargar todas las cuentas (solo para SuperAdmin) - ACTUALIZADO
   const loadAccounts = async () => {
     if (!user || user.role !== 'superAdmin') return;
 
     try {
+      // SuperAdmin puede ver todas las cuentas
       const { data: accounts, error } = await supabase
         .from('accounts')
         .select('*')
@@ -255,8 +255,14 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
         ]);
         
         // Auto-seleccionar la primera cuenta disponible si no hay una seleccionada
-        if (!selectedAccountId && userAccounts.length > 0) {
+        // Para SuperAdmin, permitir sin selección para ver todos los datos
+        if (!selectedAccountId && userAccounts.length > 0 && user.role !== 'superAdmin') {
           setSelectedAccountId(userAccounts[0].id);
+        }
+        
+        // Guardar en localStorage la cuenta seleccionada
+        if (selectedAccountId) {
+          localStorage.setItem('selectedAccountId', selectedAccountId);
         }
         
         setIsLoading(false);
@@ -265,6 +271,15 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
 
     initializeAccounts();
   }, [user]);
+
+  // Actualizar localStorage cuando cambie la cuenta seleccionada
+  useEffect(() => {
+    if (selectedAccountId) {
+      localStorage.setItem('selectedAccountId', selectedAccountId);
+    } else {
+      localStorage.removeItem('selectedAccountId');
+    }
+  }, [selectedAccountId]);
 
   return (
     <AccountContext.Provider

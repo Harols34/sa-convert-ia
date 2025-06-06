@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -134,7 +133,7 @@ export default function useCallUpload() {
     }
   };
 
-  // Procesar llamada individual
+  // Procesar llamada individual - ACTUALIZADO para manejar cuentas
   const processCall = async (fileData: FileWithProgress) => {
     let callId = null;
     let progressInterval: any = null;
@@ -163,23 +162,64 @@ export default function useCallUpload() {
         )
       );
       
+      // Obtener la cuenta seleccionada del contexto
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuario no autenticado");
+      
+      // Obtener información del usuario y sus cuentas
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+        
+      const { data: userAccounts } = await supabase
+        .from('user_accounts')
+        .select(`
+          accounts!inner (
+            id,
+            name
+          )
+        `)
+        .eq('user_id', user.id);
+      
+      // Determinar la carpeta de destino basada en la cuenta seleccionada
+      let folderPath = 'Audio'; // Default para SuperAdmin o compatibilidad
+      let selectedAccountId = null;
+      
+      // Si es SuperAdmin, usar carpeta Audio por defecto
+      if (profile?.role !== 'superAdmin' && userAccounts && userAccounts.length > 0) {
+        // Para usuarios normales, usar la primera cuenta disponible o la seleccionada
+        const firstAccount = userAccounts[0].accounts;
+        folderPath = firstAccount.name;
+        selectedAccountId = firstAccount.id;
+        
+        // Intentar obtener la cuenta seleccionada del AccountContext si está disponible
+        const selectedAccountFromContext = localStorage.getItem('selectedAccountId');
+        if (selectedAccountFromContext) {
+          const selectedAccount = userAccounts.find(ua => ua.accounts.id === selectedAccountFromContext);
+          if (selectedAccount) {
+            folderPath = selectedAccount.accounts.name;
+            selectedAccountId = selectedAccount.accounts.id;
+          }
+        }
+      }
+      
       // Create a unique filename with timestamp to avoid collisions
-      // Use a safe filename - replace special characters
       const originalFileName = fileData.file.name;
       const safeFileName = originalFileName
-        .replace(/[^a-zA-Z0-9.-]/g, '_') // Replace special chars with underscore
-        .replace(/_{2,}/g, '_');         // Replace multiple underscores with single
+        .replace(/[^a-zA-Z0-9.-]/g, '_')
+        .replace(/_{2,}/g, '_');
       
       const fileName = `${Date.now()}-${safeFileName}`;
-      const filePath = `audio/${fileName}`;
+      const filePath = `${folderPath}/${fileName}`;
       
-      // Extract call title from original filename - remove extension
+      // Extract call title from original filename
       const callTitle = originalFileName.replace(/\.[^/.]+$/, "");
       
       // Check if a call with this title already exists
       const callExists = await checkCallExists(callTitle);
         
-      // If call with this title already exists, mark as duplicate and skip
       if (callExists) {
         console.log(`Llamada con título "${callTitle}" ya existe`);
         setFiles((prev) =>
@@ -199,14 +239,12 @@ export default function useCallUpload() {
       
       console.log("Subiendo archivo a bucket 'calls':", filePath);
       
-      // Marcar el archivo como en procesamiento para evitar duplicados
       setProcessedFiles(prev => new Set(prev).add(fileData.file.name));
       
-      // Convertir file a Uint8Array para mayor compatibilidad con Supabase Storage
       const arrayBuffer = await fileData.file.arrayBuffer();
       const fileData8 = new Uint8Array(arrayBuffer);
       
-      // Upload to Supabase Storage con opciones mejoradas
+      // Upload to Supabase Storage
       const { data: storageData, error: storageError } = await supabase.storage
         .from('calls')
         .upload(filePath, fileData8, {
@@ -236,7 +274,7 @@ export default function useCallUpload() {
         )
       );
       
-      // Create a record in the calls table with current date
+      // Create a record in the calls table with account_id
       const currentDate = new Date().toISOString();
       
       console.log("Insertando registro en la tabla calls...");
@@ -251,7 +289,8 @@ export default function useCallUpload() {
             date: currentDate,
             audio_url: publicUrlData.publicUrl,
             status: 'transcribing',
-            progress: 20
+            progress: 20,
+            account_id: selectedAccountId  // Asignar la cuenta correspondiente
           }
         ])
         .select();
