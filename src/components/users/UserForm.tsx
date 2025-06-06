@@ -24,6 +24,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useAuth } from "@/context/AuthContext";
 
 const formSchema = z.object({
   email: z.string().email("Ingrese un correo electrónico válido").min(1, "El correo electrónico es requerido"),
@@ -36,6 +37,7 @@ const formSchema = z.object({
 export default function UserForm() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { user: currentUser } = useAuth();
   const isEditMode = Boolean(id);
   
   const [isLoading, setIsLoading] = useState(false);
@@ -64,7 +66,7 @@ export default function UserForm() {
     setIsLoading(true);
     setError(null);
     try {
-      console.log("Obteniendo datos de usuario con ID:", id);
+      console.log("Fetching user data for ID:", id);
       
       // First try to get the profile data
       const { data: profileData, error: profileError } = await supabase
@@ -74,10 +76,10 @@ export default function UserForm() {
         .single();
       
       if (profileError) {
-        console.log("Error al obtener perfil o perfil no existe:", profileError.message);
+        console.log("Error fetching profile or profile doesn't exist:", profileError.message);
         setProfileExists(false);
       } else {
-        console.log("Datos de perfil obtenidos:", profileData);
+        console.log("Profile data obtained:", profileData);
         setProfileExists(true);
       }
       
@@ -88,13 +90,13 @@ export default function UserForm() {
         });
         
         if (usersError) {
-          console.error("Error al obtener datos de usuario:", usersError);
+          console.error("Error fetching user data:", usersError);
           throw usersError;
         }
         
         if (usersData?.userData && usersData.userData[id as string]) {
           const userData = usersData.userData[id as string];
-          console.log("Datos de usuario obtenidos:", userData);
+          console.log("User data obtained:", userData);
           
           // Update form with merged data from profile and auth
           form.reset({
@@ -105,7 +107,7 @@ export default function UserForm() {
             language: profileData?.language || 'es',
           });
         } else {
-          console.error("No se encontraron datos del usuario");
+          console.error("User data not found");
           setError("No se encontraron datos del usuario. Intente nuevamente.");
           
           // If data wasn't found, try fetching user email directly (fallback)
@@ -121,11 +123,11 @@ export default function UserForm() {
           }
         }
       } catch (e) {
-        console.error("Error al conectar con el servidor:", e);
+        console.error("Error connecting to server:", e);
         setError("Error al conectar con el servidor. Intente nuevamente.");
       }
     } catch (error) {
-      console.error("Error al obtener datos del usuario:", error);
+      console.error("Error fetching user data:", error);
       setError("Hubo un problema al cargar los datos del usuario.");
       toast.error("Error al cargar usuario", {
         description: "Hubo un problema al cargar los datos del usuario.",
@@ -138,7 +140,7 @@ export default function UserForm() {
 
   const createUser = async (values: z.infer<typeof formSchema>) => {
     try {
-      console.log("Creando usuario:", values);
+      console.log("Creating user:", values);
       
       // Validate password for new users
       if (!values.password) {
@@ -157,7 +159,7 @@ export default function UserForm() {
       });
       
       if (authError) {
-        console.error("Error al crear usuario:", authError);
+        console.error("Error creating user:", authError);
         throw authError;
       }
       
@@ -168,11 +170,11 @@ export default function UserForm() {
       
       navigate('/users');
     } catch (error) {
-      console.error("Error al crear usuario:", error);
+      console.error("Error creating user:", error);
       
       let errorMessage = "Hubo un problema al crear el usuario. Por favor, inténtalo de nuevo.";
       
-      // Mensajes de error más específicos según el tipo de error
+      // More specific error messages based on error type
       if (error.message?.includes("duplicate key")) {
         errorMessage = "Este correo electrónico ya está registrado. Por favor, utiliza otro.";
       }
@@ -186,7 +188,7 @@ export default function UserForm() {
 
   const updateUser = async (values: z.infer<typeof formSchema>) => {
     try {
-      console.log("Actualizando usuario:", values);
+      console.log("Updating user:", values);
       
       // Use the updateUserPassword edge function to update user data
       const { error: updateError } = await supabase.functions.invoke('updateUserPassword', {
@@ -210,7 +212,7 @@ export default function UserForm() {
       
       navigate('/users');
     } catch (error) {
-      console.error("Error al actualizar usuario:", error);
+      console.error("Error updating user:", error);
       toast.error("Error al actualizar usuario", {
         description: "Hubo un problema al actualizar el usuario. Por favor, inténtalo de nuevo.",
         duration: 5000,
@@ -335,7 +337,9 @@ export default function UserForm() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="superAdmin">Super Administrador</SelectItem>
+                      {currentUser?.role === "superAdmin" && (
+                        <SelectItem value="superAdmin">Super Administrador</SelectItem>
+                      )}
                       <SelectItem value="admin">Administrador</SelectItem>
                       <SelectItem value="qualityAnalyst">Analista de Calidad</SelectItem>
                       <SelectItem value="supervisor">Supervisor</SelectItem>

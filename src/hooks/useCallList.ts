@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -62,24 +61,13 @@ export function useCallList() {
         .order('created_at', { ascending: false })
         .limit(100); // Limit results to improve performance
 
-      // Apply filters based on user role and account selection
-      if (user.role === 'superAdmin') {
-        // SuperAdmin can see all calls or filter by account
-        if (selectedAccountId && selectedAccountId !== 'all') {
-          query = query.eq('account_id', selectedAccountId);
-        }
-      } else if (user.role === 'admin') {
-        // Admin can only see calls from their assigned accounts
-        if (selectedAccountId && selectedAccountId !== 'all') {
-          query = query.eq('account_id', selectedAccountId);
-        } else {
-          // If no specific account selected, don't load any calls
-          setCalls([]);
-          setLoading(false);
-          setIsRefreshing(false);
-          return;
-        }
-      } else {
+      // Apply account filter for all roles
+      if (selectedAccountId && selectedAccountId !== 'all') {
+        query = query.eq('account_id', selectedAccountId);
+      }
+
+      // Additional filters based on user role
+      if (user.role === 'agent') {
         // Agents can only see their own calls
         query = query.eq('agent_id', user.id);
       }

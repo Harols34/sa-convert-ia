@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
@@ -31,12 +30,12 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Only fetch accounts if user has permissions and is authenticated
-  const shouldFetchAccounts = user && session && (userRole === 'superAdmin' || userRole === 'admin');
+  // All authenticated users should have account functionality
+  const shouldFetchAccounts = user && session;
 
   const fetchUserAccounts = async () => {
     if (!shouldFetchAccounts) {
-      console.log("User doesn't need account data, skipping fetch");
+      console.log("User not authenticated, skipping account fetch");
       setUserAccounts([]);
       setAllAccounts([]);
       setSelectedAccountId(null);
@@ -63,7 +62,6 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
           throw accountsError;
         }
 
-        // Cast to proper Account type with proper status typing
         accountsData = (data || []).map(account => ({
           ...account,
           status: account.status as 'active' | 'inactive'
@@ -101,9 +99,28 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
         
         setUserAccounts(accountsData);
         setAllAccounts(accountsData);
+      } else {
+        // Other roles (qualityAnalyst, supervisor, agent) get all accounts for filtering
+        const { data, error: accountsError } = await supabase
+          .from('accounts')
+          .select('*')
+          .eq('status', 'active')
+          .order('name');
+
+        if (accountsError) {
+          throw accountsError;
+        }
+
+        accountsData = (data || []).map(account => ({
+          ...account,
+          status: account.status as 'active' | 'inactive'
+        })) as Account[];
+        
+        setUserAccounts(accountsData);
+        setAllAccounts(accountsData);
       }
 
-      console.log("Accounts fetched:", accountsData.length);
+      console.log("Accounts fetched successfully:", accountsData.length);
 
       // Set initial selected account
       if (accountsData.length > 0) {

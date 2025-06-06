@@ -22,7 +22,9 @@ serve(async (req) => {
 
     console.log("Creating user:", { email, fullName, role, accountNames })
 
+    // Validate required fields
     if (!email || !password || !fullName || !role) {
+      console.error("Missing required fields:", { email: !!email, password: !!password, fullName: !!fullName, role: !!role })
       throw new Error('Missing required fields: email, password, fullName, role')
     }
 

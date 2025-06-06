@@ -73,11 +73,6 @@ export default function UsersPage() {
             </div>
           }
         />
-        {/* Redirect old edit routes to new structure */}
-        <Route
-          path="/edit/:id"
-          element={<Navigate to="/users/:id" replace />}
-        />
       </Routes>
     </Layout>
   );

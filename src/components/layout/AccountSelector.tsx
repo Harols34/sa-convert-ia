@@ -9,8 +9,8 @@ const AccountSelector: React.FC = () => {
   const { user } = useAuth();
   const { selectedAccountId, setSelectedAccountId, userAccounts, isLoading } = useAccount();
 
-  // Only show for users who need account selection
-  if (!user || (user.role !== 'superAdmin' && user.role !== 'admin') || isLoading) {
+  // Show for all authenticated users
+  if (!user || isLoading) {
     return null;
   }
 
