@@ -1,210 +1,109 @@
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import { useAccount } from "@/context/AccountContext";
 import { toast } from "sonner";
-import { Call } from "@/lib/types";
 
-export const useCallList = () => {
-  const { user } = useAuth();
-  const { selectedAccountId, userAccounts } = useAccount();
+export interface Call {
+  id: string;
+  title: string;
+  agent_name: string;
+  date: string;
+  duration: number;
+  status: string;
+  sentiment?: string;
+  result?: string;
+  product?: string;
+  reason?: string;
+  account_id?: string;
+  agent_id?: string;
+  audio_url?: string;
+  transcription?: string;
+  summary?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function useCallList() {
   const [calls, setCalls] = useState<Call[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedCalls, setSelectedCalls] = useState<string[]>([]);
-  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const { user, session } = useAuth();
 
-  // Lógica mejorada de filtrado para SuperAdmin
-  const fetchCalls = useCallback(async (filters: any = {}, forceRefresh = false) => {
-    if (!user) return;
+  const loadCalls = async () => {
+    if (!session || !user) {
+      setLoading(false);
+      return;
+    }
 
     try {
-      if (forceRefresh) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
+      setLoading(true);
       setError(null);
-
-      console.log("Fetching calls for user:", user.email, "role:", user.role);
-
+      
+      console.log("Loading calls for user:", user.role);
+      
       let query = supabase
         .from('calls')
         .select('*')
         .order('created_at', { ascending: false });
 
-      // SuperAdmin ve todas las llamadas, usuarios normales ven solo de sus cuentas
-      if (user.role === 'superAdmin') {
-        console.log("SuperAdmin - loading all calls");
-        // SuperAdmin puede filtrar por cuenta específica o ver todas
-        if (selectedAccountId && selectedAccountId !== 'all') {
-          query = query.eq('account_id', selectedAccountId);
-          console.log("SuperAdmin - filtering by selected account:", selectedAccountId);
+      // If not superAdmin, filter by user's accounts
+      if (user.role !== 'superAdmin') {
+        // Get user's account IDs first
+        const { data: userAccounts, error: accountsError } = await supabase
+          .from('user_accounts')
+          .select('account_id')
+          .eq('user_id', user.id);
+
+        if (accountsError) {
+          throw accountsError;
         }
-        // Si selectedAccountId es 'all' o null, no se aplica filtro (ve todas las llamadas)
-      } else {
-        // Usuario normal: aplicar las políticas RLS automáticamente
-        // Las políticas RLS se encargarán de mostrar solo las llamadas de cuentas asignadas
-        if (selectedAccountId && selectedAccountId !== 'all') {
-          // Filtrar por cuenta específica seleccionada
-          query = query.eq('account_id', selectedAccountId);
+
+        const accountIds = userAccounts?.map(ua => ua.account_id) || [];
+        
+        if (accountIds.length === 0) {
+          // User has no accounts assigned, return empty array
+          setCalls([]);
+          setLoading(false);
+          return;
         }
-        // Si no hay cuenta seleccionada, las políticas RLS mostrarán todas las asignadas
+
+        query = query.in('account_id', accountIds);
       }
 
-      // Aplicar filtros adicionales (búsqueda, fecha, etc.)
-      if (filters.search) {
-        query = query.or(`title.ilike.%${filters.search}%,agent_name.ilike.%${filters.search}%,filename.ilike.%${filters.search}%`);
+      const { data, error: callsError } = await query;
+
+      if (callsError) {
+        throw callsError;
       }
 
-      if (filters.startDate) {
-        query = query.gte('date', filters.startDate);
+      console.log("Calls loaded successfully:", data?.length || 0);
+      setCalls(data || []);
+    } catch (err: any) {
+      console.error("Error fetching calls:", err);
+      setError(err.message || "Error al cargar las llamadas");
+      
+      // Don't show toast for timeout errors as they're often temporary
+      if (!err.message?.includes('timeout')) {
+        toast.error("Error al cargar las llamadas");
       }
-
-      if (filters.endDate) {
-        query = query.lte('date', filters.endDate);
-      }
-
-      if (filters.status && filters.status !== 'all') {
-        query = query.eq('status', filters.status);
-      }
-
-      if (filters.agent && filters.agent !== 'all') {
-        query = query.eq('agent_name', filters.agent);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Error fetching calls:', error);
-        throw error;
-      }
-
-      // Map the database fields to the expected Call interface
-      const mappedCalls: Call[] = (data || []).map(dbCall => ({
-        id: dbCall.id,
-        title: dbCall.title,
-        filename: dbCall.filename,
-        agentName: dbCall.agent_name,
-        agentId: dbCall.agent_id,
-        duration: dbCall.duration,
-        date: dbCall.date,
-        status: dbCall.status as "pending" | "transcribing" | "analyzing" | "complete" | "error",
-        progress: dbCall.progress,
-        audio_url: dbCall.audio_url,
-        audioUrl: dbCall.audio_url,
-        transcription: dbCall.transcription,
-        summary: dbCall.summary,
-        result: dbCall.result as "" | "venta" | "no venta",
-        product: dbCall.product as "" | "fijo" | "móvil",
-        reason: dbCall.reason,
-        tipificacionId: dbCall.tipificacion_id,
-        speaker_analysis: dbCall.speaker_analysis,
-        statusSummary: dbCall.status_summary,
-        account_id: dbCall.account_id,
-      }));
-
-      console.log("Calls loaded:", mappedCalls.length);
-      setCalls(mappedCalls);
-    } catch (error: any) {
-      console.error('Error fetching calls:', error);
-      setError(error.message);
-      toast.error('Error al cargar las llamadas');
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [user, selectedAccountId, userAccounts]);
-
-  const handleRefresh = useCallback(() => {
-    fetchCalls({}, true);
-  }, [fetchCalls]);
-
-  const deleteCall = async (callId: string) => {
-    try {
-      setIsLoading(true);
-      const { error } = await supabase
-        .from('calls')
-        .delete()
-        .eq('id', callId);
-
-      if (error) throw error;
-
-      setCalls(calls.filter(call => call.id !== callId));
-      toast.success('Llamada eliminada correctamente');
-    } catch (error: any) {
-      console.error('Error deleting call:', error);
-      toast.error('Error al eliminar la llamada');
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const deleteMultipleCalls = async () => {
-    try {
-      setIsLoading(true);
-      const { error } = await supabase
-        .from('calls')
-        .delete()
-        .in('id', selectedCalls);
-
-      if (error) throw error;
-
-      setCalls(calls.filter(call => !selectedCalls.includes(call.id)));
-      setSelectedCalls([]);
-      setMultiSelectMode(false);
-      toast.success('Llamadas eliminadas correctamente');
-    } catch (error: any) {
-      console.error('Error deleting calls:', error);
-      toast.error('Error al eliminar las llamadas');
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const toggleCallSelection = (callId: string) => {
-    setSelectedCalls(prev => {
-      if (prev.includes(callId)) {
-        return prev.filter(id => id !== callId);
-      } else {
-        return [...prev, callId];
-      }
-    });
-  };
-
-  const toggleAllCalls = () => {
-    if (selectedCalls.length === calls.length) {
-      setSelectedCalls([]);
-    } else {
-      setSelectedCalls(calls.map(call => call.id));
-    }
-  };
-
-  // Load calls when dependencies change
   useEffect(() => {
-    if (user) {
-      console.log("Dependencies changed - fetching calls");
-      fetchCalls();
-    }
-  }, [fetchCalls]);
+    loadCalls();
+  }, [user, session]);
+
+  const refreshCalls = () => {
+    loadCalls();
+  };
 
   return {
     calls,
-    isLoading,
-    selectedCalls,
-    isRefreshing,
+    loading,
     error,
-    multiSelectMode,
-    setMultiSelectMode,
-    fetchCalls,
-    handleRefresh,
-    deleteCall,
-    deleteMultipleCalls,
-    toggleCallSelection,
-    toggleAllCalls,
+    refreshCalls,
   };
-};
+}

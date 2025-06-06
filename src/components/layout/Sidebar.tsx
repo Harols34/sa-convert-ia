@@ -1,278 +1,203 @@
-import { useState, useEffect } from "react";
+
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { 
-  Cog, 
-  BarChart3, 
-  Phone, 
-  Users, 
-  BriefcaseBusiness, 
-  Wrench, 
-  MessageSquareText, 
-  CheckSquare, 
-  User, 
-  Folder, 
-  ChevronLeft, 
-  ChevronRight,
-  Menu,
-  X,
+import {
+  BarChart3,
+  Phone,
+  Users,
+  UserCheck,
+  Settings,
+  MessageSquare,
+  Brain,
   FileText,
-  Building2
+  PenTool,
+  Building2,
+  ChevronDown,
+  ChevronRight,
+  UserPlus,
+  PlusCircle,
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import AccountFilter from "@/components/accounts/AccountFilter";
+import { useAuth } from "@/context/AuthContext";
 
-interface SidebarProps {
-  isOpen: boolean;
-  closeSidebar: () => void;
-}
-
-export default function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
+const Sidebar = () => {
   const location = useLocation();
   const { user } = useAuth();
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [collapsed, setCollapsed] = useState(false);
-  const [isHovering, setIsHovering] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<string[]>([]);
 
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []);
-
-  // Load collapsed state from localStorage
-  useEffect(() => {
-    const savedState = localStorage.getItem('sidebar-collapsed');
-    if (savedState !== null) {
-      setCollapsed(savedState === 'true');
-    }
-  }, []);
-
-  // Save collapsed state to localStorage and notify other components
-  const toggleCollapse = () => {
-    const newState = !collapsed;
-    setCollapsed(newState);
-    localStorage.setItem('sidebar-collapsed', String(newState));
-    
-    // Dispatch storage event manually to notify other components
-    window.dispatchEvent(new StorageEvent('storage', {
-      key: 'sidebar-collapsed',
-      newValue: String(newState),
-      oldValue: String(collapsed),
-      storageArea: localStorage,
-      url: window.location.href
-    }));
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev =>
+      prev.includes(section)
+        ? prev.filter(s => s !== section)
+        : [...prev, section]
+    );
   };
 
-  const handleLinkClick = () => {
-    if (isMobile) {
-      closeSidebar();
-    }
-  };
+  const isActive = (path: string) => location.pathname === path;
+  const isInSection = (basePath: string) => location.pathname.startsWith(basePath);
 
-  const isActive = (path: string) => {
-    return location.pathname === path || location.pathname.startsWith(`${path}/`);
-  };
+  // Check if user is superAdmin or admin
+  const canManageUsers = user?.role === "superAdmin" || user?.role === "admin";
+  const isSuperAdmin = user?.role === "superAdmin";
 
   const menuItems = [
     {
-      name: "Analítica",
+      icon: BarChart3,
+      label: "Análisis",
       path: "/analytics",
-      icon: <BarChart3 />,
-      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"],
     },
     {
-      name: "Llamadas",
+      icon: Phone,
+      label: "Llamadas",
       path: "/calls",
-      icon: <Phone />,
-      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"],
     },
     {
-      name: "Agentes",
+      icon: Users,
+      label: "Agentes",
       path: "/agents",
-      icon: <Users />,
-      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"],
     },
     {
-      name: "Workforce",
+      icon: UserCheck,
+      label: "Supervisión",
       path: "/workforce",
-      icon: <BriefcaseBusiness />,
-      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor"],
     },
     {
-      name: "Herramientas",
-      path: "/tools",
-      icon: <Wrench />,
-      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor"],
-    },
-    {
-      name: "Chat IA",
+      icon: MessageSquare,
+      label: "Chat IA",
       path: "/chat",
-      icon: <MessageSquareText />,
-      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"],
     },
     {
-      name: "Comportamientos",
+      icon: Brain,
+      label: "Comportamientos",
       path: "/behaviors",
-      icon: <CheckSquare />,
-      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor"],
     },
     {
-      name: "Tipificaciones",
+      icon: FileText,
+      label: "Tipificaciones",
       path: "/tipificaciones",
-      icon: <Folder />,
-      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor"],
     },
     {
-      name: "Prompts",
+      icon: PenTool,
+      label: "Prompts",
       path: "/prompts",
-      icon: <FileText />,
-      roles: ["superAdmin", "admin", "qualityAnalyst"],
-    },
-    {
-      name: "Usuarios",
-      path: "/users",
-      icon: <User />,
-      roles: ["superAdmin", "admin"],
-    },
-    {
-      name: "Cuentas",
-      path: "/accounts",
-      icon: <Building2 />,
-      roles: ["superAdmin"],
-    },
-    {
-      name: "Configuración",
-      path: "/settings",
-      icon: <Cog />,
-      roles: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"],
+      hasSubmenu: true,
+      submenuItems: [
+        { label: "Ver Prompts", path: "/prompts" },
+        { label: "Crear Prompt", path: "/prompts/new" },
+      ],
     },
   ];
 
-  // CORREGIDO: SuperAdmin ve TODOS los módulos sin excepción
-  const filteredMenuItems = user?.role === 'superAdmin' 
-    ? menuItems // SuperAdmin ve todos los módulos
-    : menuItems.filter(item => {
-        if (!user?.role) return false;
-        return item.roles.includes(user.role);
-      });
+  // Add admin/superAdmin specific menu items
+  if (canManageUsers) {
+    menuItems.push({
+      icon: Users,
+      label: "Usuarios",
+      path: "/users",
+      hasSubmenu: true,
+      submenuItems: [
+        { label: "Ver Usuarios", path: "/users" },
+        { label: "Crear Usuario", path: "/users/new" },
+      ],
+    });
+  }
 
-  console.log("User role:", user?.role);
-  console.log("Is SuperAdmin:", user?.role === 'superAdmin');
-  console.log("Filtered menu items:", filteredMenuItems.map(item => item.name));
+  if (isSuperAdmin) {
+    menuItems.push({
+      icon: Building2,
+      label: "Cuentas",
+      path: "/accounts",
+      hasSubmenu: true,
+      submenuItems: [
+        { label: "Ver Cuentas", path: "/accounts" },
+        { label: "Crear Cuenta", path: "/accounts/new" },
+        { label: "Asignar Usuarios", path: "/accounts/assign" },
+      ],
+    });
+  }
+
+  menuItems.push({
+    icon: Settings,
+    label: "Configuración",
+    path: "/settings",
+  });
 
   return (
-    <>
-      {/* Mobile Overlay */}
-      {isOpen && isMobile && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-10"
-          onClick={closeSidebar}
-        />
-      )}
-      
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-20 flex flex-col bg-white shadow-lg transition-all duration-300 dark:bg-gray-900 lg:shadow-none",
-          {
-            "translate-x-0": isOpen,
-            "-translate-x-full md:translate-x-0": !isOpen,
-            "w-64": !collapsed,
-            "w-16": collapsed,
-          }
-        )}
-        onMouseEnter={() => setIsHovering(true)}
-        onMouseLeave={() => setIsHovering(false)}
-      >
-        <div className="border-b px-4 py-4 dark:border-gray-700 flex justify-between items-center">
-          <div className={cn("flex items-center transition-opacity", { 
-            "opacity-0 w-0": collapsed && !isHovering,
-            "opacity-100": !collapsed || (collapsed && isHovering) 
-          })}>
-            <img 
-              src="https://www.convertia.com/favicon/favicon-convertia.png" 
-              alt="Convert-IA Logo" 
-              className="h-7 w-7 mr-2" 
-            />
-            {(!collapsed || isHovering) && (
-              <div className="text-lg font-semibold transition-opacity">Convert-IA</div>
-            )}
-          </div>
-          <div className="flex items-center">
-            {isMobile ? (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={closeSidebar} 
-                className="flex md:hidden items-center justify-center h-8 w-8"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={toggleCollapse} 
-                className="flex items-center justify-center h-8 w-8"
-              >
-                {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-              </Button>
-            )}
-          </div>
-        </div>
+    <div className="h-full bg-white border-r border-gray-200 w-64 flex flex-col">
+      <div className="p-6 border-b border-gray-200">
+        <h1 className="text-xl font-bold text-primary">ConvertIA</h1>
+        <p className="text-sm text-muted-foreground">Analytics Platform</p>
+      </div>
 
-        {/* Filtro de cuentas - Solo mostrar para usuarios NO SuperAdmin */}
-        {(!collapsed || isHovering) && user?.role !== 'superAdmin' && (
-          <div className="py-2">
-            <AccountFilter />
-          </div>
-        )}
+      <nav className="flex-1 p-4 space-y-2">
+        {menuItems.map((item) => {
+          const Icon = item.icon;
+          const hasSubmenu = item.hasSubmenu && item.submenuItems;
+          const isExpanded = expandedSections.includes(item.path);
+          const itemIsActive = hasSubmenu ? isInSection(item.path) : isActive(item.path);
 
-        <ScrollArea className="flex-1 overflow-auto py-2">
-          <TooltipProvider delayDuration={0}>
-            <nav className="space-y-1">
-              {filteredMenuItems.map((item) => (
-                <Tooltip key={item.path} delayDuration={200}>
-                  <TooltipTrigger asChild>
-                    <Link
-                      to={item.path}
-                      onClick={handleLinkClick}
-                      className={cn(
-                        "flex items-center px-4 py-2.5 text-gray-600 transition-all hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800",
-                        {
-                          "border-l-4 border-primary bg-primary/5 font-medium text-primary dark:border-primary dark:bg-primary/10 dark:text-primary-foreground":
-                            isActive(item.path),
-                          "justify-center": collapsed && !isHovering,
-                        }
-                      )}
-                    >
-                      <span className={cn("h-5 w-5", { "mr-3": !collapsed || isHovering })}>
-                        {item.icon}
-                      </span>
-                      {(!collapsed || isHovering) && (
-                        <span className="truncate transition-opacity">{item.name}</span>
-                      )}
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className={cn({ "hidden": !collapsed || isHovering })}>
-                    {item.name}
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-            </nav>
-          </TooltipProvider>
-          <Separator className="my-2" />
-        </ScrollArea>
-      </aside>
-    </>
+          return (
+            <div key={item.path}>
+              {hasSubmenu ? (
+                <div>
+                  <button
+                    onClick={() => toggleSection(item.path)}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors",
+                      itemIsActive
+                        ? "bg-primary text-primary-foreground"
+                        : "text-gray-700 hover:bg-gray-100"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="h-5 w-5" />
+                      <span>{item.label}</span>
+                    </div>
+                    {isExpanded ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </button>
+                  {isExpanded && item.submenuItems && (
+                    <div className="mt-1 ml-6 space-y-1">
+                      {item.submenuItems.map((subItem) => (
+                        <Link
+                          key={subItem.path}
+                          to={subItem.path}
+                          className={cn(
+                            "block px-3 py-2 text-sm rounded-lg transition-colors",
+                            isActive(subItem.path)
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "text-gray-600 hover:bg-gray-50"
+                          )}
+                        >
+                          {subItem.label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  to={item.path}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors",
+                    itemIsActive
+                      ? "bg-primary text-primary-foreground"
+                      : "text-gray-700 hover:bg-gray-100"
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span>{item.label}</span>
+                </Link>
+              )}
+            </div>
+          );
+        })}
+      </nav>
+    </div>
   );
-}
+};
+
+export default Sidebar;

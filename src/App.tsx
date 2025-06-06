@@ -24,6 +24,9 @@ import Users from "./pages/Users";
 import AccountsPage from "./pages/Accounts";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import CreateUser from "./pages/CreateUser";
+import CreateAccount from "./pages/CreateAccount";
+import AssignUsers from "./pages/AssignUsers";
 
 import "./App.css";
 
@@ -52,7 +55,10 @@ function App() {
                       <Route path="/tipificaciones" element={<Tipificaciones />} />
                       <Route path="/prompts/*" element={<Prompts />} />
                       <Route path="/users" element={<Users />} />
+                      <Route path="/users/new" element={<CreateUser />} />
                       <Route path="/accounts/*" element={<AccountsPage />} />
+                      <Route path="/accounts/new" element={<CreateAccount />} />
+                      <Route path="/accounts/assign" element={<AssignUsers />} />
                       <Route path="/settings" element={<Settings />} />
                       {/* Redirect /dashboard to /analytics */}
                       <Route path="/dashboard" element={<Navigate to="/analytics" replace />} />
