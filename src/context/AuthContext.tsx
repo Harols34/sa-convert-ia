@@ -163,6 +163,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setRefreshTimer(timer);
   };
 
+  // Helper function to validate and cast role
+  const validateRole = (role: string | null | undefined): AppUser["role"] => {
+    const validRoles: AppUser["role"][] = ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"];
+    if (role && validRoles.includes(role as AppUser["role"])) {
+      return role as AppUser["role"];
+    }
+    return "agent"; // default fallback
+  };
+
+  // Helper function to validate and cast language
+  const validateLanguage = (language: string | null | undefined): "es" | "en" => {
+    if (language === "es" || language === "en") {
+      return language;
+    }
+    return "es"; // default fallback
+  };
+
   // Fetch user data from Supabase with improved error handling
   const fetchUserData = async (userId: string) => {
     try {
@@ -198,12 +215,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const appUser: AppUser = {
             id: userId,
             email: session?.user?.email || '',
-            role: newProfile.role || 'agent',
+            role: validateRole(newProfile.role),
             name: newProfile.full_name || '',
             full_name: newProfile.full_name || '',
             avatar: newProfile.avatar_url,
             avatar_url: newProfile.avatar_url,
-            language: newProfile.language || 'es',
+            language: validateLanguage(newProfile.language),
             dailyQueryLimit: 20,
             queriesUsed: 0,
             created_at: newProfile.created_at,
@@ -221,12 +238,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const appUser: AppUser = {
           id: userId,
           email: session?.user?.email || '',
-          role: data.role || 'agent',
+          role: validateRole(data.role),
           name: data.full_name || '',
           full_name: data.full_name || '',
           avatar: data.avatar_url,
           avatar_url: data.avatar_url,
-          language: data.language || 'es',
+          language: validateLanguage(data.language),
           dailyQueryLimit: 20,
           queriesUsed: 0,
           created_at: data.created_at,
