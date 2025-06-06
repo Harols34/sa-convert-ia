@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/layout/Layout";
@@ -13,7 +12,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useAccount } from "@/context/AccountContext";
 import { Prompt, PromptType } from "@/hooks/usePrompts";
 import { PromptDialog } from "@/components/prompts/PromptDialog";
-
 export default function PromptsPage() {
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,9 +20,14 @@ export default function PromptsPage() {
   const [isActivating, setIsActivating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
-  const { isAuthenticated, user, loading } = useAuth();
-  const { selectedAccountId } = useAccount();
-
+  const {
+    isAuthenticated,
+    user,
+    loading
+  } = useAuth();
+  const {
+    selectedAccountId
+  } = useAccount();
   useEffect(() => {
     const checkAuth = async () => {
       if (!isAuthenticated && !loading) {
@@ -34,31 +37,26 @@ export default function PromptsPage() {
         // Don't navigate to avoid routing issues
       }
     };
-    
     if (!loading) {
       checkAuth();
     }
   }, [isAuthenticated, loading]);
-
   useEffect(() => {
     fetchPrompts();
   }, [selectedAccountId]);
-
   const fetchPrompts = async () => {
     try {
       setIsLoading(true);
       console.log("Fetching prompts with account filter:", selectedAccountId);
-      
-      let query = supabase
-        .from("prompts")
-        .select("*")
-        .order("updated_at", { ascending: false });
+      let query = supabase.from("prompts").select("*").order("updated_at", {
+        ascending: false
+      });
 
       // Show prompts that are either:
       // 1. Created by the current user (user_id matches)
       // 2. Associated with the selected account (if account is selected and user has access)
       // 3. Global prompts (no user_id and no account_id)
-      
+
       if (selectedAccountId && selectedAccountId !== 'all') {
         console.log("Filtering prompts by account:", selectedAccountId, "and user:", user?.id);
         query = query.or(`account_id.eq.${selectedAccountId},user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
@@ -66,16 +64,15 @@ export default function PromptsPage() {
         // Show user's personal prompts and global prompts
         query = query.or(`user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
       }
-
-      const { data, error } = await query;
-
+      const {
+        data,
+        error
+      } = await query;
       if (error) throw error;
-
       const typedPrompts = data?.map(prompt => ({
         ...prompt,
         type: prompt.type as PromptType
       })) || [];
-      
       console.log("Prompts loaded:", typedPrompts.length);
       setPrompts(typedPrompts);
     } catch (error) {
@@ -85,18 +82,13 @@ export default function PromptsPage() {
       setIsLoading(false);
     }
   };
-
   const handleDelete = async () => {
     if (!selectedPromptId) return;
-    
     try {
-      const { error } = await supabase
-        .from("prompts")
-        .delete()
-        .eq("id", selectedPromptId);
-
+      const {
+        error
+      } = await supabase.from("prompts").delete().eq("id", selectedPromptId);
       if (error) throw error;
-      
       setPrompts(prev => prev.filter(prompt => prompt.id !== selectedPromptId));
       toast.success("Prompt eliminado correctamente");
     } catch (error) {
@@ -107,18 +99,15 @@ export default function PromptsPage() {
       setSelectedPromptId(null);
     }
   };
-
   const togglePromptActive = async (promptId: string, promptType: PromptType) => {
     try {
       setIsActivating(true);
-      
-      const { error } = await supabase
-        .from("prompts")
-        .update({ active: true })
-        .eq("id", promptId);
-
+      const {
+        error
+      } = await supabase.from("prompts").update({
+        active: true
+      }).eq("id", promptId);
       if (error) throw error;
-      
       await fetchPrompts();
       toast.success("Estado del prompt actualizado correctamente");
     } catch (error) {
@@ -128,35 +117,27 @@ export default function PromptsPage() {
       setIsActivating(false);
     }
   };
-
   const handleEdit = (prompt: Prompt) => {
     setSelectedPrompt(prompt);
     setIsDialogOpen(true);
   };
-
   const handleCreate = () => {
     setSelectedPrompt(null);
     setIsDialogOpen(true);
   };
-
   const handleSuccess = () => {
     fetchPrompts();
     setSelectedPrompt(null);
   };
-
   if (loading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
+    return <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
           <p className="text-muted-foreground">Cargando...</p>
         </div>
-      </div>
-    );
+      </div>;
   }
-
-  return (
-    <Layout>
+  return <Layout>
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
@@ -165,9 +146,7 @@ export default function PromptsPage() {
               Gestiona los prompts para análisis y resúmenes de llamadas
             </p>
           </div>
-          <Button onClick={handleCreate} className="mt-4 md:mt-0 bg-green-600 text-white hover:bg-green-700">
-            <MessageSquare className="mr-2 h-4 w-4" /> Nuevo Prompt
-          </Button>
+          
         </div>
 
         <Card className="overflow-hidden shadow-md border-gray-200">
@@ -191,15 +170,11 @@ export default function PromptsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {prompts.length === 0 ? (
-                  <TableRow>
+                {prompts.length === 0 ? <TableRow>
                     <TableCell colSpan={4} className="text-center py-8 text-gray-500">
                       No hay prompts disponibles para la cuenta seleccionada
                     </TableCell>
-                  </TableRow>
-                ) : (
-                  prompts.map(prompt => (
-                    <TableRow key={prompt.id} className="hover:bg-gray-50">
+                  </TableRow> : prompts.map(prompt => <TableRow key={prompt.id} className="hover:bg-gray-50">
                       <TableCell className="font-medium">{prompt.name}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={prompt.type === "summary" ? "bg-blue-100 text-blue-800 border-blue-300" : "bg-green-100 text-green-800 border-green-300"}>
@@ -207,59 +182,29 @@ export default function PromptsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="py-0 px-0">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => togglePromptActive(prompt.id, prompt.type)} 
-                          disabled={isActivating || prompt.active} 
-                          title={prompt.active ? "Prompt activo" : "Activar prompt"} 
-                          className="gap-2 px-0 py-0 my-0 font-normal"
-                        >
-                          {isActivating ? (
-                            <Loader2 className="h-5 w-5 animate-spin" />
-                          ) : prompt.active ? (
-                            <ToggleRight className="h-6 w-6" />
-                          ) : (
-                            <ToggleLeft className="h-6 w-6" />
-                          )}
+                        <Button variant="ghost" size="sm" onClick={() => togglePromptActive(prompt.id, prompt.type)} disabled={isActivating || prompt.active} title={prompt.active ? "Prompt activo" : "Activar prompt"} className="gap-2 px-0 py-0 my-0 font-normal">
+                          {isActivating ? <Loader2 className="h-5 w-5 animate-spin" /> : prompt.active ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
                           <span className="ml-2">{prompt.active ? "Activo" : "Activar"}</span>
                         </Button>
                       </TableCell>
                       <TableCell className="text-right space-x-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => handleEdit(prompt)} 
-                          className="hover:bg-gray-100"
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(prompt)} className="hover:bg-gray-100">
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => {
-                            setSelectedPromptId(prompt.id);
-                            setIsDeleteDialogOpen(true);
-                          }} 
-                          className="hover:bg-red-50 text-red-600"
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => {
+                    setSelectedPromptId(prompt.id);
+                    setIsDeleteDialogOpen(true);
+                  }} className="hover:bg-red-50 text-red-600">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </TableCell>
-                    </TableRow>
-                  ))
-                )}
+                    </TableRow>)}
               </TableBody>
             </Table>
           </div>
         </Card>
 
-        <PromptDialog
-          open={isDialogOpen}
-          onOpenChange={setIsDialogOpen}
-          prompt={selectedPrompt}
-          onSuccess={handleSuccess}
-        />
+        <PromptDialog open={isDialogOpen} onOpenChange={setIsDialogOpen} prompt={selectedPrompt} onSuccess={handleSuccess} />
 
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent className="bg-white">
@@ -276,6 +221,5 @@ export default function PromptsPage() {
           </AlertDialogContent>
         </AlertDialog>
       </div>
-    </Layout>
-  );
+    </Layout>;
 }
