@@ -17,7 +17,7 @@ export interface Call {
   reason?: string;
   account_id?: string;
   agent_id?: string;
-  audio_url?: string;
+  audio_url: string;
   transcription?: string;
   summary?: string;
   created_at: string;
@@ -92,7 +92,7 @@ export function useCallList() {
 
       console.log("Calls loaded successfully:", data?.length || 0);
       
-      // Transform data to match expected interface
+      // Transform data to match expected interface with proper type casting
       const transformedCalls = (data || []).map(call => ({
         ...call,
         filename: call.title || 'Unknown',
@@ -101,7 +101,9 @@ export function useCallList() {
                  call.status === 'analyzing' ? 75 :
                  call.status === 'transcribing' ? 50 : 25,
         audioUrl: call.audio_url || '',
-      }));
+        audio_url: call.audio_url || '',
+        status: call.status as "pending" | "transcribing" | "analyzing" | "complete" | "error",
+      })) as Call[];
       
       setCalls(transformedCalls);
     } catch (err: any) {
