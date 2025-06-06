@@ -16,7 +16,7 @@ export const useCallList = () => {
   const [selectedCalls, setSelectedCalls] = useState<string[]>([]);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
 
-  // CORREGIDO: Lógica de filtrado para SuperAdmin
+  // Lógica mejorada de filtrado para SuperAdmin
   const fetchCalls = useCallback(async (filters: any = {}, forceRefresh = false) => {
     if (!user) return;
 
@@ -35,35 +35,23 @@ export const useCallList = () => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      // CORREGIDO: SuperAdmin ve todas las llamadas sin filtrar
+      // SuperAdmin ve todas las llamadas, usuarios normales ven solo de sus cuentas
       if (user.role === 'superAdmin') {
         console.log("SuperAdmin - loading all calls");
-        // SuperAdmin ve todas las llamadas, opcionalmente filtradas por cuenta seleccionada
+        // SuperAdmin puede filtrar por cuenta específica o ver todas
         if (selectedAccountId && selectedAccountId !== 'all') {
           query = query.eq('account_id', selectedAccountId);
           console.log("SuperAdmin - filtering by selected account:", selectedAccountId);
         }
+        // Si selectedAccountId es 'all' o null, no se aplica filtro (ve todas las llamadas)
       } else {
-        // Usuario normal solo ve llamadas de sus cuentas asignadas
-        const accountIds = userAccounts.map(account => account.id);
-        console.log("Regular user - filtering by assigned accounts:", accountIds);
-        
-        if (accountIds.length > 0) {
-          if (selectedAccountId && selectedAccountId !== 'all') {
-            // Filtrar por cuenta específica seleccionada
-            query = query.eq('account_id', selectedAccountId);
-          } else {
-            // Mostrar todas las llamadas de las cuentas asignadas
-            query = query.in('account_id', accountIds);
-          }
-        } else {
-          // Usuario sin cuentas asignadas no ve nada
-          console.log("User has no assigned accounts");
-          setCalls([]);
-          setIsLoading(false);
-          setIsRefreshing(false);
-          return;
+        // Usuario normal: aplicar las políticas RLS automáticamente
+        // Las políticas RLS se encargarán de mostrar solo las llamadas de cuentas asignadas
+        if (selectedAccountId && selectedAccountId !== 'all') {
+          // Filtrar por cuenta específica seleccionada
+          query = query.eq('account_id', selectedAccountId);
         }
+        // Si no hay cuenta seleccionada, las políticas RLS mostrarán todas las asignadas
       }
 
       // Aplicar filtros adicionales (búsqueda, fecha, etc.)
@@ -89,21 +77,24 @@ export const useCallList = () => {
 
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching calls:', error);
+        throw error;
+      }
 
       // Map the database fields to the expected Call interface
       const mappedCalls: Call[] = (data || []).map(dbCall => ({
         id: dbCall.id,
         title: dbCall.title,
         filename: dbCall.filename,
-        agentName: dbCall.agent_name, // Map agent_name to agentName
+        agentName: dbCall.agent_name,
         agentId: dbCall.agent_id,
         duration: dbCall.duration,
         date: dbCall.date,
         status: dbCall.status as "pending" | "transcribing" | "analyzing" | "complete" | "error",
         progress: dbCall.progress,
-        audio_url: dbCall.audio_url, // Keep both for compatibility
-        audioUrl: dbCall.audio_url, // Map audio_url to audioUrl
+        audio_url: dbCall.audio_url,
+        audioUrl: dbCall.audio_url,
         transcription: dbCall.transcription,
         summary: dbCall.summary,
         result: dbCall.result as "" | "venta" | "no venta",

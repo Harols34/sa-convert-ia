@@ -163,65 +163,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setRefreshTimer(timer);
   };
 
-  // Fetch user data from Supabase
+  // Fetch user data from Supabase with improved error handling
   const fetchUserData = async (userId: string) => {
     try {
       console.info("Fetching user data for ID:", userId);
       
-      // Set a timeout for the fetch operation to avoid hanging
-      const fetchPromise = supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-        
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
-          reject(new Error('Profile fetch timeout'));
-        }, 5000); // 5 second timeout
-      });
+      // Retry logic for profile fetch
+      let retryCount = 0;
+      const maxRetries = 3;
+      let userData = null;
       
-      let userData;
-      try {
-        const { data, error } = await Promise.race([
-          fetchPromise,
-          timeoutPromise as Promise<any>
-        ]);
-        
-        if (error) {
-          console.error("Error fetching user profile:", error);
-          // Si no hay perfil, crear uno por defecto con rol agent
-          if (error.code === 'PGRST116') {
-            console.info("No profile found, creating default profile");
-            const { error: insertError } = await supabase
-              .from('profiles')
-              .insert({
-                id: userId,
-                full_name: session?.user?.email?.split('@')[0] || 'Usuario',
-                role: 'agent',
-                language: 'es'
-              });
-            
-            if (insertError) {
-              console.error("Error creating default profile:", insertError);
-            } else {
-              // Fetch the newly created profile
-              const { data: newProfile } = await supabase
+      while (retryCount < maxRetries && !userData) {
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+          
+          if (error) {
+            if (error.code === 'PGRST116') {
+              // No profile found, create one
+              console.info("No profile found, creating default profile");
+              const { data: newProfile, error: insertError } = await supabase
                 .from('profiles')
-                .select('*')
-                .eq('id', userId)
+                .insert({
+                  id: userId,
+                  full_name: session?.user?.email?.split('@')[0] || 'Usuario',
+                  role: 'agent',
+                  language: 'es'
+                })
+                .select()
                 .single();
-              userData = newProfile;
+              
+              if (insertError) {
+                console.error("Error creating default profile:", insertError);
+                // Si no puede crear el perfil, usar datos por defecto
+                userData = {
+                  id: userId,
+                  full_name: session?.user?.email?.split('@')[0] || 'Usuario',
+                  role: 'agent',
+                  language: 'es',
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                };
+              } else {
+                userData = newProfile;
+              }
+            } else {
+              console.error("Error fetching user profile:", error);
+              retryCount++;
+              if (retryCount < maxRetries) {
+                await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+              }
             }
+          } else {
+            userData = data;
           }
-        } else {
-          userData = data;
+        } catch (fetchError) {
+          console.error("Fetch attempt failed:", fetchError);
+          retryCount++;
+          if (retryCount < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          }
         }
-      } catch (raceError) {
-        console.warn("Profile fetch timeout - continuing without complete data");
       }
 
-      // If we have user data, create the app user
+      // Create the app user object
       if (userData) {
         const appUser: AppUser = {
           id: userId,
@@ -232,8 +240,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           avatar: userData.avatar_url,
           avatar_url: userData.avatar_url,
           language: userData.language || 'es',
-          dailyQueryLimit: 20, // Default value
-          queriesUsed: 0, // Default value
+          dailyQueryLimit: 20,
+          queriesUsed: 0,
           created_at: userData.created_at,
           updated_at: userData.updated_at
         };
@@ -241,24 +249,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.info("User data loaded with role:", appUser.role);
         setUser(appUser);
       } else {
-        // If no profile found, create a default user object
+        // Fallback user if all retries failed
         const defaultUser: AppUser = {
           id: userId,
           email: session?.user?.email || '',
           role: 'agent',
-          name: '',
+          name: session?.user?.email?.split('@')[0] || 'Usuario',
+          full_name: session?.user?.email?.split('@')[0] || 'Usuario',
           dailyQueryLimit: 20,
           queriesUsed: 0,
           language: 'es'
         };
         
-        console.info("No profile found, using default user:", defaultUser);
+        console.info("Using fallback user data:", defaultUser);
         setUser(defaultUser);
       }
       
       setLoading(false);
     } catch (error) {
       console.error("Error in fetchUserData:", error);
+      // Create a minimal user to prevent app crash
+      const fallbackUser: AppUser = {
+        id: userId,
+        email: session?.user?.email || '',
+        role: 'agent',
+        name: 'Usuario',
+        full_name: 'Usuario',
+        dailyQueryLimit: 20,
+        queriesUsed: 0,
+        language: 'es'
+      };
+      setUser(fallbackUser);
       setLoading(false);
     }
   };
@@ -287,7 +308,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       await supabase.auth.signOut();
-      // No need to manually clear session here, the auth state listener will handle it
+      // No need to manually clear session here, the auth state change handler will handle it
       navigate('/login');
     } catch (error) {
       console.error("Error signing out:", error);

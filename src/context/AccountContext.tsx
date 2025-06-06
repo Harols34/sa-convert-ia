@@ -41,7 +41,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Cargar cuentas del usuario actual - CORREGIDO para SuperAdmin
+  // Cargar cuentas del usuario actual
   const loadUserAccounts = async () => {
     if (!user) return;
 
@@ -49,7 +49,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
       console.log("Loading user accounts for user:", user.id, "role:", user.role);
       
       if (user.role === 'superAdmin') {
-        // SuperAdmin ve TODAS las cuentas (activas e inactivas)
+        // SuperAdmin ve TODAS las cuentas
         const { data: accounts, error } = await supabase
           .from('accounts')
           .select('*')
@@ -66,7 +66,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
           status: account.status as 'active' | 'inactive'
         })));
       } else {
-        // Usuario normal ve solo sus cuentas asignadas y activas
+        // Usuario normal ve solo sus cuentas asignadas
         const { data: userAccountsData, error } = await supabase
           .from('user_accounts')
           .select(`
@@ -100,12 +100,11 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     }
   };
 
-  // Cargar todas las cuentas (solo para SuperAdmin) - ACTUALIZADO
+  // Cargar todas las cuentas (para SuperAdmin)
   const loadAccounts = async () => {
     if (!user || user.role !== 'superAdmin') return;
 
     try {
-      // SuperAdmin puede ver todas las cuentas
       const { data: accounts, error } = await supabase
         .from('accounts')
         .select('*')
@@ -186,7 +185,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
         .insert([{ user_id: userId, account_id: accountId }]);
 
       if (error) {
-        if (error.code === '23505') { // Unique constraint violation
+        if (error.code === '23505') {
           toast.error('El usuario ya está asignado a esta cuenta');
         } else {
           throw error;
@@ -268,8 +267,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
           user.role === 'superAdmin' ? loadAccounts() : Promise.resolve()
         ]);
         
-        // Para SuperAdmin, permitir seleccionar "all" para ver todos los datos
-        // Para usuarios normales, auto-seleccionar la primera cuenta
+        // Manejar selección de cuenta
         const savedAccountId = localStorage.getItem('selectedAccountId');
         
         if (user.role === 'superAdmin') {
@@ -279,9 +277,13 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
           } else {
             setSelectedAccountId('all'); // Por defecto "all" para SuperAdmin
           }
-        } else if (userAccounts.length > 0 && !selectedAccountId) {
-          // Usuario normal auto-selecciona la primera cuenta
-          setSelectedAccountId(userAccounts[0].id);
+        } else {
+          // Usuario normal auto-selecciona la primera cuenta disponible
+          setTimeout(() => {
+            if (userAccounts.length > 0 && !selectedAccountId) {
+              setSelectedAccountId(userAccounts[0].id);
+            }
+          }, 100);
         }
         
         setIsLoading(false);
@@ -308,131 +310,11 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
         setSelectedAccountId,
         allAccounts,
         loadAccounts,
-        createAccount: async (name: string) => {
-          if (!user || user.role !== 'superAdmin') {
-            toast.error('No tienes permisos para crear cuentas');
-            return false;
-          }
-
-          try {
-            const { error } = await supabase
-              .from('accounts')
-              .insert([{ name, status: 'active' }]);
-
-            if (error) throw error;
-
-            toast.success('Cuenta creada exitosamente');
-            await loadAccounts();
-            await loadUserAccounts();
-            return true;
-          } catch (error) {
-            console.error('Error creating account:', error);
-            toast.error('Error al crear la cuenta');
-            return false;
-          }
-        },
-        updateAccountStatus: async (accountId: string, status: 'active' | 'inactive') => {
-          if (!user || user.role !== 'superAdmin') {
-            toast.error('No tienes permisos para actualizar cuentas');
-            return false;
-          }
-
-          try {
-            const { error } = await supabase
-              .from('accounts')
-              .update({ status })
-              .eq('id', accountId);
-
-            if (error) throw error;
-
-            toast.success('Estado de cuenta actualizado');
-            await loadAccounts();
-            await loadUserAccounts();
-            return true;
-          } catch (error) {
-            console.error('Error updating account status:', error);
-            toast.error('Error al actualizar el estado de la cuenta');
-            return false;
-          }
-        },
-        assignUserToAccount: async (userId: string, accountId: string) => {
-          if (!user || user.role !== 'superAdmin') {
-            toast.error('No tienes permisos para asignar usuarios');
-            return false;
-          }
-
-          try {
-            const { error } = await supabase
-              .from('user_accounts')
-              .insert([{ user_id: userId, account_id: accountId }]);
-
-            if (error) {
-              if (error.code === '23505') { // Unique constraint violation
-                toast.error('El usuario ya está asignado a esta cuenta');
-              } else {
-                throw error;
-              }
-              return false;
-            }
-
-            toast.success('Usuario asignado a la cuenta exitosamente');
-            return true;
-          } catch (error) {
-            console.error('Error assigning user to account:', error);
-            toast.error('Error al asignar usuario a la cuenta');
-            return false;
-          }
-        },
-        removeUserFromAccount: async (userId: string, accountId: string) => {
-          if (!user || user.role !== 'superAdmin') {
-            toast.error('No tienes permisos para remover usuarios');
-            return false;
-          }
-
-          try {
-            const { error } = await supabase
-              .from('user_accounts')
-              .delete()
-              .eq('user_id', userId)
-              .eq('account_id', accountId);
-
-            if (error) throw error;
-
-            toast.success('Usuario removido de la cuenta exitosamente');
-            return true;
-          } catch (error) {
-            console.error('Error removing user from account:', error);
-            toast.error('Error al remover usuario de la cuenta');
-            return false;
-          }
-        },
-        getUserAccounts: async (userId: string) => {
-          try {
-            const { data: userAccountsData, error } = await supabase
-              .from('user_accounts')
-              .select(`
-                account_id,
-                accounts!inner (
-                  id,
-                  name,
-                  created_at,
-                  updated_at,
-                  status
-                )
-              `)
-              .eq('user_id', userId);
-
-            if (error) throw error;
-
-            return userAccountsData?.map(ua => ({
-              ...ua.accounts,
-              status: ua.accounts.status as 'active' | 'inactive'
-            })).filter(Boolean) as Account[] || [];
-          } catch (error) {
-            console.error('Error getting user accounts:', error);
-            return [];
-          }
-        },
+        createAccount,
+        updateAccountStatus,
+        assignUserToAccount,
+        removeUserFromAccount,
+        getUserAccounts,
         isLoading,
       }}
     >

@@ -1,60 +1,71 @@
 
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/context/AuthContext";
-import { AccountProvider } from "@/context/AccountContext";
+import { ThemeProvider } from "next-themes";
+import { AuthProvider } from "./context/AuthContext";
+import { AccountProvider } from "./context/AccountContext";
+import { UserProvider } from "./hooks/useUser";
+
+// Pages
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Analytics from "./pages/Analytics";
 import Calls from "./pages/Calls";
-import Users from "./pages/Users";
-import Accounts from "./pages/Accounts";
-import Settings from "./pages/Settings";
-import Chat from "./pages/Chat";
-import Behaviors from "./pages/Behaviors";
 import Agents from "./pages/Agents";
 import Workforce from "./pages/Workforce";
 import Tools from "./pages/Tools";
+import Chat from "./pages/Chat";
+import Behaviors from "./pages/Behaviors";
 import Tipificaciones from "./pages/Tipificaciones";
 import Prompts from "./pages/Prompts";
-import PromptForm from "./pages/PromptForm";
+import Users from "./pages/Users";
+import AccountsPage from "./pages/Accounts";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+
+import "./App.css";
 
 const queryClient = new QueryClient();
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <BrowserRouter>
-          <AuthProvider>
-            <AccountProvider>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/calls/*" element={<Calls />} />
-                <Route path="/users/*" element={<Users />} />
-                <Route path="/accounts/*" element={<Accounts />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/chat/*" element={<Chat />} />
-                <Route path="/behaviors/*" element={<Behaviors />} />
-                <Route path="/agents" element={<Agents />} />
-                <Route path="/workforce" element={<Workforce />} />
-                <Route path="/tools" element={<Tools />} />
-                <Route path="/tipificaciones" element={<Tipificaciones />} />
-                <Route path="/prompts" element={<Prompts />} />
-                <Route path="/prompts/new" element={<PromptForm />} />
-                <Route path="/prompts/edit/:id" element={<PromptForm />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </AccountProvider>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
+      <ThemeProvider attribute="class" defaultTheme="light">
+        <TooltipProvider>
+          <Router>
+            <AuthProvider>
+              <UserProvider>
+                <AccountProvider>
+                  <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+                    <Routes>
+                      <Route path="/" element={<Index />} />
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/analytics" element={<Analytics />} />
+                      <Route path="/calls/*" element={<Calls />} />
+                      <Route path="/agents" element={<Agents />} />
+                      <Route path="/workforce" element={<Workforce />} />
+                      <Route path="/tools" element={<Tools />} />
+                      <Route path="/chat" element={<Chat />} />
+                      <Route path="/behaviors" element={<Behaviors />} />
+                      <Route path="/tipificaciones" element={<Tipificaciones />} />
+                      <Route path="/prompts/*" element={<Prompts />} />
+                      <Route path="/users" element={<Users />} />
+                      <Route path="/accounts/*" element={<AccountsPage />} />
+                      <Route path="/settings" element={<Settings />} />
+                      {/* Redirect /dashboard to /analytics */}
+                      <Route path="/dashboard" element={<Navigate to="/analytics" replace />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </div>
+                  <Toaster />
+                </AccountProvider>
+              </UserProvider>
+            </AuthProvider>
+          </Router>
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
