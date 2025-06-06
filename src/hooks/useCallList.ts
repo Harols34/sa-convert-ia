@@ -1,20 +1,10 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useAccount } from "@/context/AccountContext";
 import { toast } from "sonner";
-
-export interface Call {
-  id: string;
-  agent_name: string;
-  duration: number;
-  date: string;
-  progress: number;
-  status: string;
-  title: string;
-  filename: string;
-  account_id?: string;
-}
+import { Call } from "@/lib/types";
 
 export const useCallList = () => {
   const { user } = useAuth();
@@ -101,8 +91,32 @@ export const useCallList = () => {
 
       if (error) throw error;
 
-      console.log("Calls loaded:", data?.length || 0);
-      setCalls(data || []);
+      // Map the database fields to the expected Call interface
+      const mappedCalls: Call[] = (data || []).map(dbCall => ({
+        id: dbCall.id,
+        title: dbCall.title,
+        filename: dbCall.filename,
+        agentName: dbCall.agent_name, // Map agent_name to agentName
+        agentId: dbCall.agent_id,
+        duration: dbCall.duration,
+        date: dbCall.date,
+        status: dbCall.status as "pending" | "transcribing" | "analyzing" | "complete" | "error",
+        progress: dbCall.progress,
+        audio_url: dbCall.audio_url, // Keep both for compatibility
+        audioUrl: dbCall.audio_url, // Map audio_url to audioUrl
+        transcription: dbCall.transcription,
+        summary: dbCall.summary,
+        result: dbCall.result as "" | "venta" | "no venta",
+        product: dbCall.product as "" | "fijo" | "móvil",
+        reason: dbCall.reason,
+        tipificacionId: dbCall.tipificacion_id,
+        speaker_analysis: dbCall.speaker_analysis,
+        statusSummary: dbCall.status_summary,
+        account_id: dbCall.account_id,
+      }));
+
+      console.log("Calls loaded:", mappedCalls.length);
+      setCalls(mappedCalls);
     } catch (error: any) {
       console.error('Error fetching calls:', error);
       setError(error.message);
