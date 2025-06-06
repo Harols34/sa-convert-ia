@@ -40,9 +40,7 @@ export default function CallsPage() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between">
               <div>
                 
-                <p className="text-muted-foreground mt-1">
-                  Ver, gestionar y analizar tus llamadas
-                </p>
+                
               </div>
               <div className="flex flex-col sm:flex-row gap-3 mt-4 md:mt-0">
                 {isAdmin && <Button variant="outline" onClick={() => setShowAdminPanel(!showAdminPanel)} className="hover-scale">

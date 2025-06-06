@@ -97,16 +97,7 @@ const Layout: React.FC<LayoutProps> = ({
         </div>
 
         {/* Desktop search hint */}
-        <div className="hidden md:flex items-center justify-end p-2 border-b bg-muted/30">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Search className="h-3 w-3" />
-            <span>Presiona</span>
-            <kbd className="px-1.5 py-0.5 bg-background border rounded text-xs">Ctrl</kbd>
-            <span>+</span>
-            <kbd className="px-1.5 py-0.5 bg-background border rounded text-xs">K</kbd>
-            <span>para buscar módulos disponibles</span>
-          </div>
-        </div>
+        
 
         {/* Page content - optimized spacing and loading */}
         <main className="flex-1 w-full h-full overflow-auto">
