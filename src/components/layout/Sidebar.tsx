@@ -23,7 +23,7 @@ const menuItems: MenuItem[] = [{
   name: "Agentes",
   href: "/agents",
   icon: <Users className="h-4 w-4" />,
-  role: ["superAdmin", "admin", "qualityAnalyst", "supervisor"]
+  role: ["superAdmin", "admin", "supervisor"]
 }, {
   name: "Supervisión",
   href: "/workforce",
@@ -33,7 +33,7 @@ const menuItems: MenuItem[] = [{
   name: "Herramientas",
   href: "/tools",
   icon: <Wrench className="h-4 w-4" />,
-  role: ["superAdmin", "admin", "qualityAnalyst", "supervisor"]
+  role: ["superAdmin", "admin"]
 }, {
   name: "Consulta IA",
   href: "/chat",
