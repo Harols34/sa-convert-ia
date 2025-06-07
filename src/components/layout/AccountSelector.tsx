@@ -7,7 +7,21 @@ import { Building2 } from 'lucide-react';
 
 const AccountSelector: React.FC = () => {
   const { user } = useAuth();
-  const { selectedAccountId, setSelectedAccountId, userAccounts, isLoading } = useAccount();
+  
+  // Add safety check for AccountProvider context
+  let selectedAccountId, setSelectedAccountId, userAccounts, isLoading;
+  
+  try {
+    const accountContext = useAccount();
+    selectedAccountId = accountContext.selectedAccountId;
+    setSelectedAccountId = accountContext.setSelectedAccountId;
+    userAccounts = accountContext.userAccounts;
+    isLoading = accountContext.isLoading;
+  } catch (error) {
+    // AccountProvider not available yet, return null
+    console.log("AccountProvider not available yet in AccountSelector");
+    return null;
+  }
 
   // Mostrar para todos los usuarios autenticados, no solo superAdmin
   if (!user || isLoading) {
