@@ -19,11 +19,12 @@ const AccountList: React.FC = () => {
     loadAccounts();
   }, []);
 
-  const handleStatusToggle = async (accountId: string, currentStatus: 'active' | 'inactive') => {
+  const handleStatusToggle = async (accountId: string, currentStatus: string) => {
     setUpdatingAccount(accountId);
+    // Ensure we're casting to the correct union type
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
     
-    const success = await updateAccountStatus(accountId, newStatus);
+    const success = await updateAccountStatus(accountId, newStatus as 'active' | 'inactive');
     if (success) {
       toast.success(`Cuenta ${newStatus === 'active' ? 'activada' : 'desactivada'} correctamente`);
     }

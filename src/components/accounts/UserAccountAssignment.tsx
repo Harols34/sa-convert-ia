@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAccount } from '@/context/AccountContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,10 +11,18 @@ import { Users, UserPlus, UserMinus, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import CreateHaroldUser from './CreateHaroldUser';
-import type { User, Account } from '@/lib/types';
+import type { User } from '@/lib/types';
+
+// Define a local Account interface that matches the database structure
+interface DatabaseAccount {
+  id: string;
+  name: string;
+  status: string;
+  created_at: string;
+}
 
 interface UserWithAccounts extends User {
-  userAccounts: Account[];
+  userAccounts: DatabaseAccount[];
 }
 
 const UserAccountAssignment: React.FC = () => {
@@ -28,12 +35,12 @@ const UserAccountAssignment: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isAssigning, setIsAssigning] = useState(false);
 
-  // Cargar usuarios
+  // Load users
   const loadUsers = async () => {
     try {
       setIsLoading(true);
       
-      // Obtener usuarios desde auth.users via edge function o desde profiles
+      // Get users from profiles
       const { data: profiles, error } = await supabase
         .from('profiles')
         .select('*')
@@ -41,21 +48,27 @@ const UserAccountAssignment: React.FC = () => {
 
       if (error) throw error;
 
-      // Cargar las cuentas de cada usuario
+      // Load accounts for each user
       const usersWithAccounts: UserWithAccounts[] = [];
       
       for (const profile of profiles || []) {
         const userAccounts = await getUserAccounts(profile.id);
+        // Convert to the expected format
+        const accountsWithUpdatedAt = userAccounts.map(account => ({
+          ...account,
+          updated_at: account.created_at // Use created_at as fallback for updated_at
+        }));
+        
         usersWithAccounts.push({
           id: profile.id,
-          email: '', // Se cargará desde auth.users si es necesario
+          email: '', // Will be loaded from auth.users if needed
           full_name: profile.full_name,
           role: profile.role as any,
           avatar_url: profile.avatar_url,
           language: (profile.language === 'es' || profile.language === 'en') ? profile.language : 'es',
           dailyQueryLimit: 0,
           queriesUsed: 0,
-          userAccounts
+          userAccounts: userAccounts // Use the raw accounts from the database
         });
       }
 
@@ -69,7 +82,7 @@ const UserAccountAssignment: React.FC = () => {
     }
   };
 
-  // Filtrar usuarios
+  // Filter users
   useEffect(() => {
     if (searchTerm.trim() === '') {
       setFilteredUsers(users);
@@ -82,7 +95,7 @@ const UserAccountAssignment: React.FC = () => {
     }
   }, [users, searchTerm]);
 
-  // Asignar usuario a cuenta
+  // Assign user to account
   const handleAssignUser = async () => {
     if (!selectedUserId || !selectedAccountId) {
       toast.error('Selecciona un usuario y una cuenta');
@@ -101,7 +114,7 @@ const UserAccountAssignment: React.FC = () => {
     setIsAssigning(false);
   };
 
-  // Remover usuario de cuenta
+  // Remove user from account
   const handleRemoveUser = async (userId: string, accountId: string) => {
     const success = await removeUserFromAccount(userId, accountId);
     
@@ -135,7 +148,7 @@ const UserAccountAssignment: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Formulario de asignación */}
+      {/* Assignment form */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
@@ -196,7 +209,7 @@ const UserAccountAssignment: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Lista de usuarios con sus cuentas */}
+      {/* Users list with their accounts */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
