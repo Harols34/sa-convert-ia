@@ -39,22 +39,21 @@ export function useCallList() {
   const { user, session } = useAuth();
   const { selectedAccountId } = useAccount();
   
-  // Use refs to track the current values and prevent unnecessary re-renders
-  const currentUserRef = useRef(user);
-  const currentAccountRef = useRef(selectedAccountId);
+  // Use refs to track current values and prevent unnecessary re-renders
+  const lastFetchParamsRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Update refs when values change
-  useEffect(() => {
-    currentUserRef.current = user;
-  }, [user]);
-
-  useEffect(() => {
-    currentAccountRef.current = selectedAccountId;
-  }, [selectedAccountId]);
 
   const loadCalls = useCallback(async (filters?: any, forceRefresh?: boolean) => {
     if (!session || !user) {
+      setLoading(false);
+      return;
+    }
+
+    // Create a unique identifier for this fetch request
+    const fetchParams = `${user.id}-${user.role}-${selectedAccountId}`;
+    
+    // Skip if we already fetched with the same parameters (unless forced)
+    if (!forceRefresh && lastFetchParamsRef.current === fetchParams) {
       setLoading(false);
       return;
     }
@@ -128,6 +127,8 @@ export function useCallList() {
       
       console.log("Transformed calls ready to display:", transformedCalls.length);
       setCalls(transformedCalls);
+      lastFetchParamsRef.current = fetchParams; // Mark this fetch as completed
+      
     } catch (err: any) {
       if (err.name === 'AbortError') {
         return;
@@ -150,6 +151,7 @@ export function useCallList() {
   }, [loadCalls]);
 
   const handleRefresh = useCallback(() => {
+    lastFetchParamsRef.current = ''; // Reset to force refresh
     loadCalls(undefined, true);
   }, [loadCalls]);
 
@@ -163,6 +165,7 @@ export function useCallList() {
       if (error) throw error;
 
       toast.success("Llamada eliminada exitosamente");
+      lastFetchParamsRef.current = ''; // Reset to force refresh
       loadCalls();
     } catch (err: any) {
       console.error("Error deleting call:", err);
@@ -182,6 +185,7 @@ export function useCallList() {
       toast.success(`${selectedCalls.length} llamadas eliminadas exitosamente`);
       setSelectedCalls([]);
       setMultiSelectMode(false);
+      lastFetchParamsRef.current = ''; // Reset to force refresh
       loadCalls();
     } catch (err: any) {
       console.error("Error deleting calls:", err);
@@ -205,11 +209,13 @@ export function useCallList() {
     }
   };
 
-  // Only load calls when component mounts or when user/account changes significantly
+  // Only load calls when component mounts or when parameters change significantly
   useEffect(() => {
     if (user && session) {
       console.log("Effect triggered - loading calls with account:", selectedAccountId);
-      loadCalls();
+      // Small delay to prevent rapid successive calls
+      const timeoutId = setTimeout(() => loadCalls(), 100);
+      return () => clearTimeout(timeoutId);
     }
 
     // Cleanup function to abort any pending requests
@@ -218,9 +224,10 @@ export function useCallList() {
         abortControllerRef.current.abort();
       }
     };
-  }, [user?.id, session?.user?.id, selectedAccountId]); // More specific dependencies
+  }, [user?.id, selectedAccountId]); // Only depend on essential parameters
 
   const refreshCalls = useCallback(() => {
+    lastFetchParamsRef.current = ''; // Reset to force refresh
     loadCalls();
   }, [loadCalls]);
 

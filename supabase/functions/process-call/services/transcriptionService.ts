@@ -5,13 +5,36 @@ import OpenAI from "https://esm.sh/openai@4.28.0";
  * Transcribe y procesa audio usando una versión optimizada del servicio de Whisper
  * con mejoras en la identificación de hablantes y detección acústica
  */
-export async function transcribeAudio(openai: OpenAI, audioUrl: string) {
+export async function transcribeAudio(audioUrl: string) {
   console.log(`Descargando archivo de audio: ${audioUrl}`);
+  
+  // Validar que audioUrl no esté undefined o vacío
+  if (!audioUrl || audioUrl === 'undefined' || audioUrl.trim() === '') {
+    throw new Error('URL de audio no válida o no proporcionada');
+  }
+
   console.log("Iniciando transcripción con alta precisión y diarización...");
 
+  const openAIKey = Deno.env.get('OPENAI_API_KEY') || Deno.env.get('API_DE_OPENAI');
+  
+  if (!openAIKey) {
+    throw new Error('API key de OpenAI no configurada');
+  }
+
+  const openai = new OpenAI({
+    apiKey: openAIKey,
+  });
+
   try {
-    // Descargar archivo de audio usando fetch
-    const audioResponse = await fetch(audioUrl);
+    // Descargar archivo de audio usando fetch con validación de URL
+    let audioResponse;
+    try {
+      audioResponse = await fetch(audioUrl);
+    } catch (fetchError) {
+      console.error('Error al descargar audio:', fetchError);
+      throw new Error(`Error al acceder a la URL del audio: ${audioUrl}`);
+    }
+    
     if (!audioResponse.ok) {
       throw new Error(`Error descargando audio: ${audioResponse.status} ${audioResponse.statusText}`);
     }

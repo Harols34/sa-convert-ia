@@ -22,11 +22,17 @@ serve(async (req) => {
   try {
     const { callId, audioUrl, summaryPrompt, feedbackPrompt } = await req.json();
     
-    if (!callId || !audioUrl) {
-      throw new Error('Missing required parameters: callId and audioUrl');
+    console.log('Request payload:', { callId, audioUrl: audioUrl ? 'provided' : 'missing', summaryPrompt: !!summaryPrompt, feedbackPrompt: !!feedbackPrompt });
+    
+    if (!callId) {
+      throw new Error('Missing required parameter: callId');
     }
 
-    console.log(`Processing call ${callId} with custom prompts:`, {
+    if (!audioUrl || audioUrl === 'undefined' || audioUrl.trim() === '') {
+      throw new Error('Missing or invalid audioUrl parameter');
+    }
+
+    console.log(`Processing call ${callId} with audio URL: ${audioUrl} and custom prompts:`, {
       hasSummaryPrompt: !!summaryPrompt,
       hasFeedbackPrompt: !!feedbackPrompt
     });
@@ -38,10 +44,11 @@ serve(async (req) => {
     });
 
     // Step 1: Transcribe audio
+    console.log('Starting transcription with audio URL:', audioUrl);
     const transcription = await transcribeAudio(audioUrl);
     
     if (!transcription) {
-      throw new Error('Failed to transcribe audio');
+      throw new Error('Failed to transcribe audio - no transcription returned');
     }
 
     // Update with transcription

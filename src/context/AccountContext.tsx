@@ -47,18 +47,20 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(true);
   const { user, isAuthenticated } = useAuth();
 
-  // Create a unique storage key per user to avoid conflicts between tabs
+  // Create a unique storage key per user and tab to avoid conflicts
   const getStorageKey = useCallback(() => {
-    return user?.id ? `selectedAccount_${user.id}` : 'selectedAccount_default';
+    const tabId = sessionStorage.getItem('tabId') || Math.random().toString(36).substring(7);
+    sessionStorage.setItem('tabId', tabId);
+    return user?.id ? `selectedAccount_${user.id}_${tabId}` : `selectedAccount_default_${tabId}`;
   }, [user?.id]);
 
   const setSelectedAccountId = useCallback((accountId: string | null) => {
     setSelectedAccountIdState(accountId);
-    // Store per user to avoid multi-tab conflicts
+    // Store per user and tab to avoid multi-tab conflicts
     if (accountId) {
-      localStorage.setItem(getStorageKey(), accountId);
+      sessionStorage.setItem(getStorageKey(), accountId);
     } else {
-      localStorage.removeItem(getStorageKey());
+      sessionStorage.removeItem(getStorageKey());
     }
   }, [getStorageKey]);
 
@@ -105,25 +107,28 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
         setUserAccounts(accounts);
       }
 
-      // Auto-select account based on stored preference or default logic
-      const storedAccountId = localStorage.getItem(getStorageKey());
-      
-      if (storedAccountId && userAccounts.some(acc => acc.id === storedAccountId)) {
-        setSelectedAccountIdState(storedAccountId);
-      } else if (userAccounts.length > 0) {
-        // Auto-select first account if no stored preference
-        const firstAccountId = userAccounts[0]?.id;
-        if (firstAccountId) {
-          setSelectedAccountId(firstAccountId);
+      // Only auto-select if no account is currently selected
+      if (!selectedAccountId) {
+        const storedAccountId = sessionStorage.getItem(getStorageKey());
+        
+        if (storedAccountId && userAccounts.some(acc => acc.id === storedAccountId)) {
+          setSelectedAccountIdState(storedAccountId);
+        } else if (userAccounts.length > 0) {
+          // Auto-select first account only if no stored preference
+          const firstAccountId = userAccounts[0]?.id;
+          if (firstAccountId) {
+            setSelectedAccountId(firstAccountId);
+          }
         }
       }
       
     } catch (error) {
       console.error('Error fetching user accounts:', error);
+      toast.error('Error al cargar las cuentas del usuario');
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, user?.role, isAuthenticated, getStorageKey, userAccounts.length]);
+  }, [user?.id, user?.role, isAuthenticated, getStorageKey, selectedAccountId]);
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -242,30 +247,30 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     await loadAccounts();
   }, [fetchUserAccounts, loadAccounts]);
 
-  // Load saved account selection on mount
+  // Load saved account selection on mount (per tab)
   useEffect(() => {
     if (user?.id) {
-      const storedAccountId = localStorage.getItem(getStorageKey());
+      const storedAccountId = sessionStorage.getItem(getStorageKey());
       if (storedAccountId) {
         setSelectedAccountIdState(storedAccountId);
       }
     }
   }, [user?.id, getStorageKey]);
 
-  // Fetch accounts when user changes
+  // Fetch accounts only once when user authenticates - no automatic refreshes
   useEffect(() => {
-    if (isAuthenticated && user?.id) {
+    if (isAuthenticated && user?.id && userAccounts.length === 0) {
       fetchUserAccounts();
       if (user.role === 'superAdmin') {
         loadAccounts();
       }
-    } else {
+    } else if (!isAuthenticated) {
       setUserAccounts([]);
       setAllAccounts([]);
       setSelectedAccountIdState(null);
       setIsLoading(false);
     }
-  }, [isAuthenticated, user?.id, user?.role, fetchUserAccounts, loadAccounts]);
+  }, [isAuthenticated, user?.id, user?.role]);
 
   const value: AccountContextType = {
     selectedAccountId,

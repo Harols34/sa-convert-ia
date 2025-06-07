@@ -24,22 +24,20 @@ export function usePrompts(type?: PromptType) {
   const { selectedAccountId } = useAccount();
   const { user } = useAuth();
   
-  // Use refs to prevent unnecessary re-renders
-  const currentAccountRef = useRef(selectedAccountId);
-  const currentUserRef = useRef(user?.id);
+  // Use refs to track current values and prevent unnecessary re-fetches
+  const lastFetchRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Update refs when values change
-  useEffect(() => {
-    currentAccountRef.current = selectedAccountId;
-  }, [selectedAccountId]);
-
-  useEffect(() => {
-    currentUserRef.current = user?.id;
-  }, [user?.id]);
 
   const fetchPrompts = useCallback(async () => {
     if (!type || !user?.id) return;
+    
+    // Create a unique key for this fetch request
+    const fetchKey = `${type}-${selectedAccountId}-${user.id}`;
+    
+    // Skip if we already fetched the same data
+    if (lastFetchRef.current === fetchKey) {
+      return;
+    }
     
     // Cancel any ongoing request
     if (abortControllerRef.current) {
@@ -59,13 +57,14 @@ export function usePrompts(type?: PromptType) {
         .eq("type", type)
         .order("updated_at", { ascending: false });
 
-      // Filter prompts based on current account selection
+      // Apply strict account-based filtering
       if (selectedAccountId && selectedAccountId !== 'all') {
-        console.log("Filtering prompts by account:", selectedAccountId);
-        // Only show prompts for the selected account or global prompts
+        console.log("Filtering prompts by specific account:", selectedAccountId);
+        // Show only prompts for the selected account or global prompts (no user_id and no account_id)
         query = query.or(`account_id.eq.${selectedAccountId},and(user_id.is.null,account_id.is.null)`);
       } else {
         // Show user's personal prompts and global prompts only
+        console.log("Filtering prompts for user and global prompts");
         query = query.or(`user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
       }
 
@@ -84,8 +83,9 @@ export function usePrompts(type?: PromptType) {
           ...prompt,
           type: prompt.type as PromptType
         }));
-        console.log("Prompts fetched for account", selectedAccountId, ":", typedPrompts.length);
+        console.log("Prompts fetched and filtered for account", selectedAccountId, ":", typedPrompts.length);
         setPrompts(typedPrompts);
+        lastFetchRef.current = fetchKey; // Mark this fetch as completed
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
@@ -99,10 +99,12 @@ export function usePrompts(type?: PromptType) {
     }
   }, [type, selectedAccountId, user?.id]);
 
-  // Only fetch when dependencies actually change
+  // Only fetch when necessary - prevent automatic reloads
   useEffect(() => {
     if (type && user?.id) {
-      fetchPrompts();
+      // Small delay to prevent multiple rapid calls
+      const timeoutId = setTimeout(fetchPrompts, 100);
+      return () => clearTimeout(timeoutId);
     }
 
     // Cleanup function
@@ -111,7 +113,7 @@ export function usePrompts(type?: PromptType) {
         abortControllerRef.current.abort();
       }
     };
-  }, [type, selectedAccountId, user?.id]); // Specific dependencies
+  }, [type, selectedAccountId, user?.id]);
 
   // Get the active prompt quickly
   const activePrompt = prompts.find((p) => p.active);
@@ -128,6 +130,8 @@ export function usePrompts(type?: PromptType) {
       
       if (error) throw error;
       
+      // Reset fetch cache to force refresh
+      lastFetchRef.current = '';
       await fetchPrompts();
       return data?.[0] as Prompt;
     } catch (error) {
@@ -142,6 +146,8 @@ export function usePrompts(type?: PromptType) {
       
       if (error) throw error;
       
+      // Reset fetch cache to force refresh
+      lastFetchRef.current = '';
       await fetchPrompts();
       return data?.[0] as Prompt;
     } catch (error) {
@@ -169,6 +175,8 @@ export function usePrompts(type?: PromptType) {
       
       if (error) throw error;
       
+      // Reset fetch cache to force refresh
+      lastFetchRef.current = '';
       await fetchPrompts();
       return true;
     } catch (error) {
