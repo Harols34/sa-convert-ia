@@ -1,363 +1,151 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "./AuthContext";
-import { Account } from "@/lib/types";
-import { toast } from "sonner";
+
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './AuthContext';
+
+interface Account {
+  id: string;
+  name: string;
+  status: string;
+}
 
 interface AccountContextType {
   selectedAccountId: string | null;
   setSelectedAccountId: (accountId: string | null) => void;
   userAccounts: Account[];
-  allAccounts: Account[];
   isLoading: boolean;
-  error: string | null;
   refreshAccounts: () => Promise<void>;
-  createAccount: (name: string) => Promise<boolean>;
-  loadAccounts: () => Promise<void>;
-  updateAccountStatus: (accountId: string, status: 'active' | 'inactive') => Promise<boolean>;
-  assignUserToAccount: (userId: string, accountId: string) => Promise<boolean>;
-  removeUserFromAccount: (userId: string, accountId: string) => Promise<boolean>;
-  getUserAccounts: (userId: string) => Promise<Account[]>;
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
 
-export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user, session, userRole } = useAuth();
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+export const useAccount = () => {
+  const context = useContext(AccountContext);
+  if (context === undefined) {
+    throw new Error('useAccount must be used within an AccountProvider');
+  }
+  return context;
+};
+
+interface AccountProviderProps {
+  children: React.ReactNode;
+}
+
+export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) => {
+  const [selectedAccountId, setSelectedAccountIdState] = useState<string | null>(null);
   const [userAccounts, setUserAccounts] = useState<Account[]>([]);
-  const [allAccounts, setAllAccounts] = useState<Account[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { user, isAuthenticated } = useAuth();
 
-  // All authenticated users should have account functionality
-  const shouldFetchAccounts = user && session;
+  // Create a unique storage key per user to avoid conflicts between tabs
+  const getStorageKey = useCallback(() => {
+    return user?.id ? `selectedAccount_${user.id}` : 'selectedAccount_default';
+  }, [user?.id]);
 
-  const fetchUserAccounts = async () => {
-    if (!shouldFetchAccounts) {
-      console.log("User not authenticated, skipping account fetch");
-      setUserAccounts([]);
-      setAllAccounts([]);
-      setSelectedAccountId(null);
+  const setSelectedAccountId = useCallback((accountId: string | null) => {
+    setSelectedAccountIdState(accountId);
+    // Store per user to avoid multi-tab conflicts
+    if (accountId) {
+      localStorage.setItem(getStorageKey(), accountId);
+    } else {
+      localStorage.removeItem(getStorageKey());
+    }
+  }, [getStorageKey]);
+
+  const fetchUserAccounts = useCallback(async () => {
+    if (!user?.id || !isAuthenticated) {
       setIsLoading(false);
       return;
     }
 
     try {
       setIsLoading(true);
-      setError(null);
-      console.log("Fetching accounts for user role:", userRole);
-
-      let accountsData: Account[] = [];
-
-      if (userRole === 'superAdmin') {
+      
+      // Fetch user accounts based on role
+      if (user.role === 'superAdmin') {
         // SuperAdmin can see all accounts
-        const { data, error: accountsError } = await supabase
+        const { data: allAccounts, error } = await supabase
           .from('accounts')
           .select('*')
           .eq('status', 'active')
           .order('name');
 
-        if (accountsError) {
-          throw accountsError;
-        }
-
-        accountsData = (data || []).map(account => ({
-          ...account,
-          status: account.status as 'active' | 'inactive'
-        })) as Account[];
-        
-        setAllAccounts(accountsData);
-        setUserAccounts(accountsData);
-      } else if (userRole === 'admin') {
-        // Admin can see accounts they're assigned to
-        const { data, error: userAccountsError } = await supabase
+        if (error) throw error;
+        setUserAccounts(allAccounts || []);
+      } else {
+        // Regular users see only their assigned accounts
+        const { data: userAccountsData, error } = await supabase
           .from('user_accounts')
           .select(`
-            account_id,
-            accounts:account_id (
+            accounts!inner (
               id,
               name,
-              status,
-              created_at,
-              updated_at
+              status
             )
           `)
           .eq('user_id', user.id);
 
-        if (userAccountsError) {
-          throw userAccountsError;
-        }
+        if (error) throw error;
 
-        accountsData = (data || [])
-          .map(ua => ua.accounts)
-          .filter(account => account && account.status === 'active')
-          .map(account => ({
-            ...account,
-            status: account.status as 'active' | 'inactive'
-          })) as Account[];
+        const accounts = userAccountsData
+          ?.map(ua => ua.accounts)
+          .filter(account => account.status === 'active') || [];
         
-        setUserAccounts(accountsData);
-        setAllAccounts(accountsData);
-      } else {
-        // Other roles (qualityAnalyst, supervisor, agent) get all accounts for filtering
-        const { data, error: accountsError } = await supabase
-          .from('accounts')
-          .select('*')
-          .eq('status', 'active')
-          .order('name');
-
-        if (accountsError) {
-          throw accountsError;
-        }
-
-        accountsData = (data || []).map(account => ({
-          ...account,
-          status: account.status as 'active' | 'inactive'
-        })) as Account[];
-        
-        setUserAccounts(accountsData);
-        setAllAccounts(accountsData);
+        setUserAccounts(accounts);
       }
 
-      console.log("Accounts fetched successfully:", accountsData.length);
-
-      // Set initial selected account
-      if (accountsData.length > 0) {
-        const savedAccountId = localStorage.getItem('selectedAccountId');
-        const validSavedAccount = savedAccountId && accountsData.find(acc => acc.id === savedAccountId);
-        
-        if (validSavedAccount) {
-          setSelectedAccountId(savedAccountId);
-        } else if (userRole === 'superAdmin') {
-          setSelectedAccountId('all');
-        } else {
-          setSelectedAccountId(accountsData[0].id);
+      // Auto-select account based on stored preference or default logic
+      const storedAccountId = localStorage.getItem(getStorageKey());
+      
+      if (storedAccountId && userAccounts.some(acc => acc.id === storedAccountId)) {
+        setSelectedAccountIdState(storedAccountId);
+      } else if (userAccounts.length > 0) {
+        // Auto-select first account if no stored preference
+        const firstAccountId = userAccounts[0]?.id;
+        if (firstAccountId) {
+          setSelectedAccountId(firstAccountId);
         }
-      } else {
-        setSelectedAccountId(null);
       }
-
-    } catch (err: any) {
-      console.error("Error fetching accounts:", err);
-      setError(err.message || "Error al cargar las cuentas");
-      setUserAccounts([]);
-      setAllAccounts([]);
-      setSelectedAccountId(null);
+      
+    } catch (error) {
+      console.error('Error fetching user accounts:', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user?.id, user?.role, isAuthenticated, getStorageKey, userAccounts.length]);
 
-  // Load all accounts (for SuperAdmin)
-  const loadAccounts = async () => {
-    if (userRole !== 'superAdmin') return;
-    
-    try {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from('accounts')
-        .select('*')
-        .order('name');
+  const refreshAccounts = useCallback(async () => {
+    await fetchUserAccounts();
+  }, [fetchUserAccounts]);
 
-      if (error) throw error;
-
-      const accounts = (data || []).map(account => ({
-        ...account,
-        status: account.status as 'active' | 'inactive'
-      })) as Account[];
-
-      setAllAccounts(accounts);
-    } catch (err: any) {
-      console.error("Error loading all accounts:", err);
-      setError(err.message || "Error al cargar las cuentas");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Create new account
-  const createAccount = async (name: string): Promise<boolean> => {
-    if (userRole !== 'superAdmin') {
-      toast.error("Solo los SuperAdmins pueden crear cuentas");
-      return false;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('accounts')
-        .insert([{ name, status: 'active' }]);
-
-      if (error) throw error;
-
-      toast.success("Cuenta creada exitosamente");
-      await loadAccounts();
-      return true;
-    } catch (err: any) {
-      console.error("Error creating account:", err);
-      toast.error(err.message || "Error al crear la cuenta");
-      return false;
-    }
-  };
-
-  // Update account status
-  const updateAccountStatus = async (accountId: string, status: 'active' | 'inactive'): Promise<boolean> => {
-    if (userRole !== 'superAdmin') {
-      toast.error("Solo los SuperAdmins pueden modificar cuentas");
-      return false;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('accounts')
-        .update({ status })
-        .eq('id', accountId);
-
-      if (error) throw error;
-
-      await loadAccounts();
-      return true;
-    } catch (err: any) {
-      console.error("Error updating account status:", err);
-      toast.error(err.message || "Error al actualizar la cuenta");
-      return false;
-    }
-  };
-
-  // Assign user to account
-  const assignUserToAccount = async (userId: string, accountId: string): Promise<boolean> => {
-    if (userRole !== 'superAdmin') {
-      toast.error("Solo los SuperAdmins pueden asignar usuarios");
-      return false;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('user_accounts')
-        .insert([{ user_id: userId, account_id: accountId }]);
-
-      if (error) throw error;
-
-      toast.success("Usuario asignado exitosamente");
-      return true;
-    } catch (err: any) {
-      console.error("Error assigning user to account:", err);
-      toast.error(err.message || "Error al asignar usuario");
-      return false;
-    }
-  };
-
-  // Remove user from account
-  const removeUserFromAccount = async (userId: string, accountId: string): Promise<boolean> => {
-    if (userRole !== 'superAdmin') {
-      toast.error("Solo los SuperAdmins pueden remover usuarios");
-      return false;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('user_accounts')
-        .delete()
-        .eq('user_id', userId)
-        .eq('account_id', accountId);
-
-      if (error) throw error;
-
-      toast.success("Usuario removido exitosamente");
-      return true;
-    } catch (err: any) {
-      console.error("Error removing user from account:", err);
-      toast.error(err.message || "Error al remover usuario");
-      return false;
-    }
-  };
-
-  // Get user accounts
-  const getUserAccounts = async (userId: string): Promise<Account[]> => {
-    try {
-      const { data, error } = await supabase
-        .from('user_accounts')
-        .select(`
-          account_id,
-          accounts:account_id (
-            id,
-            name,
-            status,
-            created_at,
-            updated_at
-          )
-        `)
-        .eq('user_id', userId);
-
-      if (error) throw error;
-
-      return (data || [])
-        .map(ua => ua.accounts)
-        .filter(account => account)
-        .map(account => ({
-          ...account,
-          status: account.status as 'active' | 'inactive'
-        })) as Account[];
-    } catch (err: any) {
-      console.error("Error fetching user accounts:", err);
-      return [];
-    }
-  };
-
-  // Fetch accounts when user or session changes
+  // Load saved account selection on mount
   useEffect(() => {
-    if (user && session) {
+    if (user?.id) {
+      const storedAccountId = localStorage.getItem(getStorageKey());
+      if (storedAccountId) {
+        setSelectedAccountIdState(storedAccountId);
+      }
+    }
+  }, [user?.id, getStorageKey]);
+
+  // Fetch accounts when user changes
+  useEffect(() => {
+    if (isAuthenticated && user?.id) {
       fetchUserAccounts();
     } else {
-      // Clear data when no user/session
       setUserAccounts([]);
-      setAllAccounts([]);
-      setSelectedAccountId(null);
+      setSelectedAccountIdState(null);
       setIsLoading(false);
-      setError(null);
     }
-  }, [user, session, userRole]);
-
-  // Save selected account to localStorage
-  useEffect(() => {
-    if (selectedAccountId) {
-      localStorage.setItem('selectedAccountId', selectedAccountId);
-    } else {
-      localStorage.removeItem('selectedAccountId');
-    }
-  }, [selectedAccountId]);
-
-  const refreshAccounts = async () => {
-    await fetchUserAccounts();
-  };
+  }, [isAuthenticated, user?.id, user?.role, fetchUserAccounts]);
 
   const value: AccountContextType = {
     selectedAccountId,
     setSelectedAccountId,
     userAccounts,
-    allAccounts,
     isLoading,
-    error,
-    refreshAccounts,
-    createAccount,
-    loadAccounts,
-    updateAccountStatus,
-    assignUserToAccount,
-    removeUserFromAccount,
-    getUserAccounts,
+    refreshAccounts
   };
 
-  return (
-    <AccountContext.Provider value={value}>
-      {children}
-    </AccountContext.Provider>
-  );
-};
-
-export const useAccount = () => {
-  const context = useContext(AccountContext);
-  if (context === undefined) {
-    throw new Error("useAccount must be used within an AccountProvider");
-  }
-  return context;
+  return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 };

@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAccount } from "@/context/AccountContext";
@@ -23,9 +23,31 @@ export function usePrompts(type?: PromptType) {
   const [loading, setLoading] = useState(false);
   const { selectedAccountId } = useAccount();
   const { user } = useAuth();
+  
+  // Use refs to prevent unnecessary re-renders
+  const currentAccountRef = useRef(selectedAccountId);
+  const currentUserRef = useRef(user?.id);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Update refs when values change
+  useEffect(() => {
+    currentAccountRef.current = selectedAccountId;
+  }, [selectedAccountId]);
+
+  useEffect(() => {
+    currentUserRef.current = user?.id;
+  }, [user?.id]);
 
   const fetchPrompts = useCallback(async () => {
     if (!type || !user?.id) return;
+    
+    // Cancel any ongoing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController();
     
     try {
       setLoading(true);
@@ -37,42 +59,59 @@ export function usePrompts(type?: PromptType) {
         .eq("type", type)
         .order("updated_at", { ascending: false });
 
-      // Show prompts that are either:
-      // 1. Created by the current user (user_id matches)
-      // 2. Associated with the selected account (if account is selected and user has access)
-      // 3. Global prompts (no user_id and no account_id)
-      
+      // Filter prompts based on current account selection
       if (selectedAccountId && selectedAccountId !== 'all') {
-        console.log("Filtering prompts by account:", selectedAccountId, "and user:", user?.id);
-        query = query.or(`account_id.eq.${selectedAccountId},user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
+        console.log("Filtering prompts by account:", selectedAccountId);
+        // Only show prompts for the selected account or global prompts
+        query = query.or(`account_id.eq.${selectedAccountId},and(user_id.is.null,account_id.is.null)`);
       } else {
-        // Show user's personal prompts and global prompts
+        // Show user's personal prompts and global prompts only
         query = query.or(`user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
       }
 
-      const { data, error } = await query;
+      const { data, error } = await query.abortSignal(abortControllerRef.current.signal);
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('aborted')) {
+          console.log('Prompts request was aborted');
+          return;
+        }
+        throw error;
+      }
       
       if (data) {
         const typedPrompts = data.map(prompt => ({
           ...prompt,
           type: prompt.type as PromptType
         }));
-        console.log("Prompts fetched:", typedPrompts.length);
+        console.log("Prompts fetched for account", selectedAccountId, ":", typedPrompts.length);
         setPrompts(typedPrompts);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        return;
+      }
       console.error("Error fetching prompts:", error);
       toast.error("Error al cargar los prompts");
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
   }, [type, selectedAccountId, user?.id]);
 
+  // Only fetch when dependencies actually change
   useEffect(() => {
-    fetchPrompts();
-  }, [fetchPrompts]);
+    if (type && user?.id) {
+      fetchPrompts();
+    }
+
+    // Cleanup function
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [type, selectedAccountId, user?.id]); // Specific dependencies
 
   // Get the active prompt quickly
   const activePrompt = prompts.find((p) => p.active);

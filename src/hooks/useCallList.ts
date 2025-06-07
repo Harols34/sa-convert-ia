@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useAccount } from "@/context/AccountContext";
@@ -38,12 +38,34 @@ export function useCallList() {
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const { user, session } = useAuth();
   const { selectedAccountId } = useAccount();
+  
+  // Use refs to track the current values and prevent unnecessary re-renders
+  const currentUserRef = useRef(user);
+  const currentAccountRef = useRef(selectedAccountId);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Update refs when values change
+  useEffect(() => {
+    currentUserRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    currentAccountRef.current = selectedAccountId;
+  }, [selectedAccountId]);
 
   const loadCalls = useCallback(async (filters?: any, forceRefresh?: boolean) => {
     if (!session || !user) {
       setLoading(false);
       return;
     }
+
+    // Cancel any ongoing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController();
 
     try {
       if (forceRefresh) {
@@ -61,26 +83,29 @@ export function useCallList() {
         .order('created_at', { ascending: false })
         .limit(100);
 
-      // Aplicar filtro de cuenta para TODOS los roles (no solo superAdmin)
+      // Apply account filter for ALL roles
       if (selectedAccountId && selectedAccountId !== 'all') {
         console.log("Filtering by account:", selectedAccountId);
         query = query.eq('account_id', selectedAccountId);
       }
 
-      // Solo aplicar filtro de agente si el usuario es 'agent'
+      // Only apply agent filter if user is 'agent'
       if (user.role === 'agent') {
         console.log("Agent filter applied - only showing calls for agent:", user.id);
         query = query.eq('agent_id', user.id);
       }
 
-      const { data, error: callsError } = await query;
+      const { data, error: callsError } = await query.abortSignal(abortControllerRef.current.signal);
 
       if (callsError) {
+        if (callsError.name === 'AbortError') {
+          console.log('Request was aborted');
+          return;
+        }
         throw callsError;
       }
 
       console.log("Raw calls data from DB:", data?.length || 0, "calls found");
-      console.log("Sample call account_ids:", data?.slice(0, 3).map(c => ({ id: c.id, account_id: c.account_id })));
       
       // Transform data to match expected interface
       const transformedCalls = (data || []).map(call => ({
@@ -104,6 +129,9 @@ export function useCallList() {
       console.log("Transformed calls ready to display:", transformedCalls.length);
       setCalls(transformedCalls);
     } catch (err: any) {
+      if (err.name === 'AbortError') {
+        return;
+      }
       console.error("Error fetching calls:", err);
       setError(err.message || "Error al cargar las llamadas");
       
@@ -113,6 +141,7 @@ export function useCallList() {
     } finally {
       setLoading(false);
       setIsRefreshing(false);
+      abortControllerRef.current = null;
     }
   }, [session, user, selectedAccountId]);
 
@@ -176,13 +205,20 @@ export function useCallList() {
     }
   };
 
-  // Load calls when user, session or selected account changes
+  // Only load calls when component mounts or when user/account changes significantly
   useEffect(() => {
     if (user && session) {
       console.log("Effect triggered - loading calls with account:", selectedAccountId);
       loadCalls();
     }
-  }, [user, session, selectedAccountId, loadCalls]);
+
+    // Cleanup function to abort any pending requests
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [user?.id, session?.user?.id, selectedAccountId]); // More specific dependencies
 
   const refreshCalls = useCallback(() => {
     loadCalls();

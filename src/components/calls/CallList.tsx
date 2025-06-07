@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, X, RefreshCcw, Trash2 } from "lucide-react";
@@ -11,6 +12,7 @@ import { CallTable } from "./CallTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+
 export default function CallList() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isMultiDeleteDialogOpen, setIsMultiDeleteDialogOpen] = useState(false);
@@ -18,6 +20,7 @@ export default function CallList() {
   const [pageSize, setPageSize] = useState<number>(20);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [filters, setFilters] = useState<any>({});
+  
   const {
     calls,
     isLoading,
@@ -56,21 +59,20 @@ export default function CallList() {
     };
   }, [calls, currentPage, pageSize]);
 
-  // Modified to ensure search is applied immediately
+  // Optimized filter change handler - REMOVED automatic fetchCalls to prevent auto-refresh
   const handleFilterChange = useCallback((newFilters: any) => {
-    console.log("Cambio de filtro detectado:", newFilters);
+    console.log("Filter change detected:", newFilters);
     setFilters(newFilters);
     setCurrentPage(1); // Reset to first page on filter change
+    // REMOVED: fetchCalls(newFilters, true); - User must manually refresh
+  }, []);
 
-    // Important: Call fetchCalls right away with new filters
-    // Esta línea es crucial para aplicar los filtros inmediatamente
-    fetchCalls(newFilters, true); // Forzar actualización de datos
-  }, [fetchCalls]);
   const handlePageSizeChange = useCallback((value: string) => {
     const newSize = parseInt(value);
     setPageSize(newSize);
     setCurrentPage(1); // Reset to first page when changing page size
   }, []);
+
   const handlePageChange = useCallback((page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
@@ -130,51 +132,69 @@ export default function CallList() {
   }, [currentPage, totalPages]);
 
   // Optimized content rendering with early return patterns
-  const renderContent = () => {
+  const renderContent = useCallback(() => {
     if (isLoading && calls.length === 0) {
-      return <div className="space-y-4">
+      return (
+        <div className="space-y-4">
           <div className="rounded-md border">
             <ScrollArea className="h-[400px]">
               <div className="p-4 space-y-4">
-                {Array(5).fill(0).map((_, i) => <div key={i} className="space-y-2">
+                {Array(5).fill(0).map((_, i) => (
+                  <div key={i} className="space-y-2">
                     <Skeleton className="h-5 w-full" />
                     <Skeleton className="h-5 w-3/4" />
-                  </div>)}
+                  </div>
+                ))}
               </div>
             </ScrollArea>
           </div>
-        </div>;
+        </div>
+      );
     }
+
     if (error) {
-      return <div className="bg-destructive/15 text-destructive p-4 rounded-md">
+      return (
+        <div className="bg-destructive/15 text-destructive p-4 rounded-md">
           <p className="font-medium">Error al cargar las llamadas</p>
           <p className="text-sm">{error}</p>
           <Button variant="outline" size="sm" className="mt-2" onClick={handleRefresh}>
             <RefreshCcw className="mr-2 h-4 w-4" />
             Intentar nuevamente
           </Button>
-        </div>;
+        </div>
+      );
     }
+
     if (calls.length === 0) {
-      return <div className="p-8 text-center border rounded-md">
+      return (
+        <div className="p-8 text-center border rounded-md">
           <p className="text-muted-foreground">No se encontraron llamadas.</p>
-        </div>;
+        </div>
+      );
     }
-    return <>
+
+    return (
+      <>
         <div className="rounded-md border">
           <ScrollArea className="h-[calc(100vh-350px)]">
-            <CallTable calls={currentCalls} isLoading={isLoading} selectedCalls={selectedCalls} multiSelectMode={multiSelectMode} onDeleteCall={id => {
-            setSelectedCallId(id);
-            setIsDeleteDialogOpen(true);
-          }} onToggleCallSelection={toggleCallSelection} onToggleAllCalls={toggleAllCalls} />
+            <CallTable 
+              calls={currentCalls} 
+              isLoading={isLoading} 
+              selectedCalls={selectedCalls} 
+              multiSelectMode={multiSelectMode} 
+              onDeleteCall={(id) => {
+                setSelectedCallId(id);
+                setIsDeleteDialogOpen(true);
+              }} 
+              onToggleCallSelection={toggleCallSelection} 
+              onToggleAllCalls={toggleAllCalls} 
+            />
           </ScrollArea>
         </div>
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mt-4">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              Mostrar
-            </span>
+            <span className="text-sm text-muted-foreground">Mostrar</span>
             <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
               <SelectTrigger className="w-[80px]">
                 <SelectValue placeholder="20" />
@@ -188,9 +208,7 @@ export default function CallList() {
                 <SelectItem value="250">250</SelectItem>
               </SelectContent>
             </Select>
-            <span className="text-sm text-muted-foreground">
-              por página
-            </span>
+            <span className="text-sm text-muted-foreground">por página</span>
           </div>
 
           <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -202,50 +220,93 @@ export default function CallList() {
           <Pagination>
             <PaginationContent>
               <PaginationItem>
-                <PaginationPrevious onClick={() => handlePageChange(currentPage - 1)} className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} />
+                <PaginationPrevious 
+                  onClick={() => handlePageChange(currentPage - 1)} 
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} 
+                />
               </PaginationItem>
               
-              {pageNumbers.map((page, index) => <PaginationItem key={index}>
-                  {page === "ellipsis" ? <span className="px-4 py-2">...</span> : <PaginationLink isActive={page === currentPage} onClick={() => typeof page === "number" && handlePageChange(page)}>
+              {pageNumbers.map((page, index) => (
+                <PaginationItem key={index}>
+                  {page === "ellipsis" ? (
+                    <span className="px-4 py-2">...</span>
+                  ) : (
+                    <PaginationLink 
+                      isActive={page === currentPage} 
+                      onClick={() => typeof page === "number" && handlePageChange(page)}
+                    >
                       {page}
-                    </PaginationLink>}
-                </PaginationItem>)}
+                    </PaginationLink>
+                  )}
+                </PaginationItem>
+              ))}
               
               <PaginationItem>
-                <PaginationNext onClick={() => handlePageChange(currentPage + 1)} className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"} />
+                <PaginationNext 
+                  onClick={() => handlePageChange(currentPage + 1)} 
+                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"} 
+                />
               </PaginationItem>
             </PaginationContent>
           </Pagination>
         </div>
-      </>;
-  };
-  return <div className="space-y-4 component-fade">
+      </>
+    );
+  }, [isLoading, calls.length, error, currentCalls, selectedCalls, multiSelectMode, toggleCallSelection, toggleAllCalls, handleRefresh, pageSize, handlePageSizeChange, totalItems, startIndex, endIndex, pageNumbers, currentPage, totalPages, handlePageChange]);
+
+  return (
+    <div className="space-y-4 component-fade">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold tracking-tight">Llamadas Ver, gestionar y analizar tus llamadas</h2>
+        <h2 className="text-2xl font-bold tracking-tight">
+          Llamadas Ver, gestionar y analizar tus llamadas
+        </h2>
         <div className="flex gap-2">
-          {multiSelectMode ? <>
-              <Button variant="destructive" size="sm" onClick={() => setIsMultiDeleteDialogOpen(true)} disabled={selectedCalls.length === 0}>
+          {multiSelectMode ? (
+            <>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={() => setIsMultiDeleteDialogOpen(true)} 
+                disabled={selectedCalls.length === 0}
+              >
                 <Trash2 className="mr-2 h-4 w-4" />
                 Eliminar ({selectedCalls.length})
               </Button>
-              <Button variant="outline" size="sm" onClick={() => {
-            setMultiSelectMode(false);
-          }}>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setMultiSelectMode(false)}
+              >
                 <X className="mr-2 h-4 w-4" />
                 Cancelar
               </Button>
-            </> : <>
-              <Button variant="outline" size="sm" onClick={() => setMultiSelectMode(true)}>
+            </>
+          ) : (
+            <>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setMultiSelectMode(true)}
+              >
                 <Check className="mr-2 h-4 w-4" />
                 Seleccionar
               </Button>
-              <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleRefresh} 
+                disabled={isRefreshing}
+              >
                 <RefreshCcw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Actualizar
               </Button>
-              <CallListExport selectedCalls={selectedCalls.length > 0 ? calls.filter(call => selectedCalls.includes(call.id)) : undefined} filteredCalls={calls} />
+              <CallListExport 
+                selectedCalls={selectedCalls.length > 0 ? calls.filter(call => selectedCalls.includes(call.id)) : undefined} 
+                filteredCalls={calls} 
+              />
               <CallUploadButton />
-            </>}
+            </>
+          )}
         </div>
       </div>
 
@@ -266,12 +327,12 @@ export default function CallList() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={() => {
-            if (selectedCallId) {
-              deleteCall(selectedCallId);
-            }
-            setIsDeleteDialogOpen(false);
-            setSelectedCallId(null);
-          }}>
+              if (selectedCallId) {
+                deleteCall(selectedCallId);
+              }
+              setIsDeleteDialogOpen(false);
+              setSelectedCallId(null);
+            }}>
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -294,5 +355,6 @@ export default function CallList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>;
+    </div>
+  );
 }
