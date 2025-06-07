@@ -93,7 +93,7 @@ export default function Sidebar() {
   return <div className={cn("border-r bg-gray-50/40 transition-all duration-300 flex flex-col h-full", collapsed ? "w-16" : "w-64")}>
       {/* Header */}
       <div className="flex h-14 items-center border-b lg:h-[60px] lg:px-6 shrink-0 px-[7px]">
-        <div className="flex items-center justify-between w-full">
+        <div className="flex items-center justify-between w-full px-[-5px]">
           {!collapsed && <Link to="/" className="flex items-center gap-2 font-semibold">
               <img src="https://www.convertia.com/favicon/favicon-convertia.png" alt="Convert-IA Logo" className="h-6 w-6" />
               <span className="text-lg text-primary">Convert-IA</span>
