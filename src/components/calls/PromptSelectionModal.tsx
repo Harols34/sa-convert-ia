@@ -54,13 +54,12 @@ export default function PromptSelectionModal({
     setLoading(true);
     
     try {
-      console.log("Loading prompts for account:", selectedAccountId);
+      console.log("Loading prompts STRICTLY for account:", selectedAccountId);
 
-      // Get prompts filtered by account - strict filtering for specific account only
+      // Get prompts filtered STRICTLY by account - NO fallback to global prompts
       const { data: prompts, error } = await supabase
         .from('prompts')
         .select('*')
-        .eq('active', true)
         .eq('account_id', selectedAccountId) // STRICT: Only prompts for this specific account
         .order('name');
 
@@ -70,7 +69,7 @@ export default function PromptSelectionModal({
         return;
       }
 
-      console.log("Loaded prompts for account", selectedAccountId, ":", prompts?.length || 0);
+      console.log("Loaded prompts STRICTLY for account", selectedAccountId, ":", prompts?.length || 0);
 
       // Type cast the prompts to ensure proper typing
       const typedPrompts = (prompts || []).map(p => ({
@@ -98,27 +97,27 @@ export default function PromptSelectionModal({
   const handleConfirm = () => {
     const prompts: { summaryPrompt?: string; feedbackPrompt?: string } = {};
 
-    // Handle summary prompt
+    // Handle summary prompt - ONLY existing prompts, no custom creation
     if (selectedSummaryPrompt === "custom") {
       prompts.summaryPrompt = customSummaryPrompt.trim();
       console.log("Using custom summary prompt:", prompts.summaryPrompt);
     } else if (selectedSummaryPrompt) {
       const prompt = summaryPrompts.find(p => p.id === selectedSummaryPrompt);
       prompts.summaryPrompt = prompt?.content;
-      console.log("Using saved summary prompt:", prompt?.name);
+      console.log("Using existing summary prompt:", prompt?.name, "Content:", prompt?.content);
     }
 
-    // Handle feedback prompt
+    // Handle feedback prompt - ONLY existing prompts, no custom creation
     if (selectedFeedbackPrompt === "custom") {
       prompts.feedbackPrompt = customFeedbackPrompt.trim();
       console.log("Using custom feedback prompt:", prompts.feedbackPrompt);
     } else if (selectedFeedbackPrompt) {
       const prompt = feedbackPrompts.find(p => p.id === selectedFeedbackPrompt);
       prompts.feedbackPrompt = prompt?.content;
-      console.log("Using saved feedback prompt:", prompt?.name);
+      console.log("Using existing feedback prompt:", prompt?.name, "Content:", prompt?.content);
     }
 
-    console.log("Final prompts being sent:", prompts);
+    console.log("Final prompts being sent to process-call:", prompts);
 
     onConfirm(prompts);
     onOpenChange(false);
@@ -157,7 +156,7 @@ export default function PromptSelectionModal({
                 onValueChange={setSelectedSummaryPrompt}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un prompt de resumen o déjalo vacío" />
+                  <SelectValue placeholder="Selecciona un prompt de resumen existente o déjalo vacío" />
                 </SelectTrigger>
                 <SelectContent>
                   {summaryPrompts.map((prompt) => (
@@ -195,7 +194,7 @@ export default function PromptSelectionModal({
                 onValueChange={setSelectedFeedbackPrompt}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un prompt de feedback o déjalo vacío" />
+                  <SelectValue placeholder="Selecciona un prompt de feedback existente o déjalo vacío" />
                 </SelectTrigger>
                 <SelectContent>
                   {feedbackPrompts.map((prompt) => (
@@ -227,8 +226,8 @@ export default function PromptSelectionModal({
 
             {summaryPrompts.length === 0 && feedbackPrompts.length === 0 && (
               <div className="text-center py-4 text-muted-foreground">
-                <p>No hay prompts activos para la cuenta seleccionada.</p>
-                <p className="text-sm">Puedes proceder sin prompts o crear prompts personalizados.</p>
+                <p>No hay prompts disponibles para la cuenta seleccionada.</p>
+                <p className="text-sm">Puedes proceder sin prompts específicos o crear prompts personalizados.</p>
               </div>
             )}
           </div>

@@ -57,15 +57,15 @@ export function usePrompts(type?: PromptType) {
         .eq("type", type)
         .order("updated_at", { ascending: false });
 
-      // Apply STRICT account-based filtering - only show prompts for the selected account
+      // Apply STRICT account-based filtering - ONLY prompts for selected account
       if (selectedAccountId && selectedAccountId !== 'all') {
         console.log("Filtering prompts STRICTLY by account:", selectedAccountId);
-        // Show ONLY prompts for the selected account (no global prompts)
+        // Show ONLY prompts for the selected account (no fallback to global prompts)
         query = query.eq('account_id', selectedAccountId);
       } else {
-        // Show user's personal prompts and global prompts only when no specific account is selected
-        console.log("Filtering prompts for user and global prompts");
-        query = query.or(`user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
+        // When no specific account selected, show user's personal prompts only
+        console.log("Filtering prompts for user personal prompts only");
+        query = query.eq('user_id', user?.id).is('account_id', null);
       }
 
       const { data, error } = await query.abortSignal(abortControllerRef.current.signal);
@@ -83,7 +83,7 @@ export function usePrompts(type?: PromptType) {
           ...prompt,
           type: prompt.type as PromptType
         }));
-        console.log("Prompts fetched and filtered for account", selectedAccountId, ":", typedPrompts.length);
+        console.log("Prompts fetched and STRICTLY filtered for account", selectedAccountId, ":", typedPrompts.length);
         setPrompts(typedPrompts);
         lastFetchRef.current = fetchKey; // Mark this fetch as completed
       }
@@ -165,7 +165,7 @@ export function usePrompts(type?: PromptType) {
       if (selectedAccountId && selectedAccountId !== 'all') {
         deactivateQuery.eq('account_id', selectedAccountId);
       } else {
-        deactivateQuery.or(`user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
+        deactivateQuery.eq('user_id', user?.id).is('account_id', null);
       }
       
       await deactivateQuery;

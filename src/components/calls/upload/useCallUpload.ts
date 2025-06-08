@@ -64,12 +64,12 @@ export function useCallUpload() {
             : f
         ));
 
-        // Upload file to Supabase Storage - use account-specific path
+        // Upload file to Supabase Storage - use account-specific sub-folder within main bucket
         const fileExt = fileItem.file.name.split('.').pop();
         const fileName = `${Date.now()}-${fileItem.file.name}`;
-        const filePath = `calls/${selectedAccountId}/${fileName}`;
+        const filePath = `${selectedAccountId}/${fileName}`; // Sub-folder approach within main bucket
 
-        console.log("Uploading to path:", filePath);
+        console.log("Uploading to path:", filePath, "in bucket: call-recordings");
 
         const { error: uploadError } = await supabase.storage
           .from('call-recordings')
@@ -91,7 +91,7 @@ export function useCallUpload() {
             : f
         ));
 
-        // Extract agent name from filename (assuming format includes agent name)
+        // Extract agent name from filename
         const agentName = fileItem.file.name.split('.')[0].replace(/^\d+[-_]/, '').replace(/[-_]/g, ' ') || 'Sin asignar';
 
         // Create call record with the CORRECT selected account
@@ -100,7 +100,7 @@ export function useCallUpload() {
           agent_name: agentName,
           filename: fileItem.file.name,
           audio_url: publicUrl,
-          duration: 0, // Will be updated after processing
+          duration: 0,
           date: new Date().toISOString().split('T')[0],
           status: 'pending',
           progress: 0,
