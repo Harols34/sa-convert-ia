@@ -70,9 +70,9 @@ serve(async (req) => {
     // Step 3: Generate feedback with custom prompt if provided
     const feedbackResult = await generateFeedback(transcription, summary, feedbackPrompt);
     
-    // Step 4: Update call with all results
+    // Step 4: Update call with all results - use 'complete' instead of 'completed'
     await updateCallInDatabase(supabase, callId, {
-      status: 'completed',
+      status: 'complete',
       progress: 100,
       sentiment: feedbackResult.sentiment,
       entities: feedbackResult.entities,

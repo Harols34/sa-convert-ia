@@ -1,57 +1,102 @@
 
-import React, { useState } from "react";
+import React from "react";
 import Layout from "@/components/layout/Layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAudioSettings } from "@/hooks/useAudioSettings";
-import { Loader2 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
-import { useUser } from "@/hooks/useUser";
 import ProfileSection from "@/components/settings/ProfileSection";
 import PasswordSection from "@/components/settings/PasswordSection";
 import AudioSettings from "@/components/settings/AudioSettings";
+import NotificationSettings from "@/components/settings/NotificationSettings";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import UserSettings from "@/components/settings/UserSettings";
 
 export default function Settings() {
-  const { isLoading: loadingSettings } = useAudioSettings();
-  const { user, isLoading: loadingUser } = useUser();
-  const { isAuthenticated, loading: loadingAuth } = useAuth();
-  
-  // Create stable references for components using React.memo to improve performance
-  const MemoizedProfileSection = React.memo(ProfileSection);
-  const MemoizedPasswordSection = React.memo(PasswordSection);
-  const MemoizedAudioSettings = React.memo(AudioSettings);
-
-  if (loadingAuth || loadingUser || loadingSettings) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <p className="text-muted-foreground">Cargando configuración...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="container mx-auto py-6 space-y-6">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Configuración</h2>
-          <p className="text-muted-foreground">Gestiona tu perfil y configuración del sistema</p>
+          <h1 className="text-3xl font-bold tracking-tight">Configuración</h1>
+          <p className="text-muted-foreground">
+            Administra tu perfil, configuraciones de audio y preferencias.
+          </p>
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid grid-cols-2 gap-2">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="profile">Perfil</TabsTrigger>
-            <TabsTrigger value="audio">Procesamiento de Audio</TabsTrigger>
+            <TabsTrigger value="password">Contraseña</TabsTrigger>
+            <TabsTrigger value="user-settings">API & Modelos</TabsTrigger>
+            <TabsTrigger value="audio">Audio</TabsTrigger>
+            <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="profile" className="space-y-6">
-            <MemoizedProfileSection />
-            <MemoizedPasswordSection />
+          <TabsContent value="profile">
+            <Card>
+              <CardHeader>
+                <CardTitle>Información del Perfil</CardTitle>
+                <CardDescription>
+                  Actualiza tu información personal y preferencias.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ProfileSection />
+              </CardContent>
+            </Card>
           </TabsContent>
-          
-          <TabsContent value="audio" className="space-y-6">
-            <MemoizedAudioSettings />
+
+          <TabsContent value="password">
+            <Card>
+              <CardHeader>
+                <CardTitle>Cambiar Contraseña</CardTitle>
+                <CardDescription>
+                  Actualiza tu contraseña para mantener tu cuenta segura.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PasswordSection />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="user-settings">
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuración de API y Modelos</CardTitle>
+                <CardDescription>
+                  Configura tu clave de OpenAI y preferencias de modelos de IA.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <UserSettings />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="audio">
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuración de Audio</CardTitle>
+                <CardDescription>
+                  Configura las opciones de transcripción y análisis de audio.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AudioSettings />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="notifications">
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuración de Notificaciones</CardTitle>
+                <CardDescription>
+                  Administra cómo y cuándo recibes notificaciones.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <NotificationSettings />
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
