@@ -17,7 +17,7 @@ import { Eye, EyeOff } from "lucide-react";
 const userSettingsSchema = z.object({
   transcription_model: z.string().default('openai-whisper'),
   analysis_model: z.string().default('gpt-4o'),
-  openai_key: z.string().optional(),
+  openai_api_key: z.string().optional(),
   speaker_diarization: z.boolean().default(true),
   sentiment_analysis: z.boolean().default(true),
   auto_feedback: z.boolean().default(true),
@@ -27,7 +27,7 @@ const userSettingsSchema = z.object({
 type UserSettingsFormValues = z.infer<typeof userSettingsSchema>;
 
 export default function UserSettings() {
-  const { settings, updateSettings, isLoading } = useUserSettings();
+  const { settings, loading, updateSettings } = useUserSettings();
   const [showApiKey, setShowApiKey] = React.useState(false);
 
   const form = useForm<UserSettingsFormValues>({
@@ -35,7 +35,7 @@ export default function UserSettings() {
     defaultValues: {
       transcription_model: settings?.transcription_model || 'openai-whisper',
       analysis_model: settings?.analysis_model || 'gpt-4o',
-      openai_key: settings?.openai_key || '',
+      openai_api_key: settings?.openai_api_key || '',
       speaker_diarization: settings?.speaker_diarization ?? true,
       sentiment_analysis: settings?.sentiment_analysis ?? true,
       auto_feedback: settings?.auto_feedback ?? true,
@@ -48,7 +48,7 @@ export default function UserSettings() {
       form.reset({
         transcription_model: settings.transcription_model || 'openai-whisper',
         analysis_model: settings.analysis_model || 'gpt-4o',
-        openai_key: settings.openai_key || '',
+        openai_api_key: settings.openai_api_key || '',
         speaker_diarization: settings.speaker_diarization ?? true,
         sentiment_analysis: settings.sentiment_analysis ?? true,
         auto_feedback: settings.auto_feedback ?? true,
@@ -67,7 +67,7 @@ export default function UserSettings() {
     }
   };
 
-  if (isLoading) {
+  if (loading) {
     return <div>Cargando configuración...</div>;
   }
 
@@ -84,7 +84,7 @@ export default function UserSettings() {
           <CardContent className="space-y-4">
             <FormField
               control={form.control}
-              name="openai_key"
+              name="openai_api_key"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Clave de API de OpenAI</FormLabel>
@@ -274,8 +274,8 @@ export default function UserSettings() {
         </Card>
 
         <div className="flex justify-end">
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? "Guardando..." : "Guardar Configuración"}
+          <Button type="submit" disabled={loading}>
+            {loading ? "Guardando..." : "Guardar Configuración"}
           </Button>
         </div>
       </form>

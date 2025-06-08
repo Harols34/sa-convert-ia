@@ -17,7 +17,7 @@ export interface FileItem {
 export function useCallUpload() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const { selectedAccount } = useAccount();
+  const { selectedAccountId } = useAccount();
   const { user } = useAuth();
 
   const addFiles = (newFiles: File[]) => {
@@ -38,7 +38,7 @@ export function useCallUpload() {
     if (files.length === 0) return;
     
     // Ensure account is selected
-    if (!selectedAccount) {
+    if (!selectedAccountId) {
       toast.error("Por favor selecciona una cuenta antes de subir archivos");
       return;
     }
@@ -101,7 +101,7 @@ export function useCallUpload() {
             date: new Date().toISOString().split('T')[0],
             status: 'pending',
             progress: 0,
-            account_id: selectedAccount // Ensure account is assigned
+            account_id: selectedAccountId // Ensure account is assigned
           })
           .select()
           .single();

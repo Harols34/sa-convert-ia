@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 
 export default function Analytics() {
-  const { selectedAccount } = useAccount();
+  const { selectedAccountId } = useAccount();
 
   // Remove auto-refresh - only manual refresh
   const { 
@@ -19,9 +19,9 @@ export default function Analytics() {
     error,
     refetch 
   } = useOptimizedQuery({
-    queryKey: ['analytics-calls', selectedAccount],
+    queryKey: ['analytics-calls', selectedAccountId],
     queryFn: async () => {
-      if (!selectedAccount) return [];
+      if (!selectedAccountId) return [];
       
       const { data, error } = await supabase
         .from('calls')
@@ -38,13 +38,13 @@ export default function Analytics() {
             sentiment
           )
         `)
-        .eq('account_id', selectedAccount)
+        .eq('account_id', selectedAccountId)
         .order('date', { ascending: false });
 
       if (error) throw error;
       return data || [];
     },
-    enabled: !!selectedAccount,
+    enabled: !!selectedAccountId,
     // Remove automatic refetch options
     refetchOnWindowFocus: false,
     refetchOnMount: false,
@@ -56,7 +56,7 @@ export default function Analytics() {
     refetch();
   };
 
-  if (!selectedAccount) {
+  if (!selectedAccountId) {
     return (
       <Layout>
         <div className="container mx-auto py-6">
@@ -203,7 +203,9 @@ export default function Analytics() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ResultsChart calls={calls || []} />
+              <div className="h-[300px] w-full">
+                <p className="text-sm text-muted-foreground">Gráfico de tendencias disponible próximamente</p>
+              </div>
             </CardContent>
           </Card>
         </div>

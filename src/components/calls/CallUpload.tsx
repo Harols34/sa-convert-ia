@@ -2,11 +2,11 @@
 import { Loader2 } from "lucide-react";
 import FileDropzone from "./upload/FileDropzone";
 import FileList from "./upload/FileList";
-import useCallUpload from "./upload/useCallUpload";
+import { useCallUpload } from "./upload/useCallUpload";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import { PromptSelectionModal } from "./PromptSelectionModal";
+import PromptSelectionModal from "./PromptSelectionModal";
 import { useState } from "react";
 
 export default function CallUpload() {
@@ -15,34 +15,17 @@ export default function CallUpload() {
   const {
     files,
     isUploading,
-    sessionChecked,
-    currentUser,
-    isProcessing,
-    processedCount,
-    totalCount,
-    onDrop,
+    addFiles,
     removeFile,
     uploadFiles
   } = useCallUpload();
-
-  // Si no hemos terminado de verificar la sesión, mostrar un indicador de carga
-  if (!sessionChecked) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <p className="text-muted-foreground">Verificando sesión...</p>
-        </div>
-      </div>
-    );
-  }
 
   const handleUploadClick = () => {
     if (files.length === 0) return;
     setShowPromptModal(true);
   };
 
-  const handlePromptConfirm = (prompts: { summary?: string; feedback?: string }) => {
+  const handlePromptConfirm = (prompts: { summaryPrompt?: string; feedbackPrompt?: string }) => {
     setShowPromptModal(false);
     uploadFiles(prompts);
   };
@@ -59,15 +42,15 @@ export default function CallUpload() {
         </AlertDescription>
       </Alert>
       
-      <FileDropzone onDrop={onDrop} />
+      <FileDropzone onDrop={addFiles} />
       
-      {isProcessing && totalCount > 0 && (
+      {isUploading && (
         <div className="p-4 border rounded-lg bg-secondary/10 mb-4 transition-all duration-300">
           <div className="flex justify-between mb-2">
             <p className="text-sm font-medium">Procesando archivos</p>
-            <p className="text-sm text-muted-foreground">{processedCount} de {totalCount}</p>
+            <p className="text-sm text-muted-foreground">En progreso...</p>
           </div>
-          <Progress value={(processedCount / totalCount) * 100} className="h-2" />
+          <Progress value={50} className="h-2" />
         </div>
       )}
       

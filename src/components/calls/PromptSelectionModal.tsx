@@ -36,17 +36,17 @@ export default function PromptSelectionModal({
   const [customFeedbackPrompt, setCustomFeedbackPrompt] = useState<string>("");
   const [loading, setLoading] = useState(false);
   
-  const { selectedAccount } = useAccount();
+  const { selectedAccountId } = useAccount();
   const { user } = useAuth();
 
   useEffect(() => {
-    if (open && selectedAccount && user) {
+    if (open && selectedAccountId && user) {
       loadPrompts();
     }
-  }, [open, selectedAccount, user]);
+  }, [open, selectedAccountId, user]);
 
   const loadPrompts = async () => {
-    if (!selectedAccount || !user) {
+    if (!selectedAccountId || !user) {
       console.warn("No account selected or user not authenticated");
       return;
     }
@@ -59,7 +59,7 @@ export default function PromptSelectionModal({
         .from('prompts')
         .select('*')
         .eq('active', true)
-        .or(`account_id.eq.${selectedAccount},and(user_id.eq.${user.id},account_id.is.null)`)
+        .or(`account_id.eq.${selectedAccountId},and(user_id.eq.${user.id},account_id.is.null)`)
         .order('name');
 
       if (error) {
@@ -69,10 +69,16 @@ export default function PromptSelectionModal({
       }
 
       console.log("Loaded prompts:", prompts);
-      console.log("Current account:", selectedAccount);
+      console.log("Current account:", selectedAccountId);
 
-      const summaryPromptsData = prompts.filter(p => p.type === 'summary');
-      const feedbackPromptsData = prompts.filter(p => p.type === 'feedback');
+      // Type cast the prompts to ensure proper typing
+      const typedPrompts = prompts.map(p => ({
+        ...p,
+        type: p.type as "summary" | "feedback"
+      }));
+
+      const summaryPromptsData = typedPrompts.filter(p => p.type === 'summary');
+      const feedbackPromptsData = typedPrompts.filter(p => p.type === 'feedback');
 
       setSummaryPrompts(summaryPromptsData);
       setFeedbackPrompts(feedbackPromptsData);
@@ -124,7 +130,7 @@ export default function PromptSelectionModal({
           <DialogTitle>Seleccionar Prompts para Procesamiento</DialogTitle>
         </DialogHeader>
 
-        {!selectedAccount ? (
+        {!selectedAccountId ? (
           <div className="text-center py-4">
             <p className="text-muted-foreground">
               Por favor selecciona una cuenta para ver los prompts disponibles.
@@ -225,7 +231,7 @@ export default function PromptSelectionModal({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleConfirm} disabled={!selectedAccount}>
+          <Button onClick={handleConfirm} disabled={!selectedAccountId}>
             Procesar Archivos
           </Button>
         </DialogFooter>
