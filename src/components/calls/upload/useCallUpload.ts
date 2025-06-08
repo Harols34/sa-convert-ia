@@ -38,8 +38,8 @@ export function useCallUpload() {
     if (files.length === 0) return;
     
     // Ensure account is selected
-    if (!selectedAccountId) {
-      toast.error("Por favor selecciona una cuenta antes de subir archivos");
+    if (!selectedAccountId || selectedAccountId === 'all') {
+      toast.error("Por favor selecciona una cuenta específica antes de subir archivos");
       return;
     }
 
@@ -47,6 +47,9 @@ export function useCallUpload() {
       toast.error("Usuario no autenticado");
       return;
     }
+
+    console.log("Uploading files with account:", selectedAccountId);
+    console.log("Selected prompts:", selectedPrompts);
 
     setIsUploading(true);
     
@@ -61,10 +64,12 @@ export function useCallUpload() {
             : f
         ));
 
-        // Upload file to Supabase Storage
+        // Upload file to Supabase Storage - use account-specific path
         const fileExt = fileItem.file.name.split('.').pop();
         const fileName = `${Date.now()}-${fileItem.file.name}`;
-        const filePath = `calls/${fileName}`;
+        const filePath = `calls/${selectedAccountId}/${fileName}`;
+
+        console.log("Uploading to path:", filePath);
 
         const { error: uploadError } = await supabase.storage
           .from('call-recordings')
@@ -89,26 +94,33 @@ export function useCallUpload() {
         // Extract agent name from filename (assuming format includes agent name)
         const agentName = fileItem.file.name.split('.')[0].replace(/^\d+[-_]/, '').replace(/[-_]/g, ' ') || 'Sin asignar';
 
-        // Create call record with selected account
+        // Create call record with the CORRECT selected account
+        const callData = {
+          title: fileItem.file.name.replace(/\.[^/.]+$/, ""),
+          agent_name: agentName,
+          filename: fileItem.file.name,
+          audio_url: publicUrl,
+          duration: 0, // Will be updated after processing
+          date: new Date().toISOString().split('T')[0],
+          status: 'pending',
+          progress: 0,
+          account_id: selectedAccountId // CRITICAL: Use the selected account
+        };
+
+        console.log("Creating call with data:", callData);
+
         const { data: call, error: callError } = await supabase
           .from('calls')
-          .insert({
-            title: fileItem.file.name.replace(/\.[^/.]+$/, ""),
-            agent_name: agentName,
-            filename: fileItem.file.name,
-            audio_url: publicUrl,
-            duration: 0, // Will be updated after processing
-            date: new Date().toISOString().split('T')[0],
-            status: 'pending',
-            progress: 0,
-            account_id: selectedAccountId // Ensure account is assigned
-          })
+          .insert(callData)
           .select()
           .single();
 
         if (callError) {
+          console.error("Call creation error:", callError);
           throw new Error(`Error creating call record: ${callError.message}`);
         }
+
+        console.log("Call created successfully:", call.id, "for account:", call.account_id);
 
         // Update with call ID and processing status
         setFiles(prev => prev.map(f => 
@@ -117,17 +129,18 @@ export function useCallUpload() {
             : f
         ));
 
-        // Process the call
+        // Process the call with selected prompts
         const { error: processError } = await supabase.functions.invoke("process-call", {
           body: {
             callId: call.id,
             audioUrl: publicUrl,
-            summaryPrompt: selectedPrompts?.summaryPrompt,
-            feedbackPrompt: selectedPrompts?.feedbackPrompt
+            summaryPrompt: selectedPrompts?.summaryPrompt || null,
+            feedbackPrompt: selectedPrompts?.feedbackPrompt || null
           }
         });
 
         if (processError) {
+          console.error("Process call error:", processError);
           throw new Error(`Error processing call: ${processError.message}`);
         }
 
@@ -138,7 +151,7 @@ export function useCallUpload() {
             : f
         ));
 
-        toast.success(`Archivo ${fileItem.file.name} procesado exitosamente`);
+        toast.success(`Archivo ${fileItem.file.name} procesado exitosamente en cuenta ${selectedAccountId}`);
 
       } catch (error) {
         console.error(`Error processing file ${fileItem.file.name}:`, error);

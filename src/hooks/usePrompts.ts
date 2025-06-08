@@ -57,13 +57,13 @@ export function usePrompts(type?: PromptType) {
         .eq("type", type)
         .order("updated_at", { ascending: false });
 
-      // Apply strict account-based filtering
+      // Apply STRICT account-based filtering - only show prompts for the selected account
       if (selectedAccountId && selectedAccountId !== 'all') {
-        console.log("Filtering prompts by specific account:", selectedAccountId);
-        // Show only prompts for the selected account or global prompts (no user_id and no account_id)
-        query = query.or(`account_id.eq.${selectedAccountId},and(user_id.is.null,account_id.is.null)`);
+        console.log("Filtering prompts STRICTLY by account:", selectedAccountId);
+        // Show ONLY prompts for the selected account (no global prompts)
+        query = query.eq('account_id', selectedAccountId);
       } else {
-        // Show user's personal prompts and global prompts only
+        // Show user's personal prompts and global prompts only when no specific account is selected
         console.log("Filtering prompts for user and global prompts");
         query = query.or(`user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
       }
@@ -156,14 +156,14 @@ export function usePrompts(type?: PromptType) {
     }
   };
 
-  // Utility to activate just one prompt for this type
+  // Utility to activate just one prompt for this type within the current account context
   const togglePromptActive = async (promptId: string) => {
     try {
-      // First deactivate all prompts of this type for this user/account context
+      // First deactivate all prompts of this type for this account context
       const deactivateQuery = supabase.from("prompts").update({ active: false }).eq("type", type!);
       
       if (selectedAccountId && selectedAccountId !== 'all') {
-        deactivateQuery.or(`account_id.eq.${selectedAccountId},user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
+        deactivateQuery.eq('account_id', selectedAccountId);
       } else {
         deactivateQuery.or(`user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
       }

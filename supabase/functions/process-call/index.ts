@@ -22,7 +22,12 @@ serve(async (req) => {
   try {
     const { callId, audioUrl, summaryPrompt, feedbackPrompt } = await req.json();
     
-    console.log('Request payload:', { callId, audioUrl: audioUrl ? 'provided' : 'missing', summaryPrompt: !!summaryPrompt, feedbackPrompt: !!feedbackPrompt });
+    console.log('Request payload:', { 
+      callId, 
+      audioUrl: audioUrl ? 'provided' : 'missing', 
+      summaryPrompt: summaryPrompt ? 'provided' : 'not provided', 
+      feedbackPrompt: feedbackPrompt ? 'provided' : 'not provided'
+    });
     
     if (!callId) {
       throw new Error('Missing required parameter: callId');
@@ -32,7 +37,8 @@ serve(async (req) => {
       throw new Error('Missing or invalid audioUrl parameter');
     }
 
-    console.log(`Processing call ${callId} with audio URL: ${audioUrl} and custom prompts:`, {
+    console.log(`Processing call ${callId} with audio URL: ${audioUrl}`);
+    console.log('Custom prompts provided:', {
       hasSummaryPrompt: !!summaryPrompt,
       hasFeedbackPrompt: !!feedbackPrompt
     });
@@ -43,23 +49,26 @@ serve(async (req) => {
       progress: 10
     });
 
-    // Step 1: Transcribe audio
+    // Step 1: Transcribe audio - CRITICAL: Ensure transcription happens
     console.log('Starting transcription with audio URL:', audioUrl);
     const transcription = await transcribeAudio(audioUrl);
     
-    if (!transcription) {
-      throw new Error('Failed to transcribe audio - no transcription returned');
+    if (!transcription || transcription.trim() === '') {
+      throw new Error('Failed to transcribe audio - no transcription text returned');
     }
 
-    // Update with transcription
+    console.log('Transcription completed successfully, length:', transcription.length);
+
+    // Update with transcription - CRITICAL: Save transcription to database
     await updateCallInDatabase(supabase, callId, {
       transcription,
       status: 'analyzing',
       progress: 40
     });
 
-    // Step 2: Generate summary with custom prompt if provided
-    const summary = await generateSummary(transcription, summaryPrompt);
+    // Step 2: Generate summary with the EXACT custom prompt provided (if any)
+    console.log('Generating summary with custom prompt:', !!summaryPrompt);
+    const summary = await generateSummary(transcription, summaryPrompt || undefined);
     
     // Update with summary
     await updateCallInDatabase(supabase, callId, {
@@ -67,10 +76,11 @@ serve(async (req) => {
       progress: 70
     });
 
-    // Step 3: Generate feedback with custom prompt if provided
-    const feedbackResult = await generateFeedback(transcription, summary, feedbackPrompt);
+    // Step 3: Generate feedback with the EXACT custom prompt provided (if any)
+    console.log('Generating feedback with custom prompt:', !!feedbackPrompt);
+    const feedbackResult = await generateFeedback(transcription, summary, feedbackPrompt || undefined);
     
-    // Step 4: Update call with all results - use 'complete' instead of 'completed'
+    // Step 4: Update call with all results - use 'complete' status
     await updateCallInDatabase(supabase, callId, {
       status: 'complete',
       progress: 100,
@@ -99,12 +109,18 @@ serve(async (req) => {
     }
 
     console.log(`Successfully processed call ${callId}`);
+    console.log('Final transcription length:', transcription.length);
+    console.log('Used custom prompts:', {
+      summary: !!summaryPrompt,
+      feedback: !!feedbackPrompt
+    });
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         callId,
-        message: 'Call processed successfully',
+        message: 'Call processed successfully with transcription',
+        transcriptionLength: transcription.length,
         usedCustomPrompts: {
           summary: !!summaryPrompt,
           feedback: !!feedbackPrompt
