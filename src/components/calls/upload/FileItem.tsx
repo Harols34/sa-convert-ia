@@ -4,21 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { X, AlertCircle, CheckCircle2, UploadCloud } from "lucide-react";
 import { formatBytes } from "@/lib/utils";
-
-export interface FileWithProgress {
-  id: string;
-  file: File;
-  progress: number;
-  status: "idle" | "uploading" | "processing" | "success" | "error";
-  error?: string;
-}
+import { FileItem as FileItemType } from "./useCallUpload";
 
 export default function FileItem({
   file,
   onRemove,
   disabled,
 }: {
-  file: FileWithProgress;
+  file: FileItemType;
   onRemove: (id: string) => void;
   disabled: boolean;
 }) {
@@ -28,13 +21,13 @@ export default function FileItem({
   // Función para renderizar el icono según el estado
   const renderStatusIcon = () => {
     switch (file.status) {
-      case "idle":
+      case "pending":
         return <UploadCloud className="h-5 w-5 text-blue-500" />;
       case "uploading":
         return <UploadCloud className="h-5 w-5 text-blue-500" />;
       case "processing":
         return <UploadCloud className="h-5 w-5 text-amber-500 animate-pulse" />;
-      case "success":
+      case "complete":
         return <CheckCircle2 className="h-5 w-5 text-green-500" />;
       case "error":
         return <AlertCircle className="h-5 w-5 text-red-500" />;
@@ -46,13 +39,13 @@ export default function FileItem({
   // Función para renderizar el mensaje de estado
   const renderStatusText = () => {
     switch (file.status) {
-      case "idle":
+      case "pending":
         return "Listo para subir";
       case "uploading":
         return `Subiendo... ${file.progress}%`;
       case "processing":
         return `Procesando... ${file.progress}%`;
-      case "success":
+      case "complete":
         return "Carga completa";
       case "error":
         return file.error || "Error en la carga";
@@ -67,7 +60,7 @@ export default function FileItem({
       case "uploading":
       case "processing":
         return "bg-blue-500";
-      case "success":
+      case "complete":
         return "bg-green-500";
       case "error":
         return "bg-red-500";

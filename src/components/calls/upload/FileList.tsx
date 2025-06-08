@@ -1,13 +1,13 @@
 
 import { Button } from "@/components/ui/button";
-import { FileWithProgress } from "./FileItem";
+import { FileItem } from "../upload/useCallUpload";
 import FileItem from "./FileItem";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info, Upload } from "lucide-react";
 import { memo } from "react";
 
 interface FileListProps {
-  files: FileWithProgress[];
+  files: FileItem[];
   onRemoveFile: (id: string) => void;
   isUploading: boolean;
   onUploadFiles: () => void;

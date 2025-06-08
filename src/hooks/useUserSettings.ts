@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -20,6 +19,7 @@ interface UserSettings {
   analysis_model?: string;
   language?: string;
   transcription_model?: string;
+  openai_api_key?: string;
 }
 
 export function useUserSettings() {
