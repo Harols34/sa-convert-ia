@@ -38,28 +38,29 @@ export default function PromptsPage() {
     }
   }, [isAuthenticated, loading]);
 
-  // Fetch prompts with proper account filtering
+  // Fetch prompts with STRICT account filtering - same logic as PromptSelectionModal
   const fetchPrompts = async () => {
     if (!user?.id) return;
     
     try {
       setIsLoading(true);
-      console.log("Fetching prompts with account filter:", selectedAccountId);
+      console.log("Fetching prompts STRICTLY for account:", selectedAccountId, "user role:", user?.role);
       
       let query = supabase
         .from("prompts")
         .select("*")
         .order("updated_at", { ascending: false });
 
-      // Apply strict account-based filtering
+      // Apply STRICT account-based filtering - same as PromptSelectionModal
       if (selectedAccountId && selectedAccountId !== 'all') {
-        console.log("Filtering prompts by specific account:", selectedAccountId);
-        // Show only prompts for the selected account or global prompts (no user_id and no account_id)
-        query = query.or(`account_id.eq.${selectedAccountId},and(user_id.is.null,account_id.is.null)`);
+        console.log("Filtering prompts STRICTLY by account:", selectedAccountId);
+        query = query.eq('account_id', selectedAccountId);
+      } else if (selectedAccountId === 'all' && user?.role === 'superAdmin') {
+        console.log("SuperAdmin viewing all prompts - no account filter applied");
+        // No agregar filtros adicionales - mostrar todos los prompts
       } else {
-        // Show user's personal prompts and global prompts only
-        console.log("Filtering prompts for user and global prompts");
-        query = query.or(`user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
+        console.log("Filtering prompts for user personal prompts only");
+        query = query.eq('user_id', user?.id).is('account_id', null);
       }
 
       const { data, error } = await query;
@@ -71,7 +72,7 @@ export default function PromptsPage() {
         type: prompt.type as PromptType
       })) || [];
       
-      console.log("Prompts loaded and filtered:", typedPrompts.length, "for account:", selectedAccountId);
+      console.log("Prompts loaded and filtered for account", selectedAccountId, ":", typedPrompts.length);
       setPrompts(typedPrompts);
     } catch (error) {
       console.error("Error fetching prompts:", error);
@@ -113,9 +114,11 @@ export default function PromptsPage() {
       const deactivateQuery = supabase.from("prompts").update({ active: false }).eq("type", promptType);
       
       if (selectedAccountId && selectedAccountId !== 'all') {
-        deactivateQuery.or(`account_id.eq.${selectedAccountId},user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
+        deactivateQuery.eq('account_id', selectedAccountId);
+      } else if (selectedAccountId === 'all' && user?.role === 'superAdmin') {
+        // Superadmin: desactivar todos los prompts del tipo
       } else {
-        deactivateQuery.or(`user_id.eq.${user?.id},and(user_id.is.null,account_id.is.null)`);
+        deactivateQuery.eq('user_id', user?.id).is('account_id', null);
       }
       
       await deactivateQuery;
@@ -160,6 +163,9 @@ export default function PromptsPage() {
     );
   }
 
+  const accountName = selectedAccountId === 'all' ? 'Todas las cuentas' : 
+                     selectedAccountId ? `Cuenta: ${selectedAccountId}` : 'Sin cuenta seleccionada';
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -168,11 +174,9 @@ export default function PromptsPage() {
             <h2 className="text-3xl font-bold tracking-tight">Prompts</h2>
             <p className="text-muted-foreground">
               Gestiona los prompts para análisis y resúmenes de llamadas
-              {selectedAccountId && selectedAccountId !== 'all' && (
-                <span className="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                  Cuenta: {selectedAccountId}
-                </span>
-              )}
+              <span className="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                {accountName}
+              </span>
             </p>
           </div>
         </div>

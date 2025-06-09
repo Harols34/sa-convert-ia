@@ -34,6 +34,29 @@ export function useCallUpload() {
     setFiles(prev => prev.filter(file => file.id !== id));
   };
 
+  // Function to ensure account sub-folder exists
+  const ensureAccountFolder = async (accountId: string) => {
+    try {
+      const testPath = `${accountId}/.keep`;
+      
+      // Try to create a placeholder file to ensure the folder exists
+      const { error } = await supabase.storage
+        .from('call-recordings')
+        .upload(testPath, new Blob([''], { type: 'text/plain' }), {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (error && !error.message.includes('already exists')) {
+        console.warn("Could not create account folder:", error);
+      } else {
+        console.log("Account folder ensured for:", accountId);
+      }
+    } catch (error) {
+      console.warn("Error ensuring account folder:", error);
+    }
+  };
+
   const uploadFiles = async (selectedPrompts?: { summaryPrompt?: string; feedbackPrompt?: string }) => {
     if (files.length === 0) return;
     
@@ -51,6 +74,9 @@ export function useCallUpload() {
     console.log("Selected prompts:", selectedPrompts);
 
     setIsUploading(true);
+    
+    // Ensure account sub-folder exists before uploading
+    await ensureAccountFolder(selectedAccountId);
     
     for (const fileItem of files) {
       if (fileItem.status !== "pending") continue;
