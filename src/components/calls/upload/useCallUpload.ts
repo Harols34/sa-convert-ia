@@ -34,45 +34,9 @@ export function useCallUpload() {
     setFiles(prev => prev.filter(file => file.id !== id));
   };
 
-  const ensureBucketExists = async () => {
-    try {
-      // Check if the main bucket exists
-      const { data: buckets, error: listError } = await supabase.storage.listBuckets();
-      
-      if (listError) {
-        console.error("Error listing buckets:", listError);
-        return false;
-      }
-
-      const bucketExists = buckets?.some(bucket => bucket.id === 'call-recordings');
-      
-      if (!bucketExists) {
-        console.log("Creating call-recordings bucket...");
-        const { error: createError } = await supabase.storage.createBucket('call-recordings', {
-          public: true,
-          allowedMimeTypes: ['audio/mpeg', 'audio/wav', 'audio/m4a', 'audio/mp3'],
-          fileSizeLimit: 104857600 // 100MB
-        });
-
-        if (createError) {
-          console.error("Error creating bucket:", createError);
-          return false;
-        }
-        
-        console.log("Bucket call-recordings created successfully");
-      }
-
-      return true;
-    } catch (error) {
-      console.error("Error ensuring bucket exists:", error);
-      return false;
-    }
-  };
-
   const uploadFiles = async (selectedPrompts?: { summaryPrompt?: string; feedbackPrompt?: string }) => {
     if (files.length === 0) return;
     
-    // Ensure account is selected
     if (!selectedAccountId || selectedAccountId === 'all') {
       toast.error("Por favor selecciona una cuenta específica antes de subir archivos");
       return;
@@ -86,30 +50,22 @@ export function useCallUpload() {
     console.log("Uploading files with account:", selectedAccountId);
     console.log("Selected prompts:", selectedPrompts);
 
-    // Ensure bucket exists before starting upload
-    const bucketReady = await ensureBucketExists();
-    if (!bucketReady) {
-      toast.error("Error preparando el almacenamiento. Intenta de nuevo.");
-      return;
-    }
-
     setIsUploading(true);
     
     for (const fileItem of files) {
       if (fileItem.status !== "pending") continue;
 
       try {
-        // Update status to uploading
         setFiles(prev => prev.map(f => 
           f.id === fileItem.id 
             ? { ...f, status: "uploading" as const, progress: 10 }
             : f
         ));
 
-        // Upload file to Supabase Storage - use account-specific sub-folder within main bucket
+        // Upload file using account-specific sub-folder path
         const fileExt = fileItem.file.name.split('.').pop();
         const fileName = `${Date.now()}-${fileItem.file.name}`;
-        const filePath = `${selectedAccountId}/${fileName}`; // Sub-folder approach within main bucket
+        const filePath = `${selectedAccountId}/${fileName}`;
 
         console.log("Uploading to path:", filePath, "in bucket: call-recordings");
 
@@ -121,25 +77,22 @@ export function useCallUpload() {
           });
 
         if (uploadError) {
+          console.error("Upload error:", uploadError);
           throw new Error(`Error uploading file: ${uploadError.message}`);
         }
 
-        // Get public URL
         const { data: { publicUrl } } = supabase.storage
           .from('call-recordings')
           .getPublicUrl(filePath);
 
-        // Update progress
         setFiles(prev => prev.map(f => 
           f.id === fileItem.id 
             ? { ...f, progress: 50 }
             : f
         ));
 
-        // Extract agent name from filename
         const agentName = fileItem.file.name.split('.')[0].replace(/^\d+[-_]/, '').replace(/[-_]/g, ' ') || 'Sin asignar';
 
-        // Create call record with the CORRECT selected account
         const callData = {
           title: fileItem.file.name.replace(/\.[^/.]+$/, ""),
           agent_name: agentName,
@@ -149,7 +102,7 @@ export function useCallUpload() {
           date: new Date().toISOString().split('T')[0],
           status: 'pending',
           progress: 0,
-          account_id: selectedAccountId // CRITICAL: Use the selected account
+          account_id: selectedAccountId
         };
 
         console.log("Creating call with data:", callData);
@@ -167,14 +120,12 @@ export function useCallUpload() {
 
         console.log("Call created successfully:", call.id, "for account:", call.account_id);
 
-        // Update with call ID and processing status
         setFiles(prev => prev.map(f => 
           f.id === fileItem.id 
             ? { ...f, callId: call.id, status: "processing" as const, progress: 70 }
             : f
         ));
 
-        // Process the call with selected prompts
         const { error: processError } = await supabase.functions.invoke("process-call", {
           body: {
             callId: call.id,
@@ -189,7 +140,6 @@ export function useCallUpload() {
           throw new Error(`Error processing call: ${processError.message}`);
         }
 
-        // Mark as complete
         setFiles(prev => prev.map(f => 
           f.id === fileItem.id 
             ? { ...f, status: "complete" as const, progress: 100 }

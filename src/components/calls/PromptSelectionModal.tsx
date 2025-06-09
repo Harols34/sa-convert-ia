@@ -56,11 +56,10 @@ export default function PromptSelectionModal({
     try {
       console.log("Loading prompts STRICTLY for account:", selectedAccountId);
 
-      // Get prompts filtered STRICTLY by account - NO fallback to global prompts
       const { data: prompts, error } = await supabase
         .from('prompts')
         .select('*')
-        .eq('account_id', selectedAccountId) // STRICT: Only prompts for this specific account
+        .eq('account_id', selectedAccountId)
         .order('name');
 
       if (error) {
@@ -71,7 +70,6 @@ export default function PromptSelectionModal({
 
       console.log("Loaded prompts STRICTLY for account", selectedAccountId, ":", prompts?.length || 0);
 
-      // Type cast the prompts to ensure proper typing
       const typedPrompts = (prompts || []).map(p => ({
         ...p,
         type: p.type as "summary" | "feedback"
@@ -97,7 +95,6 @@ export default function PromptSelectionModal({
   const handleConfirm = () => {
     const prompts: { summaryPrompt?: string; feedbackPrompt?: string } = {};
 
-    // Handle summary prompt - ONLY existing prompts, no custom creation
     if (selectedSummaryPrompt === "custom") {
       prompts.summaryPrompt = customSummaryPrompt.trim();
       console.log("Using custom summary prompt:", prompts.summaryPrompt);
@@ -107,7 +104,6 @@ export default function PromptSelectionModal({
       console.log("Using existing summary prompt:", prompt?.name, "Content:", prompt?.content);
     }
 
-    // Handle feedback prompt - ONLY existing prompts, no custom creation
     if (selectedFeedbackPrompt === "custom") {
       prompts.feedbackPrompt = customFeedbackPrompt.trim();
       console.log("Using custom feedback prompt:", prompts.feedbackPrompt);
@@ -122,7 +118,6 @@ export default function PromptSelectionModal({
     onConfirm(prompts);
     onOpenChange(false);
     
-    // Reset form
     setSelectedSummaryPrompt("");
     setSelectedFeedbackPrompt("");
     setCustomSummaryPrompt("");
@@ -148,7 +143,6 @@ export default function PromptSelectionModal({
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Summary Prompt Selection */}
             <div className="space-y-2">
               <Label htmlFor="summary-prompt">Prompt de Resumen (Opcional)</Label>
               <Select
@@ -186,7 +180,6 @@ export default function PromptSelectionModal({
               )}
             </div>
 
-            {/* Feedback Prompt Selection */}
             <div className="space-y-2">
               <Label htmlFor="feedback-prompt">Prompt de Feedback (Opcional)</Label>
               <Select

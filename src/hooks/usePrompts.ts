@@ -24,27 +24,22 @@ export function usePrompts(type?: PromptType) {
   const { selectedAccountId } = useAccount();
   const { user } = useAuth();
   
-  // Use refs to track current values and prevent unnecessary re-fetches
   const lastFetchRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchPrompts = useCallback(async () => {
     if (!type || !user?.id) return;
     
-    // Create a unique key for this fetch request
     const fetchKey = `${type}-${selectedAccountId}-${user.id}`;
     
-    // Skip if we already fetched the same data
     if (lastFetchRef.current === fetchKey) {
       return;
     }
     
-    // Cancel any ongoing request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
 
-    // Create new abort controller for this request
     abortControllerRef.current = new AbortController();
     
     try {
@@ -57,13 +52,16 @@ export function usePrompts(type?: PromptType) {
         .eq("type", type)
         .order("updated_at", { ascending: false });
 
-      // Apply STRICT account-based filtering - ONLY prompts for selected account
+      // Filtro corregido para prompts por cuenta
       if (selectedAccountId && selectedAccountId !== 'all') {
         console.log("Filtering prompts STRICTLY by account:", selectedAccountId);
-        // Show ONLY prompts for the selected account (no fallback to global prompts)
         query = query.eq('account_id', selectedAccountId);
+      } else if (selectedAccountId === 'all' && user.role === 'superAdmin') {
+        // Superadmin con "all" ve todos los prompts
+        console.log("SuperAdmin viewing all prompts");
+        // No agregar filtros adicionales - mostrar todos los prompts
       } else {
-        // When no specific account selected, show user's personal prompts only
+        // Usuario normal sin cuenta específica - solo prompts personales
         console.log("Filtering prompts for user personal prompts only");
         query = query.eq('user_id', user?.id).is('account_id', null);
       }
@@ -83,9 +81,9 @@ export function usePrompts(type?: PromptType) {
           ...prompt,
           type: prompt.type as PromptType
         }));
-        console.log("Prompts fetched and STRICTLY filtered for account", selectedAccountId, ":", typedPrompts.length);
+        console.log("Prompts fetched for account", selectedAccountId, ":", typedPrompts.length);
         setPrompts(typedPrompts);
-        lastFetchRef.current = fetchKey; // Mark this fetch as completed
+        lastFetchRef.current = fetchKey;
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
@@ -97,17 +95,14 @@ export function usePrompts(type?: PromptType) {
       setLoading(false);
       abortControllerRef.current = null;
     }
-  }, [type, selectedAccountId, user?.id]);
+  }, [type, selectedAccountId, user?.id, user?.role]);
 
-  // Only fetch when necessary - prevent automatic reloads
   useEffect(() => {
     if (type && user?.id) {
-      // Small delay to prevent multiple rapid calls
       const timeoutId = setTimeout(fetchPrompts, 100);
       return () => clearTimeout(timeoutId);
     }
 
-    // Cleanup function
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -115,7 +110,6 @@ export function usePrompts(type?: PromptType) {
     };
   }, [type, selectedAccountId, user?.id]);
 
-  // Get the active prompt quickly
   const activePrompt = prompts.find((p) => p.active);
 
   const createPrompt = async (p: Omit<Prompt, "id" | "updated_at">) => {
@@ -130,7 +124,6 @@ export function usePrompts(type?: PromptType) {
       
       if (error) throw error;
       
-      // Reset fetch cache to force refresh
       lastFetchRef.current = '';
       await fetchPrompts();
       return data?.[0] as Prompt;
@@ -146,7 +139,6 @@ export function usePrompts(type?: PromptType) {
       
       if (error) throw error;
       
-      // Reset fetch cache to force refresh
       lastFetchRef.current = '';
       await fetchPrompts();
       return data?.[0] as Prompt;
@@ -156,26 +148,24 @@ export function usePrompts(type?: PromptType) {
     }
   };
 
-  // Utility to activate just one prompt for this type within the current account context
   const togglePromptActive = async (promptId: string) => {
     try {
-      // First deactivate all prompts of this type for this account context
       const deactivateQuery = supabase.from("prompts").update({ active: false }).eq("type", type!);
       
       if (selectedAccountId && selectedAccountId !== 'all') {
         deactivateQuery.eq('account_id', selectedAccountId);
+      } else if (selectedAccountId === 'all' && user?.role === 'superAdmin') {
+        // Superadmin: desactivar todos los prompts del tipo
       } else {
         deactivateQuery.eq('user_id', user?.id).is('account_id', null);
       }
       
       await deactivateQuery;
       
-      // Then activate the selected prompt
       const { error } = await supabase.from("prompts").update({ active: true }).eq("id", promptId);
       
       if (error) throw error;
       
-      // Reset fetch cache to force refresh
       lastFetchRef.current = '';
       await fetchPrompts();
       return true;
