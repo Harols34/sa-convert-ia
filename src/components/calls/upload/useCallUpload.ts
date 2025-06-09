@@ -34,6 +34,41 @@ export function useCallUpload() {
     setFiles(prev => prev.filter(file => file.id !== id));
   };
 
+  const ensureBucketExists = async () => {
+    try {
+      // Check if the main bucket exists
+      const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+      
+      if (listError) {
+        console.error("Error listing buckets:", listError);
+        return false;
+      }
+
+      const bucketExists = buckets?.some(bucket => bucket.id === 'call-recordings');
+      
+      if (!bucketExists) {
+        console.log("Creating call-recordings bucket...");
+        const { error: createError } = await supabase.storage.createBucket('call-recordings', {
+          public: true,
+          allowedMimeTypes: ['audio/mpeg', 'audio/wav', 'audio/m4a', 'audio/mp3'],
+          fileSizeLimit: 104857600 // 100MB
+        });
+
+        if (createError) {
+          console.error("Error creating bucket:", createError);
+          return false;
+        }
+        
+        console.log("Bucket call-recordings created successfully");
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Error ensuring bucket exists:", error);
+      return false;
+    }
+  };
+
   const uploadFiles = async (selectedPrompts?: { summaryPrompt?: string; feedbackPrompt?: string }) => {
     if (files.length === 0) return;
     
@@ -50,6 +85,13 @@ export function useCallUpload() {
 
     console.log("Uploading files with account:", selectedAccountId);
     console.log("Selected prompts:", selectedPrompts);
+
+    // Ensure bucket exists before starting upload
+    const bucketReady = await ensureBucketExists();
+    if (!bucketReady) {
+      toast.error("Error preparando el almacenamiento. Intenta de nuevo.");
+      return;
+    }
 
     setIsUploading(true);
     
@@ -73,7 +115,10 @@ export function useCallUpload() {
 
         const { error: uploadError } = await supabase.storage
           .from('call-recordings')
-          .upload(filePath, fileItem.file);
+          .upload(filePath, fileItem.file, {
+            cacheControl: '3600',
+            upsert: false
+          });
 
         if (uploadError) {
           throw new Error(`Error uploading file: ${uploadError.message}`);
