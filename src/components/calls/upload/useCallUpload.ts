@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -34,18 +33,59 @@ export function useCallUpload() {
     setFiles(prev => prev.filter(file => file.id !== id));
   };
 
-  // Function to ensure account sub-folder exists using the new function
+  // Function to ensure bucket exists and is accessible
+  const ensureBucketExists = async () => {
+    try {
+      console.log("Checking if call-recordings bucket exists...");
+      
+      // Try to list the bucket to see if it exists
+      const { data, error } = await supabase.storage.listBuckets();
+      
+      if (error) {
+        console.error("Error listing buckets:", error);
+        throw new Error(`Error accessing storage: ${error.message}`);
+      }
+      
+      const bucketExists = data?.some(bucket => bucket.id === 'call-recordings');
+      
+      if (!bucketExists) {
+        throw new Error("El bucket call-recordings no existe. Por favor contacta al administrador.");
+      }
+      
+      console.log("call-recordings bucket verified successfully");
+      return true;
+    } catch (error) {
+      console.error("Error ensuring bucket exists:", error);
+      throw error;
+    }
+  };
+
+  // Function to ensure account sub-folder exists
   const ensureAccountFolder = async (accountId: string) => {
     try {
       console.log("Ensuring account folder for:", accountId);
       
-      // Use the new database function to ensure folder exists
+      // Use the database function to ensure folder exists
       const { data, error } = await supabase.rpc('ensure_account_folder', {
         account_uuid: accountId
       });
 
       if (error) {
-        console.warn("Could not ensure account folder:", error);
+        console.warn("Could not ensure account folder using function:", error);
+        // Fallback: try to create a .keep file manually
+        const keepPath = `${accountId}/.keep`;
+        const { error: uploadError } = await supabase.storage
+          .from('call-recordings')
+          .upload(keepPath, new Blob([''], { type: 'text/plain' }), {
+            cacheControl: '3600',
+            upsert: true
+          });
+        
+        if (uploadError && !uploadError.message.includes('already exists')) {
+          console.warn("Could not create account folder manually:", uploadError);
+        } else {
+          console.log("Account folder ensured manually for:", accountId);
+        }
       } else {
         console.log("Account folder ensured successfully for:", accountId);
       }
@@ -72,8 +112,18 @@ export function useCallUpload() {
 
     setIsUploading(true);
     
-    // Ensure account sub-folder exists before uploading
-    await ensureAccountFolder(selectedAccountId);
+    try {
+      // First ensure bucket exists
+      await ensureBucketExists();
+      
+      // Then ensure account sub-folder exists
+      await ensureAccountFolder(selectedAccountId);
+    } catch (error) {
+      console.error("Setup error:", error);
+      toast.error(`Error de configuración: ${error instanceof Error ? error.message : "Error desconocido"}`);
+      setIsUploading(false);
+      return;
+    }
     
     for (const fileItem of files) {
       if (fileItem.status !== "pending") continue;
