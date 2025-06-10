@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -36,7 +37,7 @@ export function useCallUpload() {
   // Function to ensure bucket exists and is accessible
   const ensureBucketExists = async () => {
     try {
-      console.log("Checking if call-recordings bucket exists...");
+      console.log("Checking if audio-recordings bucket exists...");
       
       // Try to list the bucket to see if it exists
       const { data, error } = await supabase.storage.listBuckets();
@@ -46,13 +47,13 @@ export function useCallUpload() {
         throw new Error(`Error accessing storage: ${error.message}`);
       }
       
-      const bucketExists = data?.some(bucket => bucket.id === 'call-recordings');
+      const bucketExists = data?.some(bucket => bucket.id === 'audio-recordings');
       
       if (!bucketExists) {
-        throw new Error("El bucket call-recordings no existe. Por favor contacta al administrador.");
+        throw new Error("El bucket audio-recordings no existe. Por favor contacta al administrador.");
       }
       
-      console.log("call-recordings bucket verified successfully");
+      console.log("audio-recordings bucket verified successfully");
       return true;
     } catch (error) {
       console.error("Error ensuring bucket exists:", error);
@@ -65,8 +66,8 @@ export function useCallUpload() {
     try {
       console.log("Ensuring account folder for:", accountId);
       
-      // Use the database function to ensure folder exists
-      const { data, error } = await supabase.rpc('ensure_account_folder', {
+      // Use the new database function to ensure folder exists
+      const { data, error } = await supabase.rpc('ensure_audio_account_folder', {
         account_uuid: accountId
       });
 
@@ -75,7 +76,7 @@ export function useCallUpload() {
         // Fallback: try to create a .keep file manually
         const keepPath = `${accountId}/.keep`;
         const { error: uploadError } = await supabase.storage
-          .from('call-recordings')
+          .from('audio-recordings')
           .upload(keepPath, new Blob([''], { type: 'text/plain' }), {
             cacheControl: '3600',
             upsert: true
@@ -140,10 +141,10 @@ export function useCallUpload() {
         const fileName = `${Date.now()}-${fileItem.file.name}`;
         const filePath = `${selectedAccountId}/${fileName}`;
 
-        console.log("Uploading to path:", filePath, "in bucket: call-recordings");
+        console.log("Uploading to path:", filePath, "in bucket: audio-recordings");
 
         const { error: uploadError } = await supabase.storage
-          .from('call-recordings')
+          .from('audio-recordings')
           .upload(filePath, fileItem.file, {
             cacheControl: '3600',
             upsert: false
@@ -155,7 +156,7 @@ export function useCallUpload() {
         }
 
         const { data: { publicUrl } } = supabase.storage
-          .from('call-recordings')
+          .from('audio-recordings')
           .getPublicUrl(filePath);
 
         setFiles(prev => prev.map(f => 

@@ -686,6 +686,10 @@ export type Database = {
         Args: { account_uuid: string }
         Returns: boolean
       }
+      ensure_audio_account_folder: {
+        Args: { account_uuid: string }
+        Returns: boolean
+      }
       get_user_accounts: {
         Args: Record<PropertyKey, never>
         Returns: string[]
