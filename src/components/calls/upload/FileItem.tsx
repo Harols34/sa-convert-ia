@@ -21,13 +21,13 @@ export default function FileItem({
   // Función para renderizar el icono según el estado
   const renderStatusIcon = () => {
     switch (file.status) {
-      case "pending":
+      case "idle":
         return <UploadCloud className="h-5 w-5 text-blue-500" />;
       case "uploading":
         return <UploadCloud className="h-5 w-5 text-blue-500" />;
       case "processing":
         return <UploadCloud className="h-5 w-5 text-amber-500 animate-pulse" />;
-      case "complete":
+      case "success":
         return <CheckCircle2 className="h-5 w-5 text-green-500" />;
       case "error":
         return <AlertCircle className="h-5 w-5 text-red-500" />;
@@ -39,13 +39,13 @@ export default function FileItem({
   // Función para renderizar el mensaje de estado
   const renderStatusText = () => {
     switch (file.status) {
-      case "pending":
+      case "idle":
         return "Listo para subir";
       case "uploading":
         return `Subiendo... ${file.progress}%`;
       case "processing":
         return `Procesando... ${file.progress}%`;
-      case "complete":
+      case "success":
         return "Carga completa";
       case "error":
         return file.error || "Error en la carga";
@@ -60,7 +60,7 @@ export default function FileItem({
       case "uploading":
       case "processing":
         return "bg-blue-500";
-      case "complete":
+      case "success":
         return "bg-green-500";
       case "error":
         return "bg-red-500";
@@ -105,6 +105,12 @@ export default function FileItem({
       {file.status === "error" && file.error && (
         <div className="mt-2 p-2 text-xs bg-red-50 text-red-600 rounded">
           {file.error}
+        </div>
+      )}
+      
+      {file.info && (
+        <div className="mt-2 p-2 text-xs bg-blue-50 text-blue-600 rounded">
+          {file.info}
         </div>
       )}
     </div>
