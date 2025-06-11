@@ -37,7 +37,19 @@ serve(async (req) => {
       throw new Error('Missing or invalid audioUrl parameter');
     }
 
-    console.log(`Processing call ${callId} with audio URL: ${audioUrl}`);
+    // Get call data to ensure we have the account_id
+    const { data: callData, error: callFetchError } = await supabase
+      .from('calls')
+      .select('account_id')
+      .eq('id', callId)
+      .single();
+
+    if (callFetchError) {
+      console.error('Error fetching call data:', callFetchError);
+      throw new Error('Could not fetch call data');
+    }
+
+    console.log(`Processing call ${callId} with audio URL: ${audioUrl} for account: ${callData.account_id}`);
     console.log('Custom prompts provided:', {
       hasSummaryPrompt: !!summaryPrompt,
       hasFeedbackPrompt: !!feedbackPrompt
@@ -89,11 +101,12 @@ serve(async (req) => {
       topics: feedbackResult.topics
     });
 
-    // Step 5: Store feedback in feedback table
+    // Step 5: Store feedback in feedback table with account_id
     const { error: feedbackError } = await supabase
       .from('feedback')
       .insert({
         call_id: callId,
+        account_id: callData.account_id, // Ensure account_id is saved
         score: feedbackResult.score,
         positive: feedbackResult.positive,
         negative: feedbackResult.negative,
@@ -108,7 +121,7 @@ serve(async (req) => {
       console.error('Error inserting feedback:', feedbackError);
     }
 
-    console.log(`Successfully processed call ${callId}`);
+    console.log(`Successfully processed call ${callId} for account ${callData.account_id}`);
     console.log('Final transcription length:', transcription.length);
     console.log('Used custom prompts:', {
       summary: !!summaryPrompt,
@@ -119,6 +132,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         callId,
+        accountId: callData.account_id,
         message: 'Call processed successfully with transcription',
         transcriptionLength: transcription.length,
         usedCustomPrompts: {

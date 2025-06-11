@@ -66,7 +66,7 @@ serve(async (req) => {
       });
     }
 
-    // Get call data
+    // Get call data including account_id
     const { data: call, error: callError } = await supabaseAdmin
       .from('calls')
       .select('*')
@@ -89,12 +89,19 @@ serve(async (req) => {
       });
     }
 
-    // Get active behaviors
+    // Get active behaviors - filter by account if call has account_id
     console.log("Fetching active behaviors for analysis...");
-    const { data: behaviors, error: behaviorsError } = await supabaseAdmin
+    let behaviorsQuery = supabaseAdmin
       .from('behaviors')
       .select('*')
       .eq('is_active', true);
+
+    // If call has account_id, get behaviors for that account or global behaviors
+    if (call.account_id) {
+      behaviorsQuery = behaviorsQuery.or(`account_id.eq.${call.account_id},account_id.is.null`);
+    }
+
+    const { data: behaviors, error: behaviorsError } = await behaviorsQuery;
 
     if (behaviorsError) {
       console.error("Error fetching behaviors:", behaviorsError);
@@ -112,7 +119,7 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Found ${behaviors.length} active behaviors for analysis`);
+    console.log(`Found ${behaviors.length} active behaviors for analysis (account: ${call.account_id})`);
 
     // Analyze behaviors
     const behaviorsAnalysis = await analyzeBehaviors(call, behaviors);
@@ -122,7 +129,7 @@ serve(async (req) => {
     const opportunities = generateOpportunities(behaviorsAnalysis);
     const positives = generatePositives(behaviorsAnalysis, score);
     
-    // Create or update feedback
+    // Create or update feedback with account_id
     const response = await createOrUpdateFeedback(
       supabaseAdmin, 
       existingFeedback, 

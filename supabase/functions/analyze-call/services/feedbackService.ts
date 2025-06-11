@@ -35,18 +35,19 @@ export async function createOrUpdateFeedback(
   opportunities: string[]
 ) {
   try {
-    // Get call summary to enhance feedback generation
+    // Get call data including account_id
     const { data: call, error: callError } = await supabase
       .from('calls')
-      .select('summary')
+      .select('summary, account_id')
       .eq('id', callId)
       .single();
     
     if (callError) {
-      console.error("Error fetching call summary:", callError);
+      console.error("Error fetching call data:", callError);
     }
     
     const summary = call?.summary || "";
+    const accountId = call?.account_id || null;
     
     // Enriquecemos los aspectos positivos y oportunidades con el resumen de la llamada
     const enhancedPositives = generatePositives(behaviorsAnalysis, score, summary);
@@ -65,6 +66,7 @@ export async function createOrUpdateFeedback(
     // Crear o actualizar el feedback
     const feedbackData = {
       call_id: callId,
+      account_id: accountId, // Include account_id
       score,
       positive: enhancedPositives,
       negative: negatives.length > 0 ? negatives.slice(0, 5) : ["Se identificaron oportunidades de mejora"],
@@ -98,6 +100,8 @@ export async function createOrUpdateFeedback(
       if (error) throw new Error(`Error creating feedback: ${error.message || "Unknown error"}`);
       result = data;
     }
+
+    console.log(`Feedback ${existingFeedback ? 'updated' : 'created'} for call ${callId} with account ${accountId}`);
 
     // Prepare the success response
     return {
