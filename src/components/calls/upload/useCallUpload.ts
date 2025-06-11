@@ -1,5 +1,6 @@
 
-import React, { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAccount } from "@/context/AccountContext";
@@ -9,44 +10,66 @@ export interface FileItem {
   id: string;
   file: File;
   progress: number;
-  status: "pending" | "uploading" | "processing" | "complete" | "error";
+  status: "idle" | "uploading" | "processing" | "success" | "error";
   callId?: string;
   error?: string;
+  info?: string;
 }
 
 export function useCallUpload() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processedCount, setProcessedCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [processedFiles, setProcessedFiles] = useState<Set<string>>(new Set());
   const { selectedAccountId } = useAccount();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
-  const addFiles = (newFiles: File[]) => {
-    const fileItems: FileItem[] = newFiles.map(file => ({
-      id: `${Date.now()}-${file.name}`,
-      file,
-      progress: 0,
-      status: "pending"
-    }));
-    setFiles(prev => [...prev, ...fileItems]);
-  };
+  // Verificar sesión al cargar el componente
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        console.log("Verificando sesión en CallUpload...");
+        const { data } = await supabase.auth.getSession();
+        console.log("Estado de sesión en CallUpload:", data.session ? "Activa" : "No hay sesión");
+        
+        if (data.session && data.session.user) {
+          console.log("Usuario en sesión:", data.session.user.id);
+          setCurrentUser(data.session.user);
+        } else {
+          toast.error("No hay sesión activa", {
+            description: "Por favor inicie sesión para subir archivos"
+          });
+          navigate("/login");
+          return;
+        }
+        
+        setSessionChecked(true);
+      } catch (error) {
+        console.error("Error al verificar sesión:", error);
+        toast.error("Error al verificar sesión");
+        setSessionChecked(true);
+      }
+    };
 
-  const removeFile = (id: string) => {
-    setFiles(prev => prev.filter(file => file.id !== id));
-  };
+    checkSession();
+  }, [navigate]);
 
-  // Function to ensure account sub-folder exists
+  // Función para asegurar que existe la carpeta de la cuenta
   const ensureAccountFolder = async (accountId: string) => {
     try {
-      console.log("Ensuring account folder for:", accountId);
+      console.log("Asegurando carpeta de cuenta para:", accountId);
       
-      // Use the database function to ensure folder exists
       const { data, error } = await supabase.rpc('ensure_account_folder', {
         account_uuid: accountId
       });
 
       if (error) {
-        console.warn("Could not ensure account folder using function:", error);
-        // Fallback: try to create a .keep file manually
+        console.warn("No se pudo asegurar la carpeta de cuenta usando función:", error);
         const keepPath = `${accountId}/.keep`;
         const { error: uploadError } = await supabase.storage
           .from('call-recordings')
@@ -56,165 +79,458 @@ export function useCallUpload() {
           });
         
         if (uploadError && !uploadError.message.includes('already exists')) {
-          console.warn("Could not create account folder manually:", uploadError);
+          console.warn("No se pudo crear la carpeta de cuenta manualmente:", uploadError);
         } else {
-          console.log("Account folder ensured manually for:", accountId);
+          console.log("Carpeta de cuenta asegurada manualmente para:", accountId);
         }
       } else {
-        console.log("Account folder ensured successfully for:", accountId);
+        console.log("Carpeta de cuenta asegurada exitosamente para:", accountId);
       }
     } catch (error) {
-      console.warn("Error ensuring account folder:", error);
+      console.warn("Error asegurando carpeta de cuenta:", error);
     }
   };
 
+  const addFiles = useCallback((acceptedFiles: File[]) => {
+    // Verificar si hay archivos duplicados por nombre
+    const existingFileNames = files.map(f => f.file.name);
+    const uniqueFiles = acceptedFiles.filter(file => !existingFileNames.includes(file.name));
+    
+    if (uniqueFiles.length !== acceptedFiles.length) {
+      toast.warning(`Se omitieron ${acceptedFiles.length - uniqueFiles.length} archivos duplicados`, {
+        description: "Ya has agregado estos archivos a la cola"
+      });
+    }
+    
+    // Validar tipos de archivos
+    const validFiles = uniqueFiles.filter(file => 
+      file.type.startsWith('audio/') || file.name.endsWith('.mp3') || file.name.endsWith('.wav') || file.name.endsWith('.m4a')
+    );
+    
+    if (validFiles.length !== uniqueFiles.length) {
+      toast.warning(`Se han omitido ${uniqueFiles.length - validFiles.length} archivos no válidos`, {
+        description: "Solo se permiten archivos de audio (.mp3, .wav, .m4a)"
+      });
+    }
+    
+    // Verificar tamaño máximo (100MB)
+    const MAX_SIZE = 100 * 1024 * 1024; // 100MB
+    const validSizeFiles = validFiles.filter(file => file.size <= MAX_SIZE);
+    
+    if (validSizeFiles.length !== validFiles.length) {
+      toast.warning(`Se han omitido ${validFiles.length - validSizeFiles.length} archivos demasiado grandes`, {
+        description: "El tamaño máximo permitido es de 100MB por archivo"
+      });
+    }
+    
+    // Create file objects with progress
+    const newFiles = validSizeFiles.map((file) => ({
+      id: Math.random().toString(36).substring(7),
+      file,
+      progress: 0,
+      status: "idle" as const,
+    }));
+
+    setFiles((prev) => [...prev, ...newFiles]);
+  }, [files]);
+
+  const removeFile = (id: string) => {
+    setFiles((prev) => prev.filter((file) => file.id !== id));
+  };
+
+  const simulateProgress = (fileId: string, startProgress: number, endProgress: number, duration: number = 10000) => {
+    const intervalTime = 500;
+    const steps = duration / intervalTime;
+    const increment = (endProgress - startProgress) / steps;
+    let currentProgress = startProgress;
+    
+    const interval = setInterval(() => {
+      currentProgress += increment;
+      if (currentProgress >= endProgress) {
+        currentProgress = endProgress;
+        clearInterval(interval);
+      }
+      
+      setFiles((prev) => 
+        prev.map((f) => 
+          f.id === fileId ? { ...f, progress: Math.round(currentProgress) } : f
+        )
+      );
+    }, intervalTime);
+    
+    return interval;
+  };
+
+  // Verificar si una llamada ya existe para evitar duplicados
+  const checkCallExists = async (callTitle: string, accountId: string) => {
+    try {
+      const { data: existingCalls, error: checkError } = await supabase
+        .from('calls')
+        .select('id')
+        .eq('title', callTitle)
+        .eq('account_id', accountId);
+        
+      if (checkError) throw checkError;
+      
+      return existingCalls && existingCalls.length > 0;
+    } catch (error) {
+      console.error("Error al verificar llamadas existentes:", error);
+      return false;
+    }
+  };
+
+  // Procesar llamada individual
+  const processCall = async (fileData: FileItem, accountId: string) => {
+    let callId = null;
+    let progressInterval: any = null;
+    
+    // Si el archivo ya fue procesado, evitar procesarlo nuevamente
+    if (processedFiles.has(fileData.file.name)) {
+      console.log(`Archivo ${fileData.file.name} ya procesado, omitiendo`);
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === fileData.id ? { 
+            ...f, 
+            progress: 100, 
+            status: "success",
+            info: "Archivo ya procesado anteriormente" 
+          } : f
+        )
+      );
+      return null;
+    }
+    
+    try {
+      // Update progress to show we're starting
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === fileData.id ? { ...f, progress: 10, status: "uploading" } : f
+        )
+      );
+      
+      // Create a unique filename with timestamp to avoid collisions
+      const originalFileName = fileData.file.name;
+      const safeFileName = originalFileName
+        .replace(/[^a-zA-Z0-9.-]/g, '_')
+        .replace(/_{2,}/g, '_');
+      
+      const fileName = `${Date.now()}-${safeFileName}`;
+      const filePath = `${accountId}/${fileName}`;
+      
+      // Extract call title from original filename
+      const callTitle = originalFileName.replace(/\.[^/.]+$/, "");
+      
+      // Check if a call with this title already exists for this account
+      const callExists = await checkCallExists(callTitle, accountId);
+        
+      if (callExists) {
+        console.log(`Llamada con título "${callTitle}" ya existe en cuenta ${accountId}`);
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileData.id ? { 
+              ...f, 
+              progress: 100, 
+              status: "error",
+              error: "Grabación ya cargada en esta cuenta" 
+            } : f
+          )
+        );
+        const error: any = new Error("Título de llamada duplicado");
+        error.dupeTitleError = true;
+        throw error;
+      }
+      
+      console.log("Subiendo archivo a bucket 'call-recordings':", filePath);
+      
+      // Marcar el archivo como en procesamiento
+      setProcessedFiles(prev => new Set(prev).add(fileData.file.name));
+      
+      // Convertir file a ArrayBuffer para Supabase Storage
+      const arrayBuffer = await fileData.file.arrayBuffer();
+      
+      // Upload to Supabase Storage usando account-specific sub-folder path
+      const { data: storageData, error: storageError } = await supabase.storage
+        .from('call-recordings')
+        .upload(filePath, arrayBuffer, {
+          contentType: fileData.file.type,
+          cacheControl: '3600',
+          upsert: false
+        });
+        
+      if (storageError) {
+        console.error("Error en la carga:", storageError);
+        throw storageError;
+      }
+      
+      console.log("Carga exitosa:", storageData);
+      
+      // Get the public URL
+      const { data: publicUrlData } = supabase.storage
+        .from('call-recordings')
+        .getPublicUrl(filePath);
+        
+      console.log("URL pública:", publicUrlData);
+      
+      // Update progress to 50%
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === fileData.id ? { ...f, progress: 50 } : f
+        )
+      );
+      
+      // Extract agent name from filename
+      const agentName = originalFileName.split('.')[0].replace(/^\d+[-_]/, '').replace(/[-_]/g, ' ') || 'Sin asignar';
+      
+      // Create a record in the calls table with account_id
+      const currentDate = new Date().toISOString();
+      
+      console.log("Insertando registro en la tabla calls para cuenta:", accountId);
+      const { data: callData, error: callError } = await supabase
+        .from('calls')
+        .insert([
+          {
+            title: callTitle,
+            filename: fileName,
+            agent_name: agentName,
+            duration: 0,
+            date: currentDate,
+            audio_url: publicUrlData.publicUrl,
+            status: 'pending',
+            progress: 0,
+            account_id: accountId
+          }
+        ])
+        .select();
+        
+      if (callError) {
+        console.error("Error al crear registro de llamada:", callError);
+        throw callError;
+      }
+      
+      console.log("Registro de llamada creado exitosamente:", callData);
+      callId = callData[0].id;
+      
+      // Iniciar el procesamiento de la llamada
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === fileData.id ? { ...f, progress: 60, status: "processing", callId } : f
+        )
+      );
+      
+      // Simular progreso mientras se procesa la llamada
+      progressInterval = simulateProgress(fileData.id, 60, 95);
+      
+      // Procesar llamada en background
+      try {
+        const { error: processError } = await supabase.functions.invoke('process-call', {
+          body: { 
+            callId, 
+            audioUrl: publicUrlData.publicUrl
+          }
+        });
+        
+        if (processError) {
+          console.error("Error al procesar la llamada:", processError);
+          throw processError;
+        }
+        
+        // Limpiar intervalo de simulación
+        if (progressInterval) clearInterval(progressInterval);
+        
+        // Mark as completed
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileData.id ? { ...f, progress: 100, status: "success" } : f
+          )
+        );
+        
+        toast.success(`Archivo ${originalFileName} procesado exitosamente en cuenta ${accountId}`);
+        
+      } catch (processError) {
+        console.error("Error al procesar la llamada:", processError);
+        
+        // Limpiar intervalo de simulación
+        if (progressInterval) clearInterval(progressInterval);
+        
+        // La carga se realizó correctamente, pero el procesamiento falló
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileData.id ? { 
+              ...f, 
+              progress: 100, 
+              status: "success",
+              error: "La carga se completó, procesamiento en curso" 
+            } : f
+          )
+        );
+        
+        toast.warning(`${originalFileName}: Carga completa, procesamiento continuará en segundo plano`);
+      }
+      
+      return callId;
+    } catch (error: any) {
+      console.error("Error en la carga:", error);
+      
+      // Limpiar intervalo de simulación
+      if (progressInterval) clearInterval(progressInterval);
+      
+      // Mark as failed unless it's a duplicate title error
+      if (!error.dupeTitleError) {
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileData.id ? { ...f, status: "error", error: error.message } : f
+          )
+        );
+      }
+      
+      // Remover el archivo de los procesados si hubo error para permitir reintentar
+      if (!error.dupeTitleError) {
+        setProcessedFiles(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(fileData.file.name);
+          return newSet;
+        });
+      }
+      
+      throw error;
+    }
+  };
+
+  // Procesar archivos en lotes
+  const processFileBatch = async (filesToProcess: FileItem[], accountId: string) => {
+    setIsProcessing(true);
+    setTotalCount(filesToProcess.length);
+    const results = [];
+    const total = filesToProcess.length;
+    const batchSize = 5; // Reducir tamaño de lote para mejor estabilidad
+    
+    setProcessedCount(0);
+    
+    for (let i = 0; i < total; i += batchSize) {
+      const batch = filesToProcess.slice(i, i + batchSize);
+      console.log(`Procesando lote ${Math.floor(i/batchSize) + 1}, con ${batch.length} archivos`);
+      
+      try {
+        const promises = batch.map(fileData => {
+          return new Promise<any>(async (resolve) => {
+            try {
+              const callId = await processCall(fileData, accountId);
+              resolve({ id: fileData.id, success: true, callId });
+            } catch (error: any) {
+              console.error(`Error procesando archivo ${fileData.file.name}:`, error);
+              resolve({ 
+                id: fileData.id, 
+                success: false, 
+                error,
+                dupeTitleError: error?.dupeTitleError || false 
+              });
+            } finally {
+              setProcessedCount(prev => prev + 1);
+            }
+          });
+        });
+        
+        const batchResults = await Promise.all(promises);
+        results.push(...batchResults);
+      } catch (batchError) {
+        console.error("Error en el procesamiento del lote:", batchError);
+      }
+      
+      // Pausa entre lotes
+      if (i + batchSize < total) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    setIsProcessing(false);
+    return results;
+  };
+
   const uploadFiles = async (selectedPrompts?: { summaryPrompt?: string; feedbackPrompt?: string }) => {
-    if (files.length === 0) return;
+    if (!currentUser) {
+      console.error("No hay usuario autenticado");
+      toast.error("No hay usuario autenticado", {
+        description: "Por favor inicie sesión para subir archivos"
+      });
+      navigate("/login");
+      return;
+    }
     
     if (!selectedAccountId || selectedAccountId === 'all') {
       toast.error("Por favor selecciona una cuenta específica antes de subir archivos");
       return;
     }
-
-    if (!user) {
-      toast.error("Usuario no autenticado");
+    
+    console.log("Iniciando proceso de carga con usuario:", currentUser.id, "cuenta:", selectedAccountId);
+    
+    if (files.length === 0) {
+      toast.error("No hay archivos seleccionados", {
+        description: "Por favor seleccione archivos para subir"
+      });
       return;
     }
 
-    console.log("Uploading files with account:", selectedAccountId);
-    console.log("Selected prompts:", selectedPrompts);
+    if (isUploading) {
+      toast.warning("Hay una carga en progreso", {
+        description: "Por favor espere a que finalice la carga actual"
+      });
+      return;
+    }
 
     setIsUploading(true);
-    
+
     try {
-      // Ensure account sub-folder exists
+      // Asegurar que existe la carpeta de la cuenta
       await ensureAccountFolder(selectedAccountId);
-    } catch (error) {
-      console.error("Setup error:", error);
-      toast.error(`Error de configuración: ${error instanceof Error ? error.message : "Error desconocido"}`);
-      setIsUploading(false);
-      return;
-    }
-    
-    for (const fileItem of files) {
-      if (fileItem.status !== "pending") continue;
-
-      try {
-        setFiles(prev => prev.map(f => 
-          f.id === fileItem.id 
-            ? { ...f, status: "uploading" as const, progress: 10 }
-            : f
-        ));
-
-        // Upload file using account-specific sub-folder path
-        const fileExt = fileItem.file.name.split('.').pop();
-        const fileName = `${Date.now()}-${fileItem.file.name}`;
-        const filePath = `${selectedAccountId}/${fileName}`;
-
-        console.log("Uploading to path:", filePath, "in bucket: call-recordings");
-
-        const { error: uploadError } = await supabase.storage
-          .from('call-recordings')
-          .upload(filePath, fileItem.file, {
-            cacheControl: '3600',
-            upsert: false
-          });
-
-        if (uploadError) {
-          console.error("Upload error:", uploadError);
-          throw new Error(`Error uploading file: ${uploadError.message}`);
-        }
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('call-recordings')
-          .getPublicUrl(filePath);
-
-        setFiles(prev => prev.map(f => 
-          f.id === fileItem.id 
-            ? { ...f, progress: 50 }
-            : f
-        ));
-
-        const agentName = fileItem.file.name.split('.')[0].replace(/^\d+[-_]/, '').replace(/[-_]/g, ' ') || 'Sin asignar';
-
-        const callData = {
-          title: fileItem.file.name.replace(/\.[^/.]+$/, ""),
-          agent_name: agentName,
-          filename: fileItem.file.name,
-          audio_url: publicUrl,
-          duration: 0,
-          date: new Date().toISOString().split('T')[0],
-          status: 'pending',
-          progress: 0,
-          account_id: selectedAccountId
-        };
-
-        console.log("Creating call with data:", callData);
-
-        const { data: call, error: callError } = await supabase
-          .from('calls')
-          .insert(callData)
-          .select()
-          .single();
-
-        if (callError) {
-          console.error("Call creation error:", callError);
-          throw new Error(`Error creating call record: ${callError.message}`);
-        }
-
-        console.log("Call created successfully:", call.id, "for account:", call.account_id);
-
-        setFiles(prev => prev.map(f => 
-          f.id === fileItem.id 
-            ? { ...f, callId: call.id, status: "processing" as const, progress: 70 }
-            : f
-        ));
-
-        const { error: processError } = await supabase.functions.invoke("process-call", {
-          body: {
-            callId: call.id,
-            audioUrl: publicUrl,
-            summaryPrompt: selectedPrompts?.summaryPrompt || null,
-            feedbackPrompt: selectedPrompts?.feedbackPrompt || null
-          }
+      
+      setProcessedCount(0);
+      
+      const filesMessage = files.length > 1 ? `${files.length} archivos` : "1 archivo";
+      toast.info(`Procesando ${filesMessage} en cuenta ${selectedAccountId}`, {
+        description: "Esto puede tomar algunos minutos"
+      });
+      
+      const results = await processFileBatch(files, selectedAccountId);
+      
+      // Contar éxitos, errores y duplicados
+      const successCount = results.filter(r => r.success).length;
+      const errorCount = results.filter(r => !r.success && !r.dupeTitleError).length;
+      const dupeCount = results.filter(r => r.dupeTitleError).length;
+      
+      // Mostrar mensaje según resultados
+      if (successCount > 0) {
+        toast.success(`Carga completa`, {
+          description: `Se ${successCount === 1 ? 'subió 1 archivo' : `subieron ${successCount} archivos`}${errorCount > 0 ? `, ${errorCount} con ${errorCount === 1 ? 'error' : 'errores'}` : ''}${dupeCount > 0 ? `, ${dupeCount} ya ${dupeCount === 1 ? 'existente' : 'existentes'}` : ''}`
         });
-
-        if (processError) {
-          console.error("Process call error:", processError);
-          throw new Error(`Error processing call: ${processError.message}`);
-        }
-
-        setFiles(prev => prev.map(f => 
-          f.id === fileItem.id 
-            ? { ...f, status: "complete" as const, progress: 100 }
-            : f
-        ));
-
-        toast.success(`Archivo ${fileItem.file.name} procesado exitosamente en cuenta ${selectedAccountId}`);
-
-      } catch (error) {
-        console.error(`Error processing file ${fileItem.file.name}:`, error);
-        
-        setFiles(prev => prev.map(f => 
-          f.id === fileItem.id 
-            ? { 
-                ...f, 
-                status: "error" as const, 
-                error: error instanceof Error ? error.message : "Error desconocido",
-                progress: 0 
-              }
-            : f
-        ));
-
-        toast.error(`Error procesando ${fileItem.file.name}: ${error instanceof Error ? error.message : "Error desconocido"}`);
+      } else if (dupeCount === files.length) {
+        toast.warning("Todas las grabaciones ya existen", {
+          description: "No se ha cargado ningún archivo nuevo"
+        });
+      } else {
+        toast.error("Error al subir archivos", {
+          description: "Ningún archivo fue subido correctamente"
+        });
+      }
+      
+    } catch (error: any) {
+      console.error("Error en el proceso de carga:", error);
+      toast.error("Error en el proceso de carga", {
+        description: error.message || "Hubo un problema durante la carga"
+      });
+    } finally {
+      setIsUploading(false);
+      
+      // Redirigir si hubo archivos cargados con éxito
+      if (files.some(f => f.status === "success")) {
+        setTimeout(() => {
+          navigate("/calls");
+        }, 2000);
       }
     }
-
-    setIsUploading(false);
   };
 
   const clearCompleted = () => {
-    setFiles(prev => prev.filter(file => file.status !== "complete"));
+    setFiles(prev => prev.filter(file => file.status !== "success"));
   };
 
   const clearAll = () => {
@@ -224,6 +540,11 @@ export function useCallUpload() {
   return {
     files,
     isUploading,
+    sessionChecked,
+    currentUser,
+    isProcessing,
+    processedCount,
+    totalCount,
     addFiles,
     removeFile,
     uploadFiles,
