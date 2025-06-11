@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -32,33 +31,6 @@ export function useCallUpload() {
 
   const removeFile = (id: string) => {
     setFiles(prev => prev.filter(file => file.id !== id));
-  };
-
-  // Function to ensure bucket exists and is accessible
-  const ensureBucketExists = async () => {
-    try {
-      console.log("Checking if call-recordings bucket exists...");
-      
-      // Try to list the bucket to see if it exists
-      const { data, error } = await supabase.storage.listBuckets();
-      
-      if (error) {
-        console.error("Error listing buckets:", error);
-        throw new Error(`Error accessing storage: ${error.message}`);
-      }
-      
-      const bucketExists = data?.some(bucket => bucket.id === 'call-recordings');
-      
-      if (!bucketExists) {
-        throw new Error("El bucket call-recordings no existe. Por favor contacta al administrador.");
-      }
-      
-      console.log("call-recordings bucket verified successfully");
-      return true;
-    } catch (error) {
-      console.error("Error ensuring bucket exists:", error);
-      throw error;
-    }
   };
 
   // Function to ensure account sub-folder exists
@@ -114,10 +86,7 @@ export function useCallUpload() {
     setIsUploading(true);
     
     try {
-      // First ensure bucket exists
-      await ensureBucketExists();
-      
-      // Then ensure account sub-folder exists
+      // Ensure account sub-folder exists
       await ensureAccountFolder(selectedAccountId);
     } catch (error) {
       console.error("Setup error:", error);
