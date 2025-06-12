@@ -107,9 +107,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         console.log("Initializing auth...");
         
-        // Clean up any corrupted auth state first
-        cleanupAuthState();
-        
         // Get initial session
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
@@ -203,15 +200,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log("Starting sign in process for:", email);
       
-      // Clean up existing state first
-      cleanupAuthState();
-      
-      // Attempt global sign out first
-      await performGlobalSignOut(supabase);
-      
-      // Small delay to ensure cleanup
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -224,7 +212,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (data.session) {
         console.log("Sign in successful for:", email);
-        // Don't navigate here, let the auth state change handler do it
       }
     } catch (error: any) {
       console.error("Sign in failed:", error);

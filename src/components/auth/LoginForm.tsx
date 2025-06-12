@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Loader2, LogIn } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { cleanupAuthState, performGlobalSignOut } from "@/utils/authCleanup";
 
 interface LoginFormProps {
   language?: string;
@@ -48,21 +47,12 @@ export default function LoginForm({ language = "es" }: LoginFormProps) {
   });
 
   const onSubmit = async (values: LoginFormValues) => {
-    if (isLoading) return; // Prevent double submission
+    if (isLoading) return;
     
     setIsLoading(true);
     
     try {
       console.log("Attempting login for:", values.email);
-      
-      // Clean up any existing auth state first
-      cleanupAuthState();
-      
-      // Attempt global sign out to clear any stale sessions
-      await performGlobalSignOut(supabase);
-      
-      // Small delay to ensure cleanup
-      await new Promise(resolve => setTimeout(resolve, 300));
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email: values.email,
@@ -80,10 +70,6 @@ export default function LoginForm({ language = "es" }: LoginFormProps) {
           errorMessage = "Debes confirmar tu email antes de iniciar sesión";
         } else if (error.message?.includes("Too many requests")) {
           errorMessage = "Demasiados intentos. Intenta de nuevo más tarde";
-        } else if (error.message?.includes("refresh_token_not_found")) {
-          errorMessage = "Sesión expirada. Intenta iniciar sesión nuevamente.";
-          // Clean up and retry
-          cleanupAuthState();
         }
         
         toast.error(errorMessage);
@@ -94,10 +80,8 @@ export default function LoginForm({ language = "es" }: LoginFormProps) {
         console.log("Login successful, session established");
         toast.success(language === "es" ? "Inicio de sesión exitoso" : "Login successful");
         
-        // Force a page refresh to ensure clean state
-        setTimeout(() => {
-          window.location.href = '/analytics';
-        }, 1000);
+        // Navigate to analytics
+        navigate('/analytics');
       }
     } catch (error: any) {
       console.error("Unexpected login error:", error);
