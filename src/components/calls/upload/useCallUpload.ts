@@ -73,15 +73,16 @@ export function useCallUpload() {
           .from('call-recordings')
           .getPublicUrl(fileName);
 
-        // Create call record
+        // Create call record with correct schema
         const { data: callData, error: callError } = await supabase
           .from('calls')
           .insert({
             title: fileItem.file.name.replace(/\.[^/.]+$/, ""),
+            filename: fileItem.file.name,
+            agent_name: user.name || user.email || 'Usuario',
             audio_url: publicUrl,
             status: 'pending',
-            progress: 0,
-            user_id: user.id
+            progress: 0
           })
           .select()
           .single();
