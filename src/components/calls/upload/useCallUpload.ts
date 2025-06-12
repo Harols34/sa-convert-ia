@@ -14,6 +14,16 @@ export interface FileItem {
   info?: string;
 }
 
+// Function to sanitize file names for storage
+const sanitizeFileName = (fileName: string): string => {
+  // Remove invalid characters and replace with underscores
+  return fileName
+    .replace(/[{}[\]()]/g, '_') // Remove braces, brackets, parentheses
+    .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace other special chars with underscores
+    .replace(/_+/g, '_') // Replace multiple underscores with single one
+    .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
+};
+
 export function useCallUpload() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -52,8 +62,10 @@ export function useCallUpload() {
             : f
         ));
 
-        // Upload file to Supabase Storage
-        const fileName = `${Date.now()}-${fileItem.file.name}`;
+        // Sanitize the file name and create a unique name
+        const sanitizedName = sanitizeFileName(fileItem.file.name);
+        const fileName = `${Date.now()}-${sanitizedName}`;
+        
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('call-recordings')
           .upload(fileName, fileItem.file);
