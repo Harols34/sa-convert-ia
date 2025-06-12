@@ -1,9 +1,11 @@
+
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { Session, User } from '@supabase/supabase-js';
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User as AppUser } from "@/lib/types";
 import { toast } from "sonner";
+import { cleanupAuthState, performGlobalSignOut } from "@/utils/authCleanup";
 
 // Define the context type
 type AuthContextType = {
@@ -105,6 +107,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         console.log("Initializing auth...");
         
+        // Clean up any corrupted auth state first
+        cleanupAuthState();
+        
         // Get initial session
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
@@ -191,11 +196,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [fetchUserData, createFallbackUser]);
 
-  // Sign-in function
+  // Enhanced sign-in function with better error handling
   const signIn = useCallback(async (email: string, password: string) => {
     setLoading(true);
     
     try {
+      console.log("Starting sign in process for:", email);
+      
+      // Clean up existing state first
+      cleanupAuthState();
+      
+      // Attempt global sign out first
+      await performGlobalSignOut(supabase);
+      
+      // Small delay to ensure cleanup
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -206,33 +222,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       }
       
-      console.log("Sign in successful for:", email);
+      if (data.session) {
+        console.log("Sign in successful for:", email);
+        // Don't navigate here, let the auth state change handler do it
+      }
     } catch (error: any) {
+      console.error("Sign in failed:", error);
       setLoading(false);
       throw error;
     }
   }, []);
 
-  // Sign-out function
+  // Enhanced sign-out function
   const signOut = useCallback(async () => {
     try {
-      console.log("Signing out...");
+      console.log("Starting sign out process...");
       
+      // Clean up state immediately
       setSession(null);
       setUser(null);
       
-      const { error } = await supabase.auth.signOut();
+      // Clean up storage
+      cleanupAuthState();
       
-      if (error) {
-        console.error("Error during sign out:", error);
-      }
+      // Attempt global sign out
+      await performGlobalSignOut(supabase);
       
-      navigate('/login');
+      // Force navigation to login
+      window.location.href = '/login';
     } catch (error) {
-      console.error("Unexpected error signing out:", error);
-      navigate('/login');
+      console.error("Error during sign out:", error);
+      // Force navigation even if sign out fails
+      window.location.href = '/login';
     }
-  }, [navigate]);
+  }, []);
 
   // Refresh session function
   const refreshUserSession = useCallback(async () => {
@@ -242,6 +265,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) {
         console.error("Error refreshing session:", error);
+        // If refresh fails, clean up and redirect to login
+        cleanupAuthState();
+        navigate('/login');
         return;
       }
       
@@ -251,8 +277,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error("Unexpected error refreshing session:", error);
+      cleanupAuthState();
+      navigate('/login');
     }
-  }, []);
+  }, [navigate]);
 
   // Update user data function
   const updateUser = useCallback(async (userData: Partial<AppUser>) => {

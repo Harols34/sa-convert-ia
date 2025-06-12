@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,7 +25,7 @@ export function useCallUpload() {
   const [totalCount, setTotalCount] = useState(0);
   const [processedFiles, setProcessedFiles] = useState<Set<string>>(new Set());
   const { selectedAccountId } = useAccount();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const navigate = useNavigate();
 
   // Verificar sesión al cargar el componente
@@ -34,6 +33,16 @@ export function useCallUpload() {
     const checkSession = async () => {
       try {
         console.log("Verificando sesión en CallUpload...");
+        
+        // Check if we have a valid session and user from AuthContext
+        if (session && user) {
+          console.log("Usuario autenticado desde contexto:", user.id);
+          setCurrentUser(user);
+          setSessionChecked(true);
+          return;
+        }
+        
+        // Fallback: check session directly
         const { data } = await supabase.auth.getSession();
         console.log("Estado de sesión en CallUpload:", data.session ? "Activa" : "No hay sesión");
         
@@ -52,36 +61,45 @@ export function useCallUpload() {
       } catch (error) {
         console.error("Error al verificar sesión:", error);
         toast.error("Error al verificar sesión");
-        setSessionChecked(true);
+        navigate("/login");
       }
     };
 
     checkSession();
-  }, [navigate]);
+  }, [navigate, session, user]);
 
   // Función para asegurar que existe la carpeta de la cuenta
   const ensureAccountFolder = async (accountId: string) => {
     try {
       console.log("Asegurando carpeta de cuenta para:", accountId);
       
-      const { data, error } = await supabase.rpc('ensure_account_folder', {
-        account_uuid: accountId
-      });
-
-      if (error) {
-        console.warn("No se pudo asegurar la carpeta de cuenta usando función:", error);
-        const keepPath = `${accountId}/.keep`;
-        const { error: uploadError } = await supabase.storage
-          .from('call-recordings')
-          .upload(keepPath, new Blob([''], { type: 'text/plain' }), {
-            cacheControl: '3600',
-            upsert: true
-          });
+      // Test if bucket exists by trying to upload a small test file
+      const testPath = `${accountId}/.keep`;
+      const testBlob = new Blob([''], { type: 'text/plain' });
+      
+      const { error: testError } = await supabase.storage
+        .from('call-recordings')
+        .upload(testPath, testBlob, {
+          cacheControl: '3600',
+          upsert: true
+        });
+      
+      if (testError) {
+        console.warn("Error al crear carpeta de cuenta:", testError);
         
-        if (uploadError && !uploadError.message.includes('already exists')) {
-          console.warn("No se pudo crear la carpeta de cuenta manualmente:", uploadError);
-        } else {
-          console.log("Carpeta de cuenta asegurada manualmente para:", accountId);
+        // Try using the database function as fallback
+        try {
+          const { data, error: rpcError } = await supabase.rpc('ensure_account_folder', {
+            account_uuid: accountId
+          });
+          
+          if (rpcError) {
+            console.warn("No se pudo asegurar la carpeta usando función RPC:", rpcError);
+          } else {
+            console.log("Carpeta de cuenta asegurada usando función RPC");
+          }
+        } catch (rpcError) {
+          console.warn("Error usando función RPC:", rpcError);
         }
       } else {
         console.log("Carpeta de cuenta asegurada exitosamente para:", accountId);
@@ -104,12 +122,16 @@ export function useCallUpload() {
     
     // Validar tipos de archivos
     const validFiles = uniqueFiles.filter(file => 
-      file.type.startsWith('audio/') || file.name.endsWith('.mp3') || file.name.endsWith('.wav') || file.name.endsWith('.m4a')
+      file.type.startsWith('audio/') || 
+      file.name.endsWith('.mp3') || 
+      file.name.endsWith('.wav') || 
+      file.name.endsWith('.m4a') ||
+      file.name.endsWith('.ogg')
     );
     
     if (validFiles.length !== uniqueFiles.length) {
       toast.warning(`Se han omitido ${uniqueFiles.length - validFiles.length} archivos no válidos`, {
-        description: "Solo se permiten archivos de audio (.mp3, .wav, .m4a)"
+        description: "Solo se permiten archivos de audio (.mp3, .wav, .m4a, .ogg)"
       });
     }
     
@@ -179,7 +201,7 @@ export function useCallUpload() {
     }
   };
 
-  // Procesar llamada individual
+  // Procesar llamada individual con mejor manejo de errores
   const processCall = async (fileData: FileItem, accountId: string) => {
     let callId = null;
     let progressInterval: any = null;
@@ -245,21 +267,29 @@ export function useCallUpload() {
       // Marcar el archivo como en procesamiento
       setProcessedFiles(prev => new Set(prev).add(fileData.file.name));
       
-      // Convertir file a ArrayBuffer para Supabase Storage
-      const arrayBuffer = await fileData.file.arrayBuffer();
-      
       // Upload to Supabase Storage usando account-specific sub-folder path
       const { data: storageData, error: storageError } = await supabase.storage
         .from('call-recordings')
-        .upload(filePath, arrayBuffer, {
-          contentType: fileData.file.type,
+        .upload(filePath, fileData.file, {
+          contentType: fileData.file.type || 'audio/mpeg',
           cacheControl: '3600',
           upsert: false
         });
         
       if (storageError) {
-        console.error("Error en la carga:", storageError);
-        throw storageError;
+        console.error("Error en la carga del storage:", storageError);
+        
+        // Provide more specific error messages
+        let errorMessage = "Error al subir archivo";
+        if (storageError.message?.includes("Duplicate")) {
+          errorMessage = "El archivo ya existe";
+        } else if (storageError.message?.includes("too large")) {
+          errorMessage = "Archivo demasiado grande";
+        } else if (storageError.message?.includes("not allowed")) {
+          errorMessage = "Tipo de archivo no permitido";
+        }
+        
+        throw new Error(errorMessage);
       }
       
       console.log("Carga exitosa:", storageData);
@@ -344,7 +374,7 @@ export function useCallUpload() {
           )
         );
         
-        toast.success(`Archivo ${originalFileName} procesado exitosamente en cuenta ${accountId}`);
+        toast.success(`Archivo ${originalFileName} procesado exitosamente`);
         
       } catch (processError) {
         console.error("Error al procesar la llamada:", processError);
@@ -359,7 +389,7 @@ export function useCallUpload() {
               ...f, 
               progress: 100, 
               status: "success",
-              error: "La carga se completó, procesamiento en curso" 
+              info: "Carga completa, procesamiento en segundo plano" 
             } : f
           )
         );
@@ -402,7 +432,7 @@ export function useCallUpload() {
     setTotalCount(filesToProcess.length);
     const results = [];
     const total = filesToProcess.length;
-    const batchSize = 5; // Reducir tamaño de lote para mejor estabilidad
+    const batchSize = 3; // Reducir para mejorar estabilidad
     
     setProcessedCount(0);
     
@@ -438,7 +468,7 @@ export function useCallUpload() {
       
       // Pausa entre lotes
       if (i + batchSize < total) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
       }
     }
     
@@ -447,7 +477,7 @@ export function useCallUpload() {
   };
 
   const uploadFiles = async (selectedPrompts?: { summaryPrompt?: string; feedbackPrompt?: string }) => {
-    if (!currentUser) {
+    if (!currentUser && !user) {
       console.error("No hay usuario autenticado");
       toast.error("No hay usuario autenticado", {
         description: "Por favor inicie sesión para subir archivos"
@@ -461,7 +491,7 @@ export function useCallUpload() {
       return;
     }
     
-    console.log("Iniciando proceso de carga con usuario:", currentUser.id, "cuenta:", selectedAccountId);
+    console.log("Iniciando proceso de carga con usuario:", (currentUser || user)?.id, "cuenta:", selectedAccountId);
     
     if (files.length === 0) {
       toast.error("No hay archivos seleccionados", {
@@ -486,7 +516,7 @@ export function useCallUpload() {
       setProcessedCount(0);
       
       const filesMessage = files.length > 1 ? `${files.length} archivos` : "1 archivo";
-      toast.info(`Procesando ${filesMessage} en cuenta ${selectedAccountId}`, {
+      toast.info(`Procesando ${filesMessage}`, {
         description: "Esto puede tomar algunos minutos"
       });
       
