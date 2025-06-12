@@ -1,0 +1,146 @@
+
+import { useState, useCallback } from "react";
+import { v4 as uuidv4 } from "uuid";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+
+export interface FileItem {
+  id: string;
+  file: File;
+  status: "idle" | "uploading" | "processing" | "success" | "error";
+  progress: number;
+  error?: string;
+  info?: string;
+}
+
+export function useCallUpload() {
+  const [files, setFiles] = useState<FileItem[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const { user } = useAuth();
+
+  const addFiles = useCallback((newFiles: File[]) => {
+    const fileItems: FileItem[] = newFiles.map((file) => ({
+      id: uuidv4(),
+      file,
+      status: "idle",
+      progress: 0,
+    }));
+    
+    setFiles((prev) => [...prev, ...fileItems]);
+  }, []);
+
+  const removeFile = useCallback((id: string) => {
+    setFiles((prev) => prev.filter((file) => file.id !== id));
+  }, []);
+
+  const uploadFiles = useCallback(async (prompts?: { summaryPrompt?: string; feedbackPrompt?: string }) => {
+    if (!user) {
+      toast.error("Debes estar autenticado para subir archivos");
+      return;
+    }
+
+    setIsUploading(true);
+    
+    try {
+      for (const fileItem of files) {
+        if (fileItem.status === "success") continue;
+        
+        setFiles(prev => prev.map(f => 
+          f.id === fileItem.id 
+            ? { ...f, status: "uploading", progress: 10 }
+            : f
+        ));
+
+        // Upload file to Supabase Storage
+        const fileName = `${Date.now()}-${fileItem.file.name}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('call-recordings')
+          .upload(fileName, fileItem.file);
+
+        if (uploadError) {
+          throw new Error(`Error uploading file: ${uploadError.message}`);
+        }
+
+        setFiles(prev => prev.map(f => 
+          f.id === fileItem.id 
+            ? { ...f, progress: 50 }
+            : f
+        ));
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('call-recordings')
+          .getPublicUrl(fileName);
+
+        // Create call record
+        const { data: callData, error: callError } = await supabase
+          .from('calls')
+          .insert({
+            title: fileItem.file.name.replace(/\.[^/.]+$/, ""),
+            audio_url: publicUrl,
+            status: 'pending',
+            progress: 0,
+            user_id: user.id
+          })
+          .select()
+          .single();
+
+        if (callError) {
+          throw new Error(`Error creating call record: ${callError.message}`);
+        }
+
+        setFiles(prev => prev.map(f => 
+          f.id === fileItem.id 
+            ? { ...f, status: "processing", progress: 75 }
+            : f
+        ));
+
+        // Process the call
+        const response = await fetch('/api/process-call', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            callId: callData.id,
+            audioUrl: publicUrl,
+            summaryPrompt: prompts?.summaryPrompt,
+            feedbackPrompt: prompts?.feedbackPrompt
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Error processing call');
+        }
+
+        setFiles(prev => prev.map(f => 
+          f.id === fileItem.id 
+            ? { ...f, status: "success", progress: 100 }
+            : f
+        ));
+      }
+
+      toast.success("Archivos procesados exitosamente");
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error(`Error: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      
+      setFiles(prev => prev.map(f => ({
+        ...f,
+        status: "error",
+        error: error instanceof Error ? error.message : 'Error desconocido'
+      })));
+    } finally {
+      setIsUploading(false);
+    }
+  }, [files, user]);
+
+  return {
+    files,
+    isUploading,
+    addFiles,
+    removeFile,
+    uploadFiles
+  };
+}
