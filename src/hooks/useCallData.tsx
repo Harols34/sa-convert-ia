@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Call, Feedback, BehaviorAnalysis } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -107,64 +106,57 @@ export function useCallData(id: string | undefined) {
         
         let segments: any[] = [];
         
-        // Mejorado parsing de transcripción para manejar diferentes formatos
+        // Enhanced transcription parsing with better error handling
         if (callData.transcription) {
           try {
             if (typeof callData.transcription === 'string') {
-              // Limpiar la cadena antes de parsear
+              // Clean the string before parsing
               let cleanTranscription = callData.transcription.trim();
               
-              // Si empieza con '[' es probablemente un array JSON
-              if (cleanTranscription.startsWith('[')) {
+              // Check if it's a "no transcription available" message
+              if (cleanTranscription.startsWith('No hay transcripción disponible')) {
+                console.log("No transcription available message detected");
+                segments = [];
+              }
+              // If it starts with '[' it's probably a JSON array
+              else if (cleanTranscription.startsWith('[')) {
                 try {
+                  // Enhanced JSON cleaning to handle malformed JSON
+                  // Remove any trailing commas before closing brackets
+                  cleanTranscription = cleanTranscription.replace(/,(\s*[\]}])/g, '$1');
+                  // Fix any unescaped quotes within strings
+                  cleanTranscription = cleanTranscription.replace(/([^\\])"/g, '$1\\"');
+                  // Remove any non-printable characters
+                  cleanTranscription = cleanTranscription.replace(/[\x00-\x1F\x7F]/g, '');
+                  
                   const parsedTranscription = JSON.parse(cleanTranscription);
                   if (Array.isArray(parsedTranscription)) {
-                    segments = parsedTranscription;
+                    segments = parsedTranscription.filter(item => 
+                      item && typeof item === 'object' && item.text
+                    );
                   } else {
                     console.warn("Transcription JSON is not an array:", parsedTranscription);
                     segments = [];
                   }
                 } catch (parseError) {
                   console.error("Error parsing transcription JSON:", parseError);
-                  console.log("Original transcription string:", cleanTranscription);
-                  // Si falla el parsing, tratar como texto plano
-                  segments = [{
-                    text: cleanTranscription,
-                    speaker: "agent",
-                    start: 0,
-                    end: 0
-                  }];
+                  console.log("Problematic JSON string (first 200 chars):", cleanTranscription.substring(0, 200));
+                  
+                  // Fallback: treat as text with timestamp format
+                  segments = parseTimestampedText(cleanTranscription);
                 }
               } else {
-                // Si no es JSON, tratar como texto plano con formato de timestamps
-                const lines = cleanTranscription.split('\n').filter(line => line.trim());
-                segments = lines.map((line, index) => {
-                  // Detectar formato [mm:ss] Speaker: text
-                  const timestampMatch = line.match(/^\[(\d+):(\d+)\]\s*(.+?):\s*(.+)$/);
-                  if (timestampMatch) {
-                    const [, minutes, seconds, speaker, text] = timestampMatch;
-                    return {
-                      text: text.trim(),
-                      speaker: speaker.toLowerCase().includes('agente') ? 'agent' : 'client',
-                      start: parseInt(minutes) * 60 + parseInt(seconds),
-                      end: parseInt(minutes) * 60 + parseInt(seconds) + 5 // Estimación
-                    };
-                  }
-                  // Formato fallback
-                  return {
-                    text: line,
-                    speaker: index % 2 === 0 ? 'agent' : 'client',
-                    start: index * 5,
-                    end: (index + 1) * 5
-                  };
-                });
+                // Parse as timestamped text format
+                segments = parseTimestampedText(cleanTranscription);
               }
               
               if (isMounted.current) {
                 setTranscriptSegments(segments);
               }
             } else if (Array.isArray(callData.transcription)) {
-              segments = callData.transcription;
+              segments = callData.transcription.filter(item => 
+                item && typeof item === 'object' && item.text
+              );
               if (isMounted.current) {
                 setTranscriptSegments(callData.transcription);
               }
@@ -274,6 +266,50 @@ export function useCallData(id: string | undefined) {
       isMounted.current = false;
     };
   }, [id]);
+
+  // Helper function to parse timestamped text format
+  function parseTimestampedText(text: string): any[] {
+    const lines = text.split('\n').filter(line => line.trim());
+    const segments: any[] = [];
+    
+    lines.forEach((line, index) => {
+      // Detect format [mm:ss] Speaker: text
+      const timestampMatch = line.match(/^\[(\d+):(\d+)\]\s*(.+?):\s*(.+)$/);
+      if (timestampMatch) {
+        const [, minutes, seconds, speaker, text] = timestampMatch;
+        segments.push({
+          text: text.trim(),
+          speaker: speaker.toLowerCase().includes('asesor') || speaker.toLowerCase().includes('agente') ? 'agent' : 'client',
+          start: parseInt(minutes) * 60 + parseInt(seconds),
+          end: parseInt(minutes) * 60 + parseInt(seconds) + 5 // Estimation
+        });
+      }
+      // Detect silence periods
+      else if (line.includes('Silencio:')) {
+        const silenceMatch = line.match(/^\[(\d+):(\d+)\]\s*Silencio:\s*(\d+)/);
+        if (silenceMatch) {
+          const [, minutes, seconds, duration] = silenceMatch;
+          segments.push({
+            text: `Silencio: ${duration} segundos`,
+            speaker: 'silence',
+            start: parseInt(minutes) * 60 + parseInt(seconds),
+            end: parseInt(minutes) * 60 + parseInt(seconds) + parseInt(duration)
+          });
+        }
+      }
+      // Fallback format for any other lines
+      else if (line.trim()) {
+        segments.push({
+          text: line,
+          speaker: index % 2 === 0 ? 'agent' : 'client',
+          start: index * 5,
+          end: (index + 1) * 5
+        });
+      }
+    });
+    
+    return segments;
+  }
 
   function validateBehaviorsAnalysis(data: any[]): BehaviorAnalysis[] {
     if (!Array.isArray(data)) {

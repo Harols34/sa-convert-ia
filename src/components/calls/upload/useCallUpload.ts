@@ -32,15 +32,26 @@ const sanitizeFileName = (fileName: string): string => {
   return sanitizedName + extension;
 };
 
-// Batch processing utility
+// Enhanced batch processing utility for large scale operations
 const processBatch = async <T>(
   items: T[],
   batchSize: number,
-  processor: (batch: T[]) => Promise<void>
+  processor: (batch: T[]) => Promise<void>,
+  onProgress?: (completed: number, total: number) => void
 ): Promise<void> => {
+  let completed = 0;
+  const total = items.length;
+  
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
     await processor(batch);
+    completed += batch.length;
+    onProgress?.(completed, total);
+    
+    // Add delay between large batches to prevent overwhelming the system
+    if (batch.length === batchSize && i + batchSize < items.length) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
   }
 };
 
@@ -96,145 +107,160 @@ export function useCallUpload() {
 
       console.log(`Starting batch processing of ${totalFiles} files`);
       
-      // Process files in batches for better performance
-      const BATCH_SIZE = 5; // Process 5 files at a time to avoid overwhelming the system
+      // Enhanced batch processing - scale up for large volumes
+      let BATCH_SIZE = 10; // Start with 10 files at a time
+      
+      // Adjust batch size based on total files for optimal performance
+      if (totalFiles >= 100) {
+        BATCH_SIZE = 20; // Increase batch size for large volumes
+        toast.info(`Procesando ${totalFiles} archivos en lotes optimizados para mejor rendimiento`);
+      } else if (totalFiles >= 50) {
+        BATCH_SIZE = 15;
+      }
+
       let processedCount = 0;
 
-      await processBatch(filesToProcess, BATCH_SIZE, async (batch) => {
-        // Process each file in the batch concurrently
-        const uploadPromises = batch.map(async (fileItem) => {
-          try {
-            setFiles(prev => prev.map(f => 
-              f.id === fileItem.id 
-                ? { ...f, status: "uploading", progress: 10, info: "Subiendo archivo..." }
-                : f
-            ));
+      await processBatch(
+        filesToProcess, 
+        BATCH_SIZE, 
+        async (batch) => {
+          // Process each file in the batch concurrently with better error handling
+          const uploadPromises = batch.map(async (fileItem) => {
+            try {
+              setFiles(prev => prev.map(f => 
+                f.id === fileItem.id 
+                  ? { ...f, status: "uploading", progress: 10, info: "Subiendo archivo..." }
+                  : f
+              ));
 
-            // Sanitize the file name and create a unique name
-            const sanitizedName = sanitizeFileName(fileItem.file.name);
-            const fileName = `${Date.now()}-${sanitizedName}`;
-            
-            console.log('Processing file:', sanitizedName);
-            console.log('Uploading to account folder:', selectedAccountId);
-            
-            // Upload to account-specific folder with retry logic
-            let uploadAttempts = 0;
-            let uploadData, uploadError;
-            
-            while (uploadAttempts < 3) {
-              const result = await supabase.storage
-                .from('call-recordings')
-                .upload(`${selectedAccountId}/${fileName}`, fileItem.file);
+              // Enhanced file name sanitization
+              const sanitizedName = sanitizeFileName(fileItem.file.name);
+              const fileName = `${Date.now()}-${sanitizedName}`;
               
-              uploadData = result.data;
-              uploadError = result.error;
+              console.log('Processing file:', sanitizedName);
+              console.log('Uploading to account folder:', selectedAccountId);
               
-              if (!uploadError) break;
+              // Upload with enhanced retry logic
+              let uploadAttempts = 0;
+              let uploadData, uploadError;
               
-              uploadAttempts++;
-              if (uploadAttempts < 3) {
-                console.log(`Upload attempt ${uploadAttempts} failed, retrying...`);
-                await new Promise(resolve => setTimeout(resolve, 1000 * uploadAttempts));
+              while (uploadAttempts < 3) {
+                const result = await supabase.storage
+                  .from('call-recordings')
+                  .upload(`${selectedAccountId}/${fileName}`, fileItem.file);
+                
+                uploadData = result.data;
+                uploadError = result.error;
+                
+                if (!uploadError) break;
+                
+                uploadAttempts++;
+                if (uploadAttempts < 3) {
+                  console.log(`Upload attempt ${uploadAttempts} failed, retrying...`);
+                  await new Promise(resolve => setTimeout(resolve, 1000 * uploadAttempts));
+                }
               }
+
+              if (uploadError) {
+                console.error('Storage upload error after retries:', uploadError);
+                throw new Error(`Error uploading file: ${uploadError.message}`);
+              }
+
+              setFiles(prev => prev.map(f => 
+                f.id === fileItem.id 
+                  ? { ...f, progress: 30, info: "Archivo subido, creando registro..." }
+                  : f
+              ));
+
+              // Get public URL
+              const { data: { publicUrl } } = supabase.storage
+                .from('call-recordings')
+                .getPublicUrl(`${selectedAccountId}/${fileName}`);
+
+              console.log('File uploaded successfully, creating call record...');
+
+              // Create call record with optimized data
+              const { data: callData, error: callError } = await supabase
+                .from('calls')
+                .insert({
+                  title: sanitizedName.replace(/\.[^/.]+$/, ""), // Remove extension for title
+                  filename: sanitizedName,
+                  agent_name: user.full_name || user.name || user.email || 'Usuario',
+                  agent_id: user.id,
+                  account_id: selectedAccountId,
+                  audio_url: publicUrl,
+                  status: 'pending',
+                  progress: 0
+                })
+                .select()
+                .single();
+
+              if (callError) {
+                console.error('Call record creation error:', callError);
+                throw new Error(`Error creating call record: ${callError.message}`);
+              }
+
+              setFiles(prev => prev.map(f => 
+                f.id === fileItem.id 
+                  ? { ...f, status: "processing", progress: 50, info: "Iniciando análisis..." }
+                  : f
+              ));
+
+              // Process the call using Supabase function with enhanced payload
+              const processPayload = {
+                callId: callData.id,
+                audioUrl: publicUrl,
+                summaryPrompt: config?.summaryPrompt,
+                feedbackPrompt: config?.feedbackPrompt,
+                selectedBehaviorIds: config?.selectedBehaviorIds || []
+              };
+
+              console.log('Processing call with enhanced analysis...');
+
+              const { data: processResult, error: processError } = await supabase.functions.invoke('process-call', {
+                body: processPayload
+              });
+
+              if (processError) {
+                console.error('Process call error:', processError);
+                throw new Error(`Error processing call: ${processError.message}`);
+              }
+
+              setFiles(prev => prev.map(f => 
+                f.id === fileItem.id 
+                  ? { ...f, status: "success", progress: 100, info: "Análisis completado" }
+                  : f
+              ));
+
+              processedCount++;
+              console.log(`File ${processedCount}/${totalFiles} processed successfully`);
+
+            } catch (error) {
+              console.error(`Error processing file ${fileItem.file.name}:`, error);
+              setFiles(prev => prev.map(f => 
+                f.id === fileItem.id 
+                  ? { 
+                      ...f, 
+                      status: "error", 
+                      error: error instanceof Error ? error.message : 'Error desconocido',
+                      info: "Error en el procesamiento"
+                    }
+                  : f
+              ));
             }
+          });
 
-            if (uploadError) {
-              console.error('Storage upload error after retries:', uploadError);
-              throw new Error(`Error uploading file: ${uploadError.message}`);
-            }
-
-            setFiles(prev => prev.map(f => 
-              f.id === fileItem.id 
-                ? { ...f, progress: 30, info: "Archivo subido, creando registro..." }
-                : f
-            ));
-
-            // Get public URL
-            const { data: { publicUrl } } = supabase.storage
-              .from('call-recordings')
-              .getPublicUrl(`${selectedAccountId}/${fileName}`);
-
-            console.log('File uploaded successfully, creating call record...');
-
-            // Create call record with optimized data
-            const { data: callData, error: callError } = await supabase
-              .from('calls')
-              .insert({
-                title: sanitizedName.replace(/\.[^/.]+$/, ""), // Remove extension for title
-                filename: sanitizedName,
-                agent_name: user.full_name || user.name || user.email || 'Usuario',
-                agent_id: user.id,
-                account_id: selectedAccountId,
-                audio_url: publicUrl,
-                status: 'pending',
-                progress: 0
-              })
-              .select()
-              .single();
-
-            if (callError) {
-              console.error('Call record creation error:', callError);
-              throw new Error(`Error creating call record: ${callError.message}`);
-            }
-
-            setFiles(prev => prev.map(f => 
-              f.id === fileItem.id 
-                ? { ...f, status: "processing", progress: 50, info: "Iniciando análisis..." }
-                : f
-            ));
-
-            // Process the call using Supabase function
-            const processPayload = {
-              callId: callData.id,
-              audioUrl: publicUrl,
-              summaryPrompt: config?.summaryPrompt,
-              feedbackPrompt: config?.feedbackPrompt,
-              selectedBehaviorIds: config?.selectedBehaviorIds || []
-            };
-
-            console.log('Processing call with enhanced analysis...');
-
-            const { data: processResult, error: processError } = await supabase.functions.invoke('process-call', {
-              body: processPayload
-            });
-
-            if (processError) {
-              console.error('Process call error:', processError);
-              throw new Error(`Error processing call: ${processError.message}`);
-            }
-
-            setFiles(prev => prev.map(f => 
-              f.id === fileItem.id 
-                ? { ...f, status: "success", progress: 100, info: "Análisis completado" }
-                : f
-            ));
-
-            processedCount++;
-            console.log(`File ${processedCount}/${totalFiles} processed successfully`);
-
-          } catch (error) {
-            console.error(`Error processing file ${fileItem.file.name}:`, error);
-            setFiles(prev => prev.map(f => 
-              f.id === fileItem.id 
-                ? { 
-                    ...f, 
-                    status: "error", 
-                    error: error instanceof Error ? error.message : 'Error desconocido',
-                    info: "Error en el procesamiento"
-                  }
-                : f
-            ));
+          // Wait for all files in the batch to complete
+          await Promise.allSettled(uploadPromises);
+        },
+        (completed, total) => {
+          // Progress callback for large batches
+          if (total >= 50) {
+            const percentage = Math.round((completed / total) * 100);
+            toast.info(`Progreso: ${completed}/${total} archivos procesados (${percentage}%)`);
           }
-        });
-
-        // Wait for all files in the batch to complete
-        await Promise.allSettled(uploadPromises);
-        
-        // Small delay between batches to prevent overwhelming the system
-        if (batch.length === BATCH_SIZE) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
         }
-      });
+      );
 
       const successCount = files.filter(f => f.status === "success").length;
       const errorCount = files.filter(f => f.status === "error").length;
