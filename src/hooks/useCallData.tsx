@@ -110,16 +110,38 @@ export function useCallData(id: string | undefined) {
         if (callData.transcription) {
           try {
             if (typeof callData.transcription === 'string') {
-              try {
-                const parsedTranscription = JSON.parse(callData.transcription);
-                segments = parsedTranscription;
-                if (isMounted.current) {
-                  setTranscriptSegments(parsedTranscription);
+              // Check if it's JSON or plain text
+              if (callData.transcription.trim().startsWith('[') || callData.transcription.trim().startsWith('{')) {
+                try {
+                  const parsedTranscription = JSON.parse(callData.transcription);
+                  segments = Array.isArray(parsedTranscription) ? parsedTranscription : [parsedTranscription];
+                  if (isMounted.current) {
+                    setTranscriptSegments(segments);
+                  }
+                } catch (parseError) {
+                  console.log("Transcription is plain text, not JSON");
+                  // Create a simple segment for plain text
+                  segments = [{
+                    speaker: "agent",
+                    text: callData.transcription,
+                    start: 0,
+                    end: 0
+                  }];
+                  if (isMounted.current) {
+                    setTranscriptSegments(segments);
+                  }
                 }
-              } catch (parseError) {
-                console.error("Error parsing transcription JSON:", parseError);
+              } else {
+                // Plain text transcription
+                console.log("Plain text transcription detected");
+                segments = [{
+                  speaker: "agent",
+                  text: callData.transcription,
+                  start: 0,
+                  end: 0
+                }];
                 if (isMounted.current) {
-                  setTranscriptSegments([]);
+                  setTranscriptSegments(segments);
                 }
               }
             } else if (Array.isArray(callData.transcription)) {
@@ -198,10 +220,45 @@ export function useCallData(id: string | undefined) {
               };
               
               callObject.feedback = typedFeedback;
+            } else {
+              // Create default "Pendiente por generar" feedback if none exists
+              console.log("No feedback found, creating default 'Pendiente por generar' feedback");
+              const defaultFeedback: Feedback = {
+                positive: ["Pendiente por generar"],
+                negative: ["Pendiente por generar"],
+                opportunities: ["Pendiente por generar"],
+                score: 0,
+                behaviors_analysis: [],
+                call_id: callData.id,
+                id: `pending-${callData.id}`,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                sentiment: "neutral",
+                topics: [],
+                entities: []
+              };
+              
+              callObject.feedback = defaultFeedback;
             }
           } catch (error) {
             console.error("Error loading feedback:", error);
-            // Continue without feedback data
+            // Create default feedback on error
+            const defaultFeedback: Feedback = {
+              positive: ["Pendiente por generar"],
+              negative: ["Pendiente por generar"],
+              opportunities: ["Pendiente por generar"],
+              score: 0,
+              behaviors_analysis: [],
+              call_id: callData.id,
+              id: `pending-${callData.id}`,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              sentiment: "neutral",
+              topics: [],
+              entities: []
+            };
+            
+            callObject.feedback = defaultFeedback;
           }
         }
         

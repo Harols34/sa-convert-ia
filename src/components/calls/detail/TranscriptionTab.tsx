@@ -31,20 +31,40 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
     );
   }
 
-  // Parse transcript segments if needed
+  // Parse transcript segments - handle both JSON and plain text
   let segments = transcriptSegments;
 
-  if (segments.length === 0 && typeof call.transcription === 'string') {
+  if (segments.length === 0 && call.transcription) {
     try {
-      segments = JSON.parse(call.transcription);
+      // First try to parse as JSON
+      if (typeof call.transcription === 'string' && call.transcription.trim().startsWith('[')) {
+        segments = JSON.parse(call.transcription);
+      } else {
+        // If it's plain text, create a simple segment
+        segments = [{
+          speaker: "agent",
+          text: call.transcription,
+          start: 0,
+          end: 0
+        }];
+      }
     } catch (e) {
-      console.error("Error parsing transcript segments:", e);
-      segments = [];
+      console.log("Transcription is plain text, not JSON segments");
+      // Create a simple segment for plain text transcription
+      segments = [{
+        speaker: "agent", 
+        text: call.transcription,
+        start: 0,
+        end: 0
+      }];
     }
   }
 
   // Enhanced silence detection - more strict detection
   const silences = useMemo(() => {
+    // Only calculate silences if we have proper segments with timing
+    if (!Array.isArray(segments) || segments.length === 0) return [];
+    
     // First, identify segments explicitly marked as silence
     const explicitSilences = segments
       .filter(segment => 
@@ -63,7 +83,9 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
       .filter(segment => 
         segment.speaker !== "silence" && 
         !segment.text?.toLowerCase().includes("silencio") &&
-        !segment.text?.toLowerCase().includes("silence")
+        !segment.text?.toLowerCase().includes("silence") &&
+        typeof segment.start === 'number' &&
+        typeof segment.end === 'number'
       )
       .sort((a, b) => (a.start || 0) - (b.start || 0));
     
@@ -92,6 +114,8 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
 
   // Normalize speaker roles without using keyword detection
   const processedSegments = useMemo(() => {
+    if (!Array.isArray(segments)) return [];
+    
     return segments.map(segment => {
       // Create a copy of the segment to avoid mutating the original
       const processedSegment = { ...segment };
@@ -217,43 +241,45 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
     <Card className="glass-card dark:glass-card-dark p-6">
       <div className="space-y-6">
         {/* Speaker statistics section - Enhanced with detailed time information */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex flex-col p-4 bg-blue-100 dark:bg-blue-900/30 rounded-md">
-            <div className="flex items-center space-x-2 mb-2">
-              <UserRound className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <span className="font-medium">Asesor</span>
+        {speakingTimeStats.totalTime > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex flex-col p-4 bg-blue-100 dark:bg-blue-900/30 rounded-md">
+              <div className="flex items-center space-x-2 mb-2">
+                <UserRound className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <span className="font-medium">Asesor</span>
+              </div>
+              <div className="text-2xl font-bold mb-1">{speakerStats?.porcentaje_asesor || speakingTimeStats.agentPercentage || 0}%</div>
+              <div className="text-sm text-muted-foreground">del tiempo hablado</div>
+              <div className="mt-2 text-sm font-medium">
+                Tiempo: {formatDuration(speakingTimeStats.agentTime)}
+              </div>
             </div>
-            <div className="text-2xl font-bold mb-1">{speakerStats?.porcentaje_asesor || speakingTimeStats.agentPercentage || 0}%</div>
-            <div className="text-sm text-muted-foreground">del tiempo hablado</div>
-            <div className="mt-2 text-sm font-medium">
-              Tiempo: {formatDuration(speakingTimeStats.agentTime)}
+            
+            <div className="flex flex-col p-4 bg-green-100 dark:bg-green-900/30 rounded-md">
+              <div className="flex items-center space-x-2 mb-2">
+                <User className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <span className="font-medium">Cliente</span>
+              </div>
+              <div className="text-2xl font-bold mb-1">{speakerStats?.porcentaje_cliente || speakingTimeStats.clientPercentage || 0}%</div>
+              <div className="text-sm text-muted-foreground">del tiempo hablado</div>
+              <div className="mt-2 text-sm font-medium">
+                Tiempo: {formatDuration(speakingTimeStats.clientTime)}
+              </div>
+            </div>
+            
+            <div className="flex flex-col p-4 bg-gray-100 dark:bg-gray-800/50 rounded-md">
+              <div className="flex items-center space-x-2 mb-2">
+                <VolumeX className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                <span className="font-medium">Silencios</span>
+              </div>
+              <div className="text-2xl font-bold mb-1">{silences.length || 0}</div>
+              <div className="text-sm text-muted-foreground">silencios prolongados</div>
+              <div className="mt-2 text-sm font-medium">
+                Duración total: {formatDuration(speakingTimeStats.silenceTime)}
+              </div>
             </div>
           </div>
-          
-          <div className="flex flex-col p-4 bg-green-100 dark:bg-green-900/30 rounded-md">
-            <div className="flex items-center space-x-2 mb-2">
-              <User className="h-5 w-5 text-green-600 dark:text-green-400" />
-              <span className="font-medium">Cliente</span>
-            </div>
-            <div className="text-2xl font-bold mb-1">{speakerStats?.porcentaje_cliente || speakingTimeStats.clientPercentage || 0}%</div>
-            <div className="text-sm text-muted-foreground">del tiempo hablado</div>
-            <div className="mt-2 text-sm font-medium">
-              Tiempo: {formatDuration(speakingTimeStats.clientTime)}
-            </div>
-          </div>
-          
-          <div className="flex flex-col p-4 bg-gray-100 dark:bg-gray-800/50 rounded-md">
-            <div className="flex items-center space-x-2 mb-2">
-              <VolumeX className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-              <span className="font-medium">Silencios</span>
-            </div>
-            <div className="text-2xl font-bold mb-1">{silences.length || 0}</div>
-            <div className="text-sm text-muted-foreground">silencios prolongados</div>
-            <div className="mt-2 text-sm font-medium">
-              Duración total: {formatDuration(speakingTimeStats.silenceTime)}
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* Silence summary section - Enhanced with detailed information */}
         {silences.length > 0 && (
@@ -354,7 +380,7 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
                             {segment.text}
                           </div>
                         )}
-                        {segment.start !== undefined && segment.end !== undefined && (
+                        {segment.start !== undefined && segment.end !== undefined && segment.start > 0 && (
                           <div className="text-xs text-muted-foreground whitespace-nowrap">
                             {formatTime(segment.start)} - {formatTime(segment.end)}
                           </div>
