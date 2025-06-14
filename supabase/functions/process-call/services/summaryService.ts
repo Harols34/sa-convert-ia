@@ -38,26 +38,27 @@ export async function generateSummary(transcription: string, customPrompt?: stri
   }
 
   try {
-    const defaultPrompt = `Analiza ÚNICAMENTE la siguiente transcripción de UNA SOLA LLAMADA y proporciona un resumen conciso y profesional.
+    const defaultPrompt = `Analiza ÚNICAMENTE la siguiente transcripción de UNA SOLA LLAMADA. La transcripción incluye marcas de tiempo [MM:SS] para indicar cuándo comienza cada intervención. Tu tarea es generar un resumen profesional y objetivo, basándote ESTRICTA Y EXCLUSIVAMENTE en el contenido de la transcripción. NO inventes, NO supongas, y NO añadas información que no esté explícitamente mencionada.
 
-IMPORTANTE: Esta es la transcripción de una llamada específica - NO consideres otras llamadas, grabaciones o contextos externos.
+IMPORTANTE:
+- Tu análisis debe ser 100% fiel a la transcripción. Si un tema no se menciona, no lo incluyas.
+- No hagas suposiciones sobre costos, cantidad de dispositivos, o cualquier otro detalle si no está en el texto.
+- Si la transcripción es demasiado corta o no es clara, indícalo.
 
 TRANSCRIPCIÓN DE LA LLAMADA:
 ${transcription}
 
 Proporciona un resumen que incluya:
 
-1. **Motivo principal de la llamada**: ¿Por qué contactó el cliente?
-2. **Puntos clave discutidos**: Los temas más importantes tratados
+1. **Motivo principal de la llamada**: ¿Por qué contactó la persona?
+2. **Puntos clave discutidos**: Los temas más importantes tratados. Cita textualmente fragmentos si es necesario para justificar los puntos.
 3. **Resolución o resultado**: ¿Cómo se resolvió la consulta o qué se acordó?
-4. **Próximos pasos**: Si se mencionaron acciones futuras
+4. **Próximos pasos**: Si se mencionaron acciones futuras.
 
-INSTRUCCIONES:
-- Mantén el resumen entre 100-200 palabras
-- Usa un tono profesional y objetivo
-- Basa tu análisis ÚNICAMENTE en esta transcripción
-- Si la transcripción es unclear o contiene principalmente ruido/mensajes automáticos, indica "Transcripción no clara para análisis"
-- Si no hay suficiente información, indica qué falta específicamente`;
+INSTRUCCIONES ADICIONALES:
+- Mantén el resumen entre 100-200 palabras.
+- Si la transcripción no es clara o no contiene una conversación real, indica "Transcripción no concluyente para análisis".
+- Si no hay suficiente información para un punto, escribe "No se menciona".`;
 
     const promptToUse = customPrompt || defaultPrompt;
 
@@ -72,7 +73,7 @@ INSTRUCCIONES:
         messages: [
           {
             role: 'system',
-            content: 'Eres un analista experto en resúmenes de llamadas. Generas resúmenes precisos basados únicamente en la transcripción proporcionada, sin hacer suposiciones sobre otras llamadas o contextos.'
+            content: 'Eres un analista experto en resúmenes de llamadas. Tu principal cualidad es la precisión y la fidelidad al texto original. Nunca inventas información. Generas resúmenes basados únicamente en la transcripción proporcionada.'
           },
           {
             role: 'user',
@@ -80,7 +81,7 @@ INSTRUCCIONES:
           }
         ],
         max_tokens: 500,
-        temperature: 0.3,
+        temperature: 0.1,
       }),
     });
 

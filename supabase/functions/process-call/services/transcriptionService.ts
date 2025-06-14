@@ -1,7 +1,7 @@
 
 import OpenAI from "https://esm.sh/openai@4.28.0";
 
-export async function transcribeAudio(audioUrl: string): Promise<string> {
+export async function transcribeAudio(audioUrl: string): Promise<any> {
   const apiKey = Deno.env.get('API_DE_OPENAI');
   
   if (!apiKey) {
@@ -39,14 +39,15 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
 
     console.log('Transcription completed successfully');
     
-    if (!transcription.text) {
-      throw new Error('No transcription text returned from OpenAI');
+    if (!transcription) {
+      throw new Error('No transcription returned from OpenAI');
     }
 
-    return transcription.text;
+    return transcription;
     
   } catch (error) {
     console.error('Error in transcription:', error);
     throw new Error(`Transcription failed: ${error.message}`);
   }
 }
+
