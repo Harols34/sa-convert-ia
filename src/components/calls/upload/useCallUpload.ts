@@ -22,7 +22,7 @@ const sanitizeFileName = (fileName: string): string => {
   const name = lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
   const extension = lastDotIndex > 0 ? fileName.substring(lastDotIndex) : '';
   
-  // Sanitize the name part only
+  // Sanitize the name part only - removing all problematic characters
   const sanitizedName = name
     .replace(/[{}[\]()]/g, '_') // Remove braces, brackets, parentheses
     .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace other special chars with underscores
@@ -121,7 +121,7 @@ export function useCallUpload() {
           .insert({
             title: sanitizedName.replace(/\.[^/.]+$/, ""), // Remove extension for title
             filename: sanitizedName,
-            agent_name: user.user_metadata?.full_name || user.email || 'Usuario',
+            agent_name: user.full_name || user.name || user.email || 'Usuario',
             agent_id: user.id,
             account_id: selectedAccountId,
             audio_url: publicUrl,
