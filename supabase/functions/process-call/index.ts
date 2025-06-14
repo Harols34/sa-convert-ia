@@ -128,7 +128,7 @@ serve(async (req) => {
     }
 
     console.log(`Successfully processed call ${callId} for account ${callData.account_id}`);
-    console.log('Final transcription length:', transcription.length);
+    console.log('Final transcription length:', transcriptionResult.text.length);
     console.log('Used custom prompts:', {
       summary: !!summaryPrompt,
       feedback: !!feedbackPrompt
@@ -140,7 +140,7 @@ serve(async (req) => {
         callId,
         accountId: callData.account_id,
         message: 'Call processed successfully with transcription',
-        transcriptionLength: transcription.length,
+        transcriptionLength: transcriptionResult.text.length,
         usedCustomPrompts: {
           summary: !!summaryPrompt,
           feedback: !!feedbackPrompt
