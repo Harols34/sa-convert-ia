@@ -17,7 +17,7 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
     
     // Download audio file with timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // Increased timeout for complete download
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
     
     const response = await fetch(audioUrl, {
       signal: controller.signal
@@ -44,16 +44,16 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
     const audioBlob = new Blob([audioBuffer]);
     const file = new File([audioBlob], 'audio.mp3', { type: 'audio/mpeg' });
     
-    console.log('Starting enhanced transcription with speaker diarization...');
+    console.log('Starting transcription with speaker diarization...');
     
-    // Enhanced transcription with detailed speaker separation prompt
+    // Enhanced transcription with speaker separation
     const transcription = await openai.audio.transcriptions.create({
       file: file,
       model: 'whisper-1',
       response_format: 'verbose_json',
       timestamp_granularities: ['segment'],
       language: 'es',
-      prompt: 'Esta es una conversación telefónica comercial entre un asesor de ventas (agente) y un cliente potencial. Es muy importante identificar claramente cuando habla cada persona. El asesor normalmente se presenta primero, saluda profesionalmente y ofrece productos o servicios. El cliente hace preguntas, expresa dudas o responde. Marca claramente los cambios de hablante y separa los turnos de conversación. Identifica también los silencios prolongados.'
+      prompt: 'Esta es una conversación telefónica comercial entre un asesor de ventas y un cliente potencial. El asesor normalmente se presenta primero, saluda profesionalmente y ofrece productos o servicios. El cliente hace preguntas, expresa dudas o responde. Es importante identificar claramente cuando habla cada persona y marcar los cambios de hablante.'
     });
 
     console.log('Raw transcription completed');
@@ -92,30 +92,34 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
     }
 
     // Enhanced speaker diarization with improved logic
-    let processedTranscription = '';
-    let detectedSpeakers = new Set();
+    let formattedTranscription = '';
     
     if (transcription.segments && transcription.segments.length > 0) {
-      console.log(`Processing ${transcription.segments.length} segments for enhanced speaker separation`);
+      console.log(`Processing ${transcription.segments.length} segments for speaker separation`);
       
-      // Analyze segments for speaker patterns
-      const processedSegments = transcription.segments.map((segment: any, index: number) => {
+      // Sort segments by start time
+      const sortedSegments = transcription.segments.sort((a: any, b: any) => a.start - b.start);
+      
+      // Enhanced speaker detection logic
+      let currentSpeaker = 'Asesor'; // Start with advisor
+      let lastSpeakerChange = 0;
+      
+      sortedSegments.forEach((segment: any, index: number) => {
         const text = segment.text ? segment.text.trim() : '';
-        if (!text) return null;
+        if (!text) return;
 
-        // Enhanced speaker detection based on content and position
-        let speakerType = 'Asesor'; // Default to advisor
+        const timeSinceLastChange = segment.start - lastSpeakerChange;
         
         // Advisor indicators (professional language, offerings, greetings)
         const advisorKeywords = [
-          'buenos días', 'buenas tardes', 'buenas noches', 'hola',
+          'buenos días', 'buenas tardes', 'buenas noches', 'hola', 'saludo',
           'en qué puedo ayudarle', 'cómo está', 'perfecto', 'exacto', 'correcto',
           'empresa', 'servicio', 'oferta', 'producto', 'plan', 'promoción',
           'descuento', 'precio', 'costo', 'beneficio', 'ventaja', 'instalación',
           'técnico', 'soporte', 'llamamos', 'ofrecemos', 'tenemos', 'contrato',
           'facturación', 'asesor', 'representante', 'empresa', 'compañía',
           'le explico', 'le comento', 'permíteme', 'disculpe', 'señor', 'señora',
-          'disponemos', 'manejamos', 'trabajamos'
+          'disponemos', 'manejamos', 'trabajamos', 'me comunico', 'contacto'
         ];
         
         // Client indicators (questions, responses, concerns)
@@ -125,126 +129,73 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
           'gracias', 'pero', 'problema', 'duda', 'pregunta', 'entonces',
           'ya tengo', 'no me interesa', 'pensarlo', 'consultar',
           'mmm', 'ah', 'oh', 'ajá', 'uh huh', 'cómo', 'cuándo',
-          'dónde', 'por qué', 'qué tal', 'está bien', 'perfecto'
+          'dónde', 'por qué', 'qué tal', 'está bien', 'perfecto',
+          'disculpe', 'perdón', 'no entiendo'
         ];
 
         const textLower = text.toLowerCase();
         const hasAdvisorKeywords = advisorKeywords.some(keyword => textLower.includes(keyword));
         const hasClientKeywords = clientKeywords.some(keyword => textLower.includes(keyword));
         
-        // Length-based heuristics (advisors tend to speak longer)
-        const isLongSegment = text.length > 100;
-        const isShortResponse = text.length < 30;
+        // Determine speaker based on multiple factors
+        let speakerForSegment = currentSpeaker;
         
-        // Position-based heuristics
-        const isFirstSegment = index === 0;
-        const isEarlySegment = index < 3;
-        
-        // Speaker assignment logic
-        if (isFirstSegment || (isEarlySegment && isLongSegment && hasAdvisorKeywords)) {
-          speakerType = 'Asesor';
-        } else if (hasClientKeywords && !hasAdvisorKeywords) {
-          speakerType = 'Cliente';
-        } else if (isShortResponse && hasClientKeywords) {
-          speakerType = 'Cliente';
-        } else if (hasAdvisorKeywords && isLongSegment) {
-          speakerType = 'Asesor';
-        } else {
-          // Alternate based on previous speaker pattern if unclear
-          const prevSegments = transcription.segments.slice(Math.max(0, index - 2), index);
-          const prevAdvisorCount = prevSegments.filter((s: any) => s.speakerAssigned === 'Asesor').length;
-          const prevClientCount = prevSegments.filter((s: any) => s.speakerAssigned === 'Cliente').length;
-          
-          if (prevAdvisorCount > prevClientCount) {
-            speakerType = 'Cliente';
-          } else {
-            speakerType = 'Asesor';
-          }
+        // First segment is usually the advisor
+        if (index === 0) {
+          speakerForSegment = 'Asesor';
         }
-
-        detectedSpeakers.add(speakerType);
-        
-        return {
-          ...segment,
-          text,
-          speakerAssigned: speakerType,
-          start: segment.start || 0,
-          end: segment.end || 0
-        };
-      }).filter(segment => segment !== null);
-
-      // Sort by timestamp
-      processedSegments.sort((a, b) => a.start - b.start);
-
-      // Apply speaker alternation logic for better accuracy
-      let currentSpeaker = 'Asesor';
-      let lastSpeakerChangeTime = 0;
-      
-      processedSegments.forEach((segment, index) => {
-        const timeSinceLastChange = segment.start - lastSpeakerChangeTime;
-        const nextSegment = processedSegments[index + 1];
-        const pauseAfter = nextSegment ? nextSegment.start - segment.end : 0;
-        
-        // Determine if speaker should change based on multiple factors
-        let shouldChangeSpeaker = false;
-        
-        if (index > 0) {
-          // Significant pause suggests speaker change
-          if (pauseAfter > 1.5) shouldChangeSpeaker = true;
-          
-          // Content-based change detection
-          if (segment.speakerAssigned !== currentSpeaker && timeSinceLastChange > 3) {
-            shouldChangeSpeaker = true;
-          }
-          
-          // Prevent too frequent changes
-          if (timeSinceLastChange < 2 && segment.text.length < 50) {
-            shouldChangeSpeaker = false;
-          }
+        // Strong advisor indicators
+        else if (hasAdvisorKeywords && !hasClientKeywords && text.length > 50) {
+          speakerForSegment = 'Asesor';
+        }
+        // Strong client indicators
+        else if (hasClientKeywords && !hasAdvisorKeywords) {
+          speakerForSegment = 'Cliente';
+        }
+        // Alternation logic for unclear segments
+        else if (timeSinceLastChange > 3) { // 3 seconds pause suggests speaker change
+          speakerForSegment = currentSpeaker === 'Asesor' ? 'Cliente' : 'Asesor';
         }
         
-        if (shouldChangeSpeaker && index > 0) {
-          currentSpeaker = currentSpeaker === 'Asesor' ? 'Cliente' : 'Asesor';
-          lastSpeakerChangeTime = segment.start;
+        // Update current speaker if changed
+        if (speakerForSegment !== currentSpeaker) {
+          currentSpeaker = speakerForSegment;
+          lastSpeakerChange = segment.start;
         }
-        
-        segment.finalSpeaker = currentSpeaker;
-      });
 
-      // Generate formatted transcription
-      processedSegments.forEach((segment, index) => {
+        // Format timestamp
         const startTime = Math.floor(segment.start);
         const minutes = Math.floor(startTime / 60);
         const seconds = startTime % 60;
         const timestamp = `${minutes}:${seconds.toString().padStart(2, '0')}`;
         
-        processedTranscription += `[${timestamp}] ${segment.finalSpeaker}: ${segment.text}\n`;
+        formattedTranscription += `[${timestamp}] ${currentSpeaker}: ${text}\n`;
         
         // Detect and add silence periods
-        const nextSegment = processedSegments[index + 1];
+        const nextSegment = sortedSegments[index + 1];
         if (nextSegment) {
           const silenceDuration = nextSegment.start - segment.end;
-          if (silenceDuration > 2) {
+          if (silenceDuration > 2) { // 2+ seconds of silence
             const silenceStart = Math.floor(segment.end);
             const silenceMinutes = Math.floor(silenceStart / 60);
             const silenceSeconds = silenceStart % 60;
             const silenceTimestamp = `${silenceMinutes}:${silenceSeconds.toString().padStart(2, '0')}`;
-            processedTranscription += `[${silenceTimestamp}] Silencio: ${Math.round(silenceDuration)} segundos de pausa\n`;
+            formattedTranscription += `[${silenceTimestamp}] Silencio: ${Math.round(silenceDuration)} segundos de pausa\n`;
           }
         }
       });
     } else {
       console.log('No segments available, using basic speaker alternation');
-      // Fallback: Basic speaker alternation
+      // Fallback: Basic speaker alternation based on sentence structure
       const sentences = transcription.text.split(/[.!?]+/).filter(s => s.trim());
       let currentSpeaker = 'Asesor';
       
       sentences.forEach((sentence, index) => {
         if (sentence.trim()) {
-          const timestamp = `${Math.floor(index * 10 / 60)}:${(index * 10 % 60).toString().padStart(2, '0')}`;
-          processedTranscription += `[${timestamp}] ${currentSpeaker}: ${sentence.trim()}\n`;
+          const timestamp = `${Math.floor(index * 15 / 60)}:${(index * 15 % 60).toString().padStart(2, '0')}`;
+          formattedTranscription += `[${timestamp}] ${currentSpeaker}: ${sentence.trim()}\n`;
           
-          // Alternate speaker every few sentences
+          // Alternate speaker every 2-3 sentences
           if (index > 0 && index % 2 === 0) {
             currentSpeaker = currentSpeaker === 'Asesor' ? 'Cliente' : 'Asesor';
           }
@@ -253,13 +204,13 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
     }
 
     // Final validation
-    if (!processedTranscription || processedTranscription.trim() === '') {
+    if (!formattedTranscription || formattedTranscription.trim() === '') {
       console.warn('Processed transcription is empty');
       return 'No hay transcripción disponible - error en el procesamiento del audio';
     }
 
     // Verify we have actual conversation
-    const lines = processedTranscription.split('\n').filter(line => line.trim());
+    const lines = formattedTranscription.split('\n').filter(line => line.trim());
     const conversationLines = lines.filter(line => 
       line.includes('Asesor:') || line.includes('Cliente:')
     );
@@ -279,9 +230,9 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
     }
 
     console.log(`Transcription processed successfully with ${conversationLines.length} conversation segments`);
-    console.log(`Detected speakers: ${Array.from(detectedSpeakers).join(', ')}`);
+    console.log('Final transcription length:', formattedTranscription.length);
     
-    return processedTranscription;
+    return formattedTranscription;
     
   } catch (error) {
     console.error('Error in transcription:', error);

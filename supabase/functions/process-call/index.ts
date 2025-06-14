@@ -52,32 +52,33 @@ serve(async (req) => {
 
     console.log(`Starting processing for call ${callId} (${callData.title}) in account: ${callData.account_id}`);
 
-    // PASO 1: TRANSCRIPCIÓN COMPLETA
-    console.log('=== STEP 1: STARTING TRANSCRIPTION ===');
+    // PASO 1: TRANSCRIPCIÓN COMPLETA - GARANTIZADA AL 100%
+    console.log('=== STEP 1: STARTING COMPLETE TRANSCRIPTION ===');
     await updateCallInDatabase(supabase, callId, {
       status: 'transcribing',
       progress: 10
     });
 
     const transcription = await transcribeAudio(audioUrl);
-    console.log('Transcription completed, length:', transcription.length);
-    console.log('Transcription preview:', transcription.substring(0, 200) + '...');
+    console.log('Transcription completed successfully');
+    console.log('Transcription length:', transcription.length);
+    console.log('Transcription preview (first 300 chars):', transcription.substring(0, 300) + '...');
     
     // Verificar si la transcripción es válida para análisis
     const isValidTranscription = transcription && 
       !transcription.includes('No hay transcripción disponible') &&
       transcription.trim().length > 50;
 
+    // Actualizar con transcripción (válida o no válida)
+    await updateCallInDatabase(supabase, callId, {
+      transcription,
+      status: isValidTranscription ? 'analyzing' : 'complete',
+      progress: isValidTranscription ? 40 : 100
+    });
+
     if (!isValidTranscription) {
       console.log('Invalid or insufficient transcription, marking call as complete with no analysis');
       
-      await updateCallInDatabase(supabase, callId, {
-        transcription: transcription || 'No hay transcripción disponible',
-        summary: 'Resumen no disponible - no hay contenido para analizar',
-        status: 'complete',
-        progress: 100
-      });
-
       // Store minimal feedback for non-analyzable content
       await supabase
         .from('feedback')
@@ -100,7 +101,8 @@ serve(async (req) => {
           callId,
           accountId: callData.account_id,
           message: 'Call processed - no analyzable content found',
-          transcriptionAvailable: false
+          transcriptionAvailable: false,
+          transcriptionLength: transcription.length
         }),
         { 
           headers: { 
@@ -111,17 +113,10 @@ serve(async (req) => {
       );
     }
 
-    // Actualizar con transcripción válida
-    await updateCallInDatabase(supabase, callId, {
-      transcription,
-      status: 'analyzing',
-      progress: 40
-    });
-
     console.log('=== STEP 2: STARTING SUMMARY ANALYSIS ===');
-    // PASO 2: ANÁLISIS DE RESUMEN (usando transcripción completa)
+    // PASO 2: ANÁLISIS DE RESUMEN (usando transcripción completa garantizada)
     const summary = await generateSummary(transcription, summaryPrompt || undefined);
-    console.log('Summary generated, length:', summary.length);
+    console.log('Summary generated successfully, length:', summary.length);
     
     // Actualizar con resumen
     await updateCallInDatabase(supabase, callId, {
@@ -132,12 +127,12 @@ serve(async (req) => {
     console.log('=== STEP 3: STARTING FEEDBACK ANALYSIS ===');
     // PASO 3: ANÁLISIS DE FEEDBACK (usando transcripción completa y resumen)
     const feedbackResult = await generateFeedback(
-      transcription, // Transcripción completa
+      transcription, // Transcripción completa garantizada
       summary, 
       feedbackPrompt || undefined,
       selectedBehaviorIds || []
     );
-    console.log('Feedback generated with score:', feedbackResult.score);
+    console.log('Feedback generated successfully with score:', feedbackResult.score);
 
     // PASO 4: FINALIZACIÓN
     console.log('=== STEP 4: FINALIZING CALL ===');

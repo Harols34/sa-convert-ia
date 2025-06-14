@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Call, Feedback, BehaviorAnalysis } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -109,62 +110,54 @@ export function useCallData(id: string | undefined) {
         // Enhanced transcription parsing with better error handling
         if (callData.transcription) {
           try {
+            console.log("Processing transcription:", typeof callData.transcription);
+            
             if (typeof callData.transcription === 'string') {
-              // Clean the string before parsing
-              let cleanTranscription = callData.transcription.trim();
+              const transcriptionText = callData.transcription.trim();
               
               // Check if it's a "no transcription available" message
-              if (cleanTranscription.startsWith('No hay transcripción disponible')) {
+              if (transcriptionText.startsWith('No hay transcripción disponible')) {
                 console.log("No transcription available message detected");
                 segments = [];
               }
-              // If it starts with '[' it's probably a JSON array
-              else if (cleanTranscription.startsWith('[')) {
+              // Check if it looks like JSON array format
+              else if (transcriptionText.startsWith('[') && transcriptionText.endsWith(']')) {
                 try {
-                  // Enhanced JSON cleaning to handle malformed JSON
-                  // Remove any trailing commas before closing brackets
-                  cleanTranscription = cleanTranscription.replace(/,(\s*[\]}])/g, '$1');
-                  // Fix any unescaped quotes within strings
-                  cleanTranscription = cleanTranscription.replace(/([^\\])"/g, '$1\\"');
-                  // Remove any non-printable characters
-                  cleanTranscription = cleanTranscription.replace(/[\x00-\x1F\x7F]/g, '');
-                  
-                  const parsedTranscription = JSON.parse(cleanTranscription);
+                  console.log("Attempting to parse as JSON array");
+                  const parsedTranscription = JSON.parse(transcriptionText);
                   if (Array.isArray(parsedTranscription)) {
                     segments = parsedTranscription.filter(item => 
                       item && typeof item === 'object' && item.text
                     );
+                    console.log("Successfully parsed JSON array with", segments.length, "segments");
                   } else {
                     console.warn("Transcription JSON is not an array:", parsedTranscription);
-                    segments = [];
+                    segments = parseTimestampedText(transcriptionText);
                   }
                 } catch (parseError) {
                   console.error("Error parsing transcription JSON:", parseError);
-                  console.log("Problematic JSON string (first 200 chars):", cleanTranscription.substring(0, 200));
-                  
-                  // Fallback: treat as text with timestamp format
-                  segments = parseTimestampedText(cleanTranscription);
+                  console.log("Falling back to text parsing");
+                  segments = parseTimestampedText(transcriptionText);
                 }
               } else {
                 // Parse as timestamped text format
-                segments = parseTimestampedText(cleanTranscription);
-              }
-              
-              if (isMounted.current) {
-                setTranscriptSegments(segments);
+                console.log("Parsing as timestamped text format");
+                segments = parseTimestampedText(transcriptionText);
               }
             } else if (Array.isArray(callData.transcription)) {
+              console.log("Transcription is already an array");
               segments = callData.transcription.filter(item => 
                 item && typeof item === 'object' && item.text
               );
-              if (isMounted.current) {
-                setTranscriptSegments(callData.transcription);
-              }
             } else {
-              console.error("Transcription is not a string or array:", callData.transcription);
-              if (isMounted.current) {
-                setTranscriptSegments([]);
-              }
+              console.error("Transcription is not a string or array:", typeof callData.transcription);
+              segments = [];
+            }
+            
+            console.log("Final segments count:", segments.length);
+            
+            if (isMounted.current) {
+              setTranscriptSegments(segments);
             }
           } catch (e) {
             console.error("Error handling transcription:", e);
@@ -172,9 +165,14 @@ export function useCallData(id: string | undefined) {
               setTranscriptSegments([]);
             }
           }
+        } else {
+          console.log("No transcription data available");
+          if (isMounted.current) {
+            setTranscriptSegments([]);
+          }
         }
         
-        // Solo cargar feedback si realmente es necesario
+        // Load feedback data
         if (callData.id && isMounted.current) {
           try {
             const feedbackTimeoutPromise = new Promise((_, reject) => 
@@ -277,11 +275,14 @@ export function useCallData(id: string | undefined) {
       const timestampMatch = line.match(/^\[(\d+):(\d+)\]\s*(.+?):\s*(.+)$/);
       if (timestampMatch) {
         const [, minutes, seconds, speaker, text] = timestampMatch;
+        const speakerType = speaker.toLowerCase().includes('asesor') || speaker.toLowerCase().includes('agente') ? 'agent' : 'client';
+        const startTime = parseInt(minutes) * 60 + parseInt(seconds);
+        
         segments.push({
           text: text.trim(),
-          speaker: speaker.toLowerCase().includes('asesor') || speaker.toLowerCase().includes('agente') ? 'agent' : 'client',
-          start: parseInt(minutes) * 60 + parseInt(seconds),
-          end: parseInt(minutes) * 60 + parseInt(seconds) + 5 // Estimation
+          speaker: speakerType,
+          start: startTime,
+          end: startTime + 5 // Estimation
         });
       }
       // Detect silence periods
@@ -289,18 +290,20 @@ export function useCallData(id: string | undefined) {
         const silenceMatch = line.match(/^\[(\d+):(\d+)\]\s*Silencio:\s*(\d+)/);
         if (silenceMatch) {
           const [, minutes, seconds, duration] = silenceMatch;
+          const startTime = parseInt(minutes) * 60 + parseInt(seconds);
+          
           segments.push({
             text: `Silencio: ${duration} segundos`,
             speaker: 'silence',
-            start: parseInt(minutes) * 60 + parseInt(seconds),
-            end: parseInt(minutes) * 60 + parseInt(seconds) + parseInt(duration)
+            start: startTime,
+            end: startTime + parseInt(duration)
           });
         }
       }
-      // Fallback format for any other lines
-      else if (line.trim()) {
+      // Fallback format for any other lines with content
+      else if (line.trim() && !line.includes('No hay transcripción disponible')) {
         segments.push({
-          text: line,
+          text: line.trim(),
           speaker: index % 2 === 0 ? 'agent' : 'client',
           start: index * 5,
           end: (index + 1) * 5
@@ -308,6 +311,7 @@ export function useCallData(id: string | undefined) {
       }
     });
     
+    console.log("Parsed", segments.length, "segments from timestamped text");
     return segments;
   }
 
