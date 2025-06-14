@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
@@ -52,29 +51,24 @@ serve(async (req) => {
 
     console.log(`Starting processing for call ${callId} (${callData.title}) in account: ${callData.account_id}`);
 
-    // PASO 1: TRANSCRIPCIÓN COMPLETA - GARANTIZADA AL 100%
-    console.log('=== STEP 1: STARTING COMPLETE TRANSCRIPTION ===');
+    // --- STAGE 1: TRANSCRIPTION ---
     await updateCallInDatabase(supabase, callId, {
       status: 'transcribing',
       progress: 10
     });
 
     const transcription = await transcribeAudio(audioUrl);
-    console.log('Transcription completed successfully');
-    console.log('Transcription length:', transcription.length);
-    console.log('Transcription preview (first 300 chars):', transcription.substring(0, 300) + '...');
-    
-    // Verificar si la transcripción es válida para análisis
-    const isValidTranscription = transcription && 
+
+    await updateCallInDatabase(supabase, callId, {
+      transcription, // <-- Save only transcription here, never analysis/resumen/feedback.
+      status: (transcription && !transcription.includes('No hay transcripción disponible') && transcription.trim().length > 50) ? 'analyzing' : 'complete',
+      progress: (transcription && !transcription.includes('No hay transcripción disponible') && transcription.trim().length > 50) ? 40 : 100
+    });
+
+    // --- STAGE 2: ONLY IF transcription válida ---
+    const isValidTranscription = transcription &&
       !transcription.includes('No hay transcripción disponible') &&
       transcription.trim().length > 50;
-
-    // Actualizar con transcripción (válida o no válida)
-    await updateCallInDatabase(supabase, callId, {
-      transcription,
-      status: isValidTranscription ? 'analyzing' : 'complete',
-      progress: isValidTranscription ? 40 : 100
-    });
 
     if (!isValidTranscription) {
       console.log('Invalid or insufficient transcription, marking call as complete with no analysis');
@@ -113,29 +107,12 @@ serve(async (req) => {
       );
     }
 
-    console.log('=== STEP 2: STARTING SUMMARY ANALYSIS ===');
-    // PASO 2: ANÁLISIS DE RESUMEN (usando transcripción completa garantizada)
+    // --- STAGE 3: RESUMEN, after transcription ---
     const summary = await generateSummary(transcription, summaryPrompt || undefined);
-    console.log('Summary generated successfully, length:', summary.length);
-    
-    // Actualizar con resumen
-    await updateCallInDatabase(supabase, callId, {
-      summary,
-      progress: 70
-    });
+    await updateCallInDatabase(supabase, callId, { summary, progress: 70 });
 
-    console.log('=== STEP 3: STARTING FEEDBACK ANALYSIS ===');
-    // PASO 3: ANÁLISIS DE FEEDBACK (usando transcripción completa y resumen)
-    const feedbackResult = await generateFeedback(
-      transcription, // Transcripción completa garantizada
-      summary, 
-      feedbackPrompt || undefined,
-      selectedBehaviorIds || []
-    );
-    console.log('Feedback generated successfully with score:', feedbackResult.score);
-
-    // PASO 4: FINALIZACIÓN
-    console.log('=== STEP 4: FINALIZING CALL ===');
+    // --- STAGE 4: FEEDBACK, after resumen ---
+    const feedbackResult = await generateFeedback(transcription, summary, feedbackPrompt || undefined, selectedBehaviorIds || []);
     await updateCallInDatabase(supabase, callId, {
       status: 'complete',
       progress: 100,
@@ -190,7 +167,6 @@ serve(async (req) => {
         } 
       }
     );
-
   } catch (error) {
     console.error('❌ Error processing call:', error);
     
