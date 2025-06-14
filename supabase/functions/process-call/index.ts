@@ -22,7 +22,7 @@ serve(async (req) => {
   try {
     const { callId, audioUrl, summaryPrompt, feedbackPrompt, selectedBehaviorIds } = await req.json();
     
-    console.log('Request payload:', { 
+    console.log('Processing call request:', { 
       callId, 
       audioUrl: audioUrl ? 'provided' : 'missing', 
       summaryPrompt: summaryPrompt ? 'provided' : 'not provided', 
@@ -41,7 +41,7 @@ serve(async (req) => {
     // Get call data to ensure we have the account_id
     const { data: callData, error: callFetchError } = await supabase
       .from('calls')
-      .select('account_id')
+      .select('account_id, title')
       .eq('id', callId)
       .single();
 
@@ -50,21 +50,26 @@ serve(async (req) => {
       throw new Error('Could not fetch call data');
     }
 
-    console.log(`Processing call ${callId} with enhanced analysis for account: ${callData.account_id}`);
+    console.log(`Starting processing for call ${callId} (${callData.title}) in account: ${callData.account_id}`);
 
-    // Update status to transcribing
+    // PASO 1: TRANSCRIPCIÓN COMPLETA
+    console.log('=== STEP 1: STARTING TRANSCRIPTION ===');
     await updateCallInDatabase(supabase, callId, {
       status: 'transcribing',
       progress: 10
     });
 
-    // Step 1: Enhanced transcription with speaker separation
-    console.log('Starting enhanced transcription with speaker diarization...');
     const transcription = await transcribeAudio(audioUrl);
+    console.log('Transcription completed, length:', transcription.length);
+    console.log('Transcription preview:', transcription.substring(0, 200) + '...');
     
-    if (!transcription || transcription.trim() === '' || 
-        transcription.includes('No hay transcripción disponible')) {
-      console.log('No valid transcription available, marking call as complete with no content');
+    // Verificar si la transcripción es válida para análisis
+    const isValidTranscription = transcription && 
+      !transcription.includes('No hay transcripción disponible') &&
+      transcription.trim().length > 50;
+
+    if (!isValidTranscription) {
+      console.log('Invalid or insufficient transcription, marking call as complete with no analysis');
       
       await updateCallInDatabase(supabase, callId, {
         transcription: transcription || 'No hay transcripción disponible',
@@ -73,7 +78,7 @@ serve(async (req) => {
         progress: 100
       });
 
-      // Store minimal feedback
+      // Store minimal feedback for non-analyzable content
       await supabase
         .from('feedback')
         .insert({
@@ -106,37 +111,36 @@ serve(async (req) => {
       );
     }
 
-    console.log('Enhanced transcription completed successfully, length:', transcription.length);
-
-    // Update with transcription
+    // Actualizar con transcripción válida
     await updateCallInDatabase(supabase, callId, {
       transcription,
       status: 'analyzing',
       progress: 40
     });
 
-    // Step 2: Generate summary with custom prompt
-    console.log('Generating summary with custom prompt:', !!summaryPrompt);
+    console.log('=== STEP 2: STARTING SUMMARY ANALYSIS ===');
+    // PASO 2: ANÁLISIS DE RESUMEN (usando transcripción completa)
     const summary = await generateSummary(transcription, summaryPrompt || undefined);
+    console.log('Summary generated, length:', summary.length);
     
-    // Update with summary
+    // Actualizar con resumen
     await updateCallInDatabase(supabase, callId, {
       summary,
-      progress: 60
+      progress: 70
     });
 
-    // Step 3: Generate feedback with custom prompt and behaviors
-    console.log('Generating feedback with custom prompt:', !!feedbackPrompt);
-    console.log('Selected behavior IDs for analysis:', selectedBehaviorIds);
-    
+    console.log('=== STEP 3: STARTING FEEDBACK ANALYSIS ===');
+    // PASO 3: ANÁLISIS DE FEEDBACK (usando transcripción completa y resumen)
     const feedbackResult = await generateFeedback(
-      transcription, 
+      transcription, // Transcripción completa
       summary, 
       feedbackPrompt || undefined,
       selectedBehaviorIds || []
     );
-    
-    // Step 4: Update call with all results
+    console.log('Feedback generated with score:', feedbackResult.score);
+
+    // PASO 4: FINALIZACIÓN
+    console.log('=== STEP 4: FINALIZING CALL ===');
     await updateCallInDatabase(supabase, callId, {
       status: 'complete',
       progress: 100,
@@ -145,7 +149,7 @@ serve(async (req) => {
       topics: feedbackResult.topics
     });
 
-    // Step 5: Store comprehensive feedback
+    // Guardar feedback completo
     const { error: feedbackError } = await supabase
       .from('feedback')
       .insert({
@@ -165,15 +169,18 @@ serve(async (req) => {
       console.error('Error inserting feedback:', feedbackError);
     }
 
-    console.log(`Successfully processed call ${callId} for account ${callData.account_id} with enhanced analysis`);
+    console.log(`✅ Successfully processed call ${callId} for account ${callData.account_id}`);
+    console.log(`Final stats: transcription=${transcription.length} chars, summary=${summary.length} chars, score=${feedbackResult.score}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         callId,
         accountId: callData.account_id,
-        message: 'Call processed successfully with enhanced transcription and analysis',
+        message: 'Call processed successfully with complete transcription and analysis',
         transcriptionLength: transcription.length,
+        summaryLength: summary.length,
+        feedbackScore: feedbackResult.score,
         usedCustomPrompts: {
           summary: !!summaryPrompt,
           feedback: !!feedbackPrompt
@@ -190,7 +197,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error processing call:', error);
+    console.error('❌ Error processing call:', error);
     
     // Try to update call status to error if we have callId
     const requestBody = await req.json().catch(() => ({}));
@@ -201,6 +208,7 @@ serve(async (req) => {
           status: 'error',
           progress: 0
         });
+        console.log(`Updated call ${requestBody.callId} status to error`);
       } catch (updateError) {
         console.error('Error updating call status to error:', updateError);
       }
