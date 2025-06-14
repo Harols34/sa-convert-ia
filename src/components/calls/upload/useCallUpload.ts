@@ -46,14 +46,21 @@ export function useCallUpload() {
     setFiles((prev) => prev.filter((file) => file.id !== id));
   }, []);
 
-  const uploadFiles = useCallback(async (prompts?: { summaryPrompt?: string; feedbackPrompt?: string }) => {
+  const uploadFiles = useCallback(async (config?: { 
+    summaryPrompt?: string; 
+    feedbackPrompt?: string;
+    selectedBehaviorIds?: string[];
+  }) => {
     if (!user) {
       toast.error("Debes estar autenticado para subir archivos");
       return;
     }
 
-    if (!selectedAccountId) {
-      toast.error("Debes seleccionar una cuenta antes de subir archivos");
+    console.log("Current selectedAccountId:", selectedAccountId);
+    console.log("User context:", user);
+
+    if (!selectedAccountId || selectedAccountId === 'all') {
+      toast.error("Debes seleccionar una cuenta específica antes de subir archivos");
       return;
     }
 
@@ -95,6 +102,7 @@ export function useCallUpload() {
           .getPublicUrl(fileName);
 
         console.log('File uploaded successfully, public URL:', publicUrl);
+        console.log('Creating call record with account_id:', selectedAccountId);
 
         // Create call record with correct schema including account_id
         const { data: callData, error: callError } = await supabase
@@ -104,7 +112,7 @@ export function useCallUpload() {
             filename: fileItem.file.name,
             agent_name: user.name || user.email || 'Usuario',
             agent_id: user.id,
-            account_id: selectedAccountId,
+            account_id: selectedAccountId, // Ensure this is set correctly
             audio_url: publicUrl,
             status: 'pending',
             progress: 0
@@ -117,7 +125,7 @@ export function useCallUpload() {
           throw new Error(`Error creating call record: ${callError.message}`);
         }
 
-        console.log('Call record created:', callData.id);
+        console.log('Call record created with account_id:', callData.account_id);
 
         setFiles(prev => prev.map(f => 
           f.id === fileItem.id 
@@ -126,20 +134,18 @@ export function useCallUpload() {
         ));
 
         // Process the call using Supabase function
-        console.log('Calling process-call function with:', {
+        const processPayload = {
           callId: callData.id,
           audioUrl: publicUrl,
-          summaryPrompt: prompts?.summaryPrompt ? 'provided' : 'not provided',
-          feedbackPrompt: prompts?.feedbackPrompt ? 'provided' : 'not provided'
-        });
+          summaryPrompt: config?.summaryPrompt,
+          feedbackPrompt: config?.feedbackPrompt,
+          selectedBehaviorIds: config?.selectedBehaviorIds
+        };
+
+        console.log('Calling process-call function with payload:', processPayload);
 
         const { data: processResult, error: processError } = await supabase.functions.invoke('process-call', {
-          body: {
-            callId: callData.id,
-            audioUrl: publicUrl,
-            summaryPrompt: prompts?.summaryPrompt,
-            feedbackPrompt: prompts?.feedbackPrompt
-          }
+          body: processPayload
         });
 
         if (processError) {

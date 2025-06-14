@@ -7,6 +7,13 @@ export async function generateSummary(transcription: string, customPrompt?: stri
     return 'Resumen no disponible - API key no configurada';
   }
 
+  // Check if transcription indicates no content available
+  if (!transcription || transcription.trim() === '' || 
+      transcription.includes('No hay transcripción disponible')) {
+    console.log('No valid transcription available for summary');
+    return 'Resumen no disponible - no hay transcripción para analizar';
+  }
+
   try {
     const defaultPrompt = `Analiza la siguiente transcripción de una llamada y proporciona un resumen conciso y profesional que incluya:
 
@@ -14,6 +21,8 @@ export async function generateSummary(transcription: string, customPrompt?: stri
 2. Puntos clave discutidos
 3. Resolución o resultado
 4. Próximos pasos (si aplica)
+
+IMPORTANTE: Si la transcripción indica que no hay contenido disponible, correo de voz, o contenido insuficiente, responde únicamente: "Resumen no disponible - no hay contenido suficiente para analizar"
 
 Mantén el resumen entre 100-200 palabras y usa un tono profesional.
 
@@ -56,6 +65,6 @@ Transcripción:`;
     return summary;
   } catch (error) {
     console.error('Error generating summary:', error);
-    return 'Error al generar resumen: ' + error.message;
+    return 'Resumen no disponible - error al generar análisis: ' + error.message;
   }
 }

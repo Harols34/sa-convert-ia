@@ -25,9 +25,13 @@ export default function CallUpload() {
     setShowPromptModal(true);
   };
 
-  const handlePromptConfirm = (prompts: { summaryPrompt?: string; feedbackPrompt?: string }) => {
+  const handlePromptConfirm = (config: { 
+    summaryPrompt?: string; 
+    feedbackPrompt?: string;
+    selectedBehaviorIds?: string[];
+  }) => {
     setShowPromptModal(false);
-    uploadFiles(prompts);
+    uploadFiles(config);
   };
 
   return (
@@ -39,6 +43,16 @@ export default function CallUpload() {
         <AlertDescription className="text-sm">
           Se aceptan archivos de audio en formato MP3, WAV o M4A. Tamaño máximo: 100MB por archivo.
           Cada archivo subido será procesado automáticamente para su transcripción y análisis. Se pueden procesar hasta 100 archivos a la vez.
+          
+          <br /><br />
+          
+          <strong>Proceso de análisis:</strong>
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li>Transcripción automática con separación de hablantes (Agente/Cliente)</li>
+            <li>Generación de resumen personalizable</li>
+            <li>Análisis de feedback basado en prompts configurables</li>
+            <li>Evaluación de comportamientos seleccionados</li>
+          </ul>
         </AlertDescription>
       </Alert>
       
