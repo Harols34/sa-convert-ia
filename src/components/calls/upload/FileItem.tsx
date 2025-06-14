@@ -4,14 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { X, AlertCircle, CheckCircle2, UploadCloud } from "lucide-react";
 import { formatBytes } from "@/lib/utils";
-import { FileItem as FileItemType } from "./useCallUpload";
+import { CallFile } from "./useCallUpload";
 
 export default function FileItem({
   file,
   onRemove,
   disabled,
 }: {
-  file: FileItemType;
+  file: CallFile;
   onRemove: (id: string) => void;
   disabled: boolean;
 }) {
@@ -42,9 +42,9 @@ export default function FileItem({
       case "idle":
         return "Listo para subir";
       case "uploading":
-        return `Subiendo... ${file.progress}%`;
+        return `Subiendo... ${file.progress || 0}%`;
       case "processing":
-        return `Procesando... ${file.progress}%`;
+        return `Procesando... ${file.progress || 0}%`;
       case "success":
         return "Carga completa";
       case "error":
@@ -92,7 +92,7 @@ export default function FileItem({
       
       <div className="w-full mt-2">
         <Progress 
-          value={file.progress} 
+          value={file.progress || 0} 
           className="h-2" 
           // Aplicamos el color condicionalmente usando estilos en línea
           style={{ 

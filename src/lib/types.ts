@@ -13,6 +13,7 @@ export interface User {
   language?: 'es' | 'en';
   created_at?: string;
   updated_at?: string;
+  account_id?: string; // Add account_id to User interface
 }
 
 export interface Account {

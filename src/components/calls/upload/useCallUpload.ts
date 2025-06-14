@@ -3,6 +3,7 @@ import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useUser } from "@/hooks/useUser";
+import { useAuth } from "@/context/AuthContext";
 
 export interface CallFile {
   id: string;
@@ -10,12 +11,24 @@ export interface CallFile {
   uploadProgress: number;
   isUploading: boolean;
   error?: string;
+  status?: "idle" | "uploading" | "processing" | "success" | "error";
+  progress?: number;
+  info?: string;
 }
+
+// Export FileItem as an alias for CallFile to maintain compatibility
+export type FileItem = CallFile;
 
 export function useCallUpload() {
   const [files, setFiles] = useState<CallFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const { user } = useUser();
+  const { user: authUser } = useAuth();
+
+  // Get account_id from the auth context user or fallback
+  const getAccountId = useCallback(() => {
+    return (authUser as any)?.account_id || null;
+  }, [authUser]);
 
   const addFiles = useCallback((newFiles: File[]) => {
     const callFiles: CallFile[] = newFiles.map(file => ({
@@ -23,6 +36,8 @@ export function useCallUpload() {
       file,
       uploadProgress: 0,
       isUploading: false,
+      status: "idle",
+      progress: 0,
     }));
     
     setFiles(prev => [...prev, ...callFiles]);
@@ -42,7 +57,8 @@ export function useCallUpload() {
       return;
     }
 
-    if (!user?.account_id) {
+    const accountId = getAccountId();
+    if (!accountId) {
       toast.error("No se ha seleccionado una cuenta");
       return;
     }
@@ -60,7 +76,7 @@ export function useCallUpload() {
     } finally {
       setIsUploading(false);
     }
-  }, [files, user]);
+  }, [files, getAccountId]);
 
   const uploadSingleFile = async (
     callFile: CallFile, 
@@ -70,27 +86,35 @@ export function useCallUpload() {
       selectedBehaviors?: string[];
     }
   ) => {
-    const updateFileProgress = (progress: number, error?: string) => {
+    const updateFileProgress = (progress: number, error?: string, status?: CallFile["status"]) => {
       setFiles(prev => prev.map(f => 
         f.id === callFile.id 
-          ? { ...f, uploadProgress: progress, error, isUploading: progress < 100 }
+          ? { 
+              ...f, 
+              uploadProgress: progress, 
+              progress,
+              error, 
+              isUploading: progress < 100 && progress > 0,
+              status: status || (progress === 100 ? "success" : progress > 0 ? "uploading" : "idle")
+            }
           : f
       ));
     };
 
     try {
-      updateFileProgress(10);
+      updateFileProgress(10, undefined, "uploading");
 
-      if (!user?.account_id) {
+      const accountId = getAccountId();
+      if (!accountId) {
         throw new Error("Account ID not found");
       }
 
       // Upload to storage
       const timestamp = Date.now();
       const filename = `${timestamp}-${callFile.file.name}`;
-      const filePath = `${user.account_id}/${filename}`;
+      const filePath = `${accountId}/${filename}`;
 
-      updateFileProgress(20);
+      updateFileProgress(20, undefined, "uploading");
 
       const { error: uploadError } = await supabase.storage
         .from('call-recordings')
@@ -100,7 +124,7 @@ export function useCallUpload() {
         throw new Error(`Error subiendo archivo: ${uploadError.message}`);
       }
 
-      updateFileProgress(40);
+      updateFileProgress(40, undefined, "uploading");
 
       // Get public URL
       const { data: urlData } = supabase.storage
@@ -111,9 +135,9 @@ export function useCallUpload() {
         throw new Error("No se pudo obtener la URL del archivo");
       }
 
-      updateFileProgress(50);
+      updateFileProgress(50, undefined, "processing");
 
-      // Create call record
+      // Create call record with required fields
       const { data: callData, error: callError } = await supabase
         .from('calls')
         .insert({
@@ -122,7 +146,8 @@ export function useCallUpload() {
           audio_url: urlData.publicUrl,
           status: 'pending',
           progress: 0,
-          account_id: user.account_id,
+          account_id: accountId,
+          agent_name: user?.name || user?.full_name || 'Agente Desconocido',
           date: new Date().toISOString()
         })
         .select()
@@ -132,7 +157,7 @@ export function useCallUpload() {
         throw new Error(`Error creando registro: ${callError.message}`);
       }
 
-      updateFileProgress(60);
+      updateFileProgress(60, undefined, "processing");
 
       // Process call with custom prompts and behavior selection
       const { error: processError } = await supabase.functions.invoke('process-call', {
@@ -150,13 +175,13 @@ export function useCallUpload() {
         throw new Error(`Error processing call: ${processError.message}`);
       }
 
-      updateFileProgress(100);
+      updateFileProgress(100, undefined, "success");
       console.log(`Archivo ${callFile.file.name} procesado exitosamente`);
 
     } catch (error) {
       console.error('Upload error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      updateFileProgress(0, errorMessage);
+      updateFileProgress(0, errorMessage, "error");
       throw error;
     }
   };
