@@ -5,9 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, CheckSquare } from "lucide-react";
-import { useBehaviors } from "@/hooks/useBehaviors";
+import { Loader2, CheckSquare, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+interface Behavior {
+  id: string;
+  name: string;
+  description: string;
+  prompt: string;
+  is_active: boolean;
+  account_id: string | null;
+}
 
 interface BehaviorSelectionModalProps {
   open: boolean;
@@ -22,18 +32,53 @@ export default function BehaviorSelectionModal({
   onConfirm,
   isLoading = false
 }: BehaviorSelectionModalProps) {
-  const { behaviors, loading } = useBehaviors();
+  const [behaviors, setBehaviors] = useState<Behavior[]>([]);
+  const [loading, setLoading] = useState(false);
   const [selectedBehaviors, setSelectedBehaviors] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  // Filter only active behaviors
-  const activeBehaviors = behaviors.filter(behavior => behavior.is_active);
-
-  // Reset selection when modal opens
+  // Load behaviors when modal opens
   useEffect(() => {
     if (open) {
+      loadBehaviors();
       setSelectedBehaviors([]);
     }
   }, [open]);
+
+  const loadBehaviors = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log("Loading behaviors for selection modal...");
+      
+      const { data, error: behaviorError } = await supabase
+        .from('behaviors')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+
+      if (behaviorError) {
+        console.error("Error loading behaviors:", behaviorError);
+        setError("Error al cargar comportamientos");
+        toast.error("Error al cargar comportamientos");
+        return;
+      }
+
+      console.log("Loaded behaviors:", data);
+      setBehaviors(data || []);
+      
+      if (!data || data.length === 0) {
+        setError("No hay comportamientos activos disponibles");
+      }
+    } catch (error) {
+      console.error("Error loading behaviors:", error);
+      setError("Error al cargar comportamientos");
+      toast.error("Error al cargar comportamientos");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleBehaviorToggle = (behaviorId: string) => {
     setSelectedBehaviors(prev => 
@@ -44,14 +89,20 @@ export default function BehaviorSelectionModal({
   };
 
   const handleSelectAll = () => {
-    if (selectedBehaviors.length === activeBehaviors.length) {
+    if (selectedBehaviors.length === behaviors.length) {
       setSelectedBehaviors([]);
     } else {
-      setSelectedBehaviors(activeBehaviors.map(b => b.id));
+      setSelectedBehaviors(behaviors.map(b => b.id));
     }
   };
 
   const handleConfirm = () => {
+    if (selectedBehaviors.length === 0) {
+      toast.error("Selecciona al menos un comportamiento");
+      return;
+    }
+    
+    console.log("Confirming behavior selection:", selectedBehaviors);
     onConfirm(selectedBehaviors);
   };
 
@@ -74,7 +125,7 @@ export default function BehaviorSelectionModal({
           <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">
-                {selectedBehaviors.length} de {activeBehaviors.length} comportamientos seleccionados
+                {selectedBehaviors.length} de {behaviors.length} comportamientos seleccionados
               </span>
               {selectedBehaviors.length > 0 && (
                 <Badge variant="secondary">{selectedBehaviors.length}</Badge>
@@ -84,9 +135,9 @@ export default function BehaviorSelectionModal({
               variant="outline"
               size="sm"
               onClick={handleSelectAll}
-              disabled={loading || activeBehaviors.length === 0}
+              disabled={loading || behaviors.length === 0}
             >
-              {selectedBehaviors.length === activeBehaviors.length ? "Deseleccionar todo" : "Seleccionar todo"}
+              {selectedBehaviors.length === behaviors.length ? "Deseleccionar todo" : "Seleccionar todo"}
             </Button>
           </div>
 
@@ -97,7 +148,25 @@ export default function BehaviorSelectionModal({
                 <Loader2 className="h-6 w-6 animate-spin" />
                 <span className="ml-2">Cargando comportamientos...</span>
               </div>
-            ) : activeBehaviors.length === 0 ? (
+            ) : error ? (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center py-4">
+                    <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+                    <h3 className="text-lg font-medium">Error al cargar comportamientos</h3>
+                    <p className="text-sm text-muted-foreground mt-1">{error}</p>
+                    <Button 
+                      variant="outline" 
+                      onClick={loadBehaviors} 
+                      className="mt-4"
+                      size="sm"
+                    >
+                      Reintentar
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : behaviors.length === 0 ? (
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-center py-4">
@@ -111,7 +180,7 @@ export default function BehaviorSelectionModal({
               </Card>
             ) : (
               <div className="space-y-3">
-                {activeBehaviors.map((behavior) => (
+                {behaviors.map((behavior) => (
                   <Card 
                     key={behavior.id}
                     className={`cursor-pointer transition-colors hover:bg-muted/50 ${
@@ -156,7 +225,7 @@ export default function BehaviorSelectionModal({
           </Button>
           <Button 
             onClick={handleConfirm} 
-            disabled={selectedBehaviors.length === 0 || isLoading}
+            disabled={selectedBehaviors.length === 0 || isLoading || loading}
           >
             {isLoading ? (
               <>

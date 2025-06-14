@@ -23,6 +23,8 @@ export default function FeedbackLoading({
 }: FeedbackLoadingProps) {
   const [showBehaviorModal, setShowBehaviorModal] = useState(false);
 
+  console.log("FeedbackLoading render:", { isLoading, error, feedbackExists, autoGenerating });
+
   const handleGenerateWithSelection = () => {
     setShowBehaviorModal(true);
   };
@@ -32,8 +34,10 @@ export default function FeedbackLoading({
     onGenerateClick(selectedBehaviorIds);
   };
 
+  // Don't show loading screen if feedback already exists
   if (feedbackExists) {
-    return null; // Don't show loading screen if feedback already exists
+    console.log("Feedback exists, hiding loading screen");
+    return null;
   }
 
   return (
@@ -53,14 +57,14 @@ export default function FeedbackLoading({
             ? "Generando análisis..." 
             : error 
             ? "Error en el análisis" 
-            : "Pendiente por generar"}
+            : "Feedback Pendiente por Generar"}
         </CardTitle>
         <CardDescription>
           {isLoading 
             ? "El análisis de comportamientos está en progreso. Esto puede tomar unos momentos."
             : error 
             ? "Ocurrió un error al generar el análisis. Puedes intentar nuevamente."
-            : "El feedback para esta llamada está pendiente por generar. Haz clic en el botón para comenzar el análisis."}
+            : "El feedback para esta llamada está pendiente por generar. Selecciona los comportamientos que deseas analizar o analiza todos los comportamientos activos."}
         </CardDescription>
       </CardHeader>
       
