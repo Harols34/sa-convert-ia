@@ -94,15 +94,15 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col h-[600px] max-w-4xl mx-auto">
+    <div className="flex flex-col h-full w-full">
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 rounded-lg mb-4">
+      <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50 rounded-lg mb-3 sm:mb-4 min-h-0">
         {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <Bot className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">Asistente de ConvertIA</h3>
-              <p className="text-muted-foreground">
+          <div className="flex items-center justify-center h-full min-h-[300px] sm:min-h-[400px]">
+            <div className="text-center px-4">
+              <Bot className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
+              <h3 className="text-base sm:text-lg font-medium mb-2">Asistente de ConvertIA</h3>
+              <p className="text-sm sm:text-base text-muted-foreground max-w-md mx-auto leading-relaxed">
                 Tengo acceso a los datos de tus llamadas. Pregúntame sobre insights, tendencias y análisis.
               </p>
             </div>
@@ -113,16 +113,16 @@ export default function ChatInterface() {
               key={message.id}
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <Card className={`max-w-[80%] ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-white'}`}>
-                <CardContent className="p-3">
+              <Card className={`max-w-[85%] sm:max-w-[80%] ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-white'}`}>
+                <CardContent className="p-2 sm:p-3">
                   <div className="flex items-start gap-2">
-                    {message.role === 'assistant' && <Bot className="h-5 w-5 mt-0.5 flex-shrink-0" />}
-                    {message.role === 'user' && <User className="h-5 w-5 mt-0.5 flex-shrink-0" />}
-                    <div className="flex-1">
-                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                    {message.role === 'assistant' && <Bot className="h-4 w-4 sm:h-5 sm:w-5 mt-0.5 flex-shrink-0" />}
+                    {message.role === 'user' && <User className="h-4 w-4 sm:h-5 sm:w-5 mt-0.5 flex-shrink-0" />}
+                    <div className="flex-1 min-w-0">
+                      <div className="whitespace-pre-wrap text-xs sm:text-sm leading-relaxed break-words">
                         {message.content}
                       </div>
-                      <div className={`text-xs mt-2 ${message.role === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                      <div className={`text-xs mt-1 sm:mt-2 ${message.role === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
                         {message.timestamp.toLocaleTimeString()}
                       </div>
                     </div>
@@ -136,11 +136,11 @@ export default function ChatInterface() {
         {isLoading && (
           <div className="flex justify-start">
             <Card className="bg-white">
-              <CardContent className="p-3">
+              <CardContent className="p-2 sm:p-3">
                 <div className="flex items-center gap-2">
-                  <Bot className="h-5 w-5" />
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm text-muted-foreground">Analizando...</span>
+                  <Bot className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                  <span className="text-xs sm:text-sm text-muted-foreground">Analizando...</span>
                 </div>
               </CardContent>
             </Card>
@@ -151,20 +151,20 @@ export default function ChatInterface() {
       </div>
 
       {/* Input Area */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 p-2 sm:p-0">
         <Textarea
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyPress={handleKeyPress}
           placeholder="Escribe tu consulta sobre las llamadas..."
-          className="flex-1 min-h-[60px] max-h-[120px] resize-none"
+          className="flex-1 min-h-[50px] sm:min-h-[60px] max-h-[100px] sm:max-h-[120px] resize-none text-sm sm:text-base"
           disabled={isLoading}
         />
         <Button
           onClick={handleSendMessage}
           disabled={!inputValue.trim() || isLoading}
           size="lg"
-          className="px-4"
+          className="px-3 sm:px-4 h-auto min-h-[50px] sm:min-h-[60px]"
         >
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />

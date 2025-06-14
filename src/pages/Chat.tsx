@@ -34,18 +34,24 @@ export default function ChatPage() {
   
   return (
     <Layout>
-      <Routes>
-        <Route path="/" element={
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-3xl font-bold tracking-tight">Consulta tus Insights de Voz</h2>
-              <p className="text-muted-foreground">Explora tus llamadas y obtén insights avanzados generados por la IA de Convertia.</p>
+      <div className="flex flex-col h-full w-full p-4 sm:p-6">
+        <Routes>
+          <Route path="/" element={
+            <div className="flex flex-col h-full space-y-4 sm:space-y-6">
+              <div className="flex-shrink-0">
+                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Consulta tus Insights de Voz</h2>
+                <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-2">
+                  Explora tus llamadas y obtén insights avanzados generados por la IA de Convertia.
+                </p>
+              </div>
+              <div className="flex-1 min-h-0">
+                <ChatInterface />
+              </div>
             </div>
-            <ChatInterface />
-          </div>
-        } />
-        <Route path="history" element={<ChatHistory />} />
-      </Routes>
+          } />
+          <Route path="history" element={<ChatHistory />} />
+        </Routes>
+      </div>
     </Layout>
   );
 }
