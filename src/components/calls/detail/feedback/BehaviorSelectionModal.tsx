@@ -9,6 +9,7 @@ import { Loader2, CheckSquare, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAccount } from "@/context/AccountContext";
 
 interface Behavior {
   id: string;
@@ -36,40 +37,49 @@ export default function BehaviorSelectionModal({
   const [loading, setLoading] = useState(false);
   const [selectedBehaviors, setSelectedBehaviors] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const { selectedAccountId } = useAccount();
 
   // Load behaviors when modal opens
   useEffect(() => {
     if (open) {
       loadBehaviors();
       setSelectedBehaviors([]);
+      setError(null);
     }
-  }, [open]);
+  }, [open, selectedAccountId]);
 
   const loadBehaviors = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      console.log("Loading behaviors for selection modal...");
+      console.log("Loading behaviors for selection modal with account:", selectedAccountId);
       
-      const { data, error: behaviorError } = await supabase
+      let query = supabase
         .from('behaviors')
         .select('*')
         .eq('is_active', true)
         .order('name');
 
+      // Filter by account if available
+      if (selectedAccountId && selectedAccountId !== 'all') {
+        query = query.or(`account_id.eq.${selectedAccountId},account_id.is.null`);
+      }
+
+      const { data, error: behaviorError } = await query;
+
       if (behaviorError) {
         console.error("Error loading behaviors:", behaviorError);
-        setError("Error al cargar comportamientos");
+        setError("Error al cargar comportamientos: " + behaviorError.message);
         toast.error("Error al cargar comportamientos");
         return;
       }
 
-      console.log("Loaded behaviors:", data);
+      console.log("Loaded behaviors for modal:", data?.length || 0);
       setBehaviors(data || []);
       
       if (!data || data.length === 0) {
-        setError("No hay comportamientos activos disponibles");
+        setError("No hay comportamientos activos disponibles para esta cuenta");
       }
     } catch (error) {
       console.error("Error loading behaviors:", error);
@@ -122,24 +132,26 @@ export default function BehaviorSelectionModal({
 
         <div className="space-y-4">
           {/* Summary and Select All */}
-          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">
-                {selectedBehaviors.length} de {behaviors.length} comportamientos seleccionados
-              </span>
-              {selectedBehaviors.length > 0 && (
-                <Badge variant="secondary">{selectedBehaviors.length}</Badge>
-              )}
+          {!loading && behaviors.length > 0 && (
+            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">
+                  {selectedBehaviors.length} de {behaviors.length} comportamientos seleccionados
+                </span>
+                {selectedBehaviors.length > 0 && (
+                  <Badge variant="secondary">{selectedBehaviors.length}</Badge>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAll}
+                disabled={loading || behaviors.length === 0}
+              >
+                {selectedBehaviors.length === behaviors.length ? "Deseleccionar todo" : "Seleccionar todo"}
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSelectAll}
-              disabled={loading || behaviors.length === 0}
-            >
-              {selectedBehaviors.length === behaviors.length ? "Deseleccionar todo" : "Seleccionar todo"}
-            </Button>
-          </div>
+          )}
 
           {/* Behaviors List */}
           <ScrollArea className="h-[400px] pr-4">

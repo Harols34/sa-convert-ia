@@ -19,7 +19,8 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
     callId: call.id, 
     hasFeedback: !!feedback, 
     hasLocalFeedback: !!localFeedback,
-    showLoadingScreen 
+    showLoadingScreen,
+    feedbackBehaviorsLength: feedback?.behaviors_analysis?.length || 0
   });
 
   // Use our hook to manage feedback analysis
@@ -43,30 +44,38 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
   // Update local feedback state when call feedback changes
   useEffect(() => {
     console.log("Feedback changed:", feedback);
+    
     if (feedback && feedback.behaviors_analysis && feedback.behaviors_analysis.length > 0) {
+      console.log("Valid feedback with behaviors found, showing content");
       setLocalFeedback(feedback);
       setShowLoadingScreen(false);
-    } else {
-      // Check if this is a "pending" feedback (default created)
-      const isPendingFeedback = feedback && 
-        Array.isArray(feedback.positive) && 
+    } else if (feedback) {
+      // Check if this is a "pending" feedback (default created or empty behaviors)
+      const isPendingFeedback = Array.isArray(feedback.positive) && 
         feedback.positive.length === 1 && 
         feedback.positive[0] === "Pendiente por generar";
       
-      if (isPendingFeedback) {
-        console.log("Detected pending feedback, showing loading screen");
+      const hasEmptyBehaviors = !feedback.behaviors_analysis || feedback.behaviors_analysis.length === 0;
+      
+      if (isPendingFeedback || hasEmptyBehaviors) {
+        console.log("Detected pending feedback or empty behaviors, showing loading screen");
         setShowLoadingScreen(true);
         setLocalFeedback(undefined);
-      } else if (feedback) {
+      } else {
+        console.log("Regular feedback without behaviors, showing content");
         setLocalFeedback(feedback);
         setShowLoadingScreen(false);
       }
+    } else {
+      console.log("No feedback found, showing loading screen");
+      setShowLoadingScreen(true);
+      setLocalFeedback(undefined);
     }
   }, [feedback]);
 
   // Handle the feedback exists logic
   useEffect(() => {
-    const hasValidFeedback = localFeedback && 
+    const hasValidLocalFeedback = localFeedback && 
       localFeedback.behaviors_analysis && 
       localFeedback.behaviors_analysis.length > 0;
     
@@ -74,11 +83,11 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
       feedback.behaviors_analysis && 
       feedback.behaviors_analysis.length > 0;
 
-    if (hasValidFeedback || hasValidCallFeedback || feedbackAlreadyExists) {
+    if (hasValidLocalFeedback || hasValidCallFeedback || feedbackAlreadyExists) {
       console.log("Valid feedback exists, hiding loading screen");
       setShowLoadingScreen(false);
     } else {
-      console.log("No valid feedback, showing loading screen");
+      console.log("No valid feedback found, showing loading screen");
       setShowLoadingScreen(true);
     }
   }, [localFeedback, feedback, feedbackAlreadyExists]);
@@ -101,6 +110,9 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
     } catch (error) {
       console.error("Error in manual generation:", error);
       setShowLoadingScreen(false);
+      toast.error("Error al generar análisis", {
+        description: error instanceof Error ? error.message : "Error desconocido"
+      });
     }
   };
 

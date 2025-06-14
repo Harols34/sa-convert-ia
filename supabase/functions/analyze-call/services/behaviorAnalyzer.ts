@@ -55,143 +55,195 @@ export async function analyzeBehaviors(call: Call, behaviors: any[]): Promise<Be
 }
 
 async function analyzeBehaviorBatch(call: Call, behaviors: any[]): Promise<BehaviorAnalysisResult[]> {
+  // Check if transcription seems to be voicemail or too short
+  const transcription = call.transcription || "";
+  const lowerTranscription = transcription.toLowerCase();
+  
+  const voicemailIndicators = [
+    'correo de voz',
+    'buzón de voz', 
+    'mailbox',
+    'voicemail',
+    'deje su mensaje',
+    'no disponible en este momento',
+    'por favor deje un mensaje',
+    'thank you'
+  ];
+
+  const hasVoicemailIndicators = voicemailIndicators.some(indicator => 
+    lowerTranscription.includes(indicator)
+  );
+
+  // If it's clearly voicemail or too short, return "no cumple" for all behaviors
+  if (hasVoicemailIndicators || transcription.trim().length < 20) {
+    console.log("Transcription appears to be voicemail or too short, marking all behaviors as 'no cumple'");
+    return behaviors.map(behavior => ({
+      name: behavior.name,
+      evaluation: "no cumple" as const,
+      comments: transcription.trim().length < 20 
+        ? "Transcripción muy corta o vacía para análisis"
+        : "La llamada fue dirigida a correo de voz - no hay conversación para analizar"
+    }));
+  }
+
   const behaviorPrompts = behaviors.map((behavior, index) => 
     `${index + 1}. **${behavior.name}**: ${behavior.prompt}`
   ).join('\n\n');
 
-  const prompt = `Analiza la siguiente transcripción de llamada ÚNICAMENTE según los comportamientos especificados. Esta es la transcripción de UNA SOLA LLAMADA específica - no consideres otras llamadas o transcripciones.
+  const prompt = `IMPORTANTE: Analiza ÚNICAMENTE esta transcripción específica de UNA SOLA LLAMADA. NO consideres otras llamadas o contextos.
 
-TRANSCRIPCIÓN DE LA LLAMADA:
-${call.transcription}
+TRANSCRIPCIÓN A ANALIZAR:
+"${transcription}"
 
 COMPORTAMIENTOS A EVALUAR:
 ${behaviorPrompts}
 
-INSTRUCCIONES IMPORTANTES:
-1. Evalúa ÚNICAMENTE esta transcripción específica
-2. Para cada comportamiento, determina si se "cumple" o "no cumple"
-3. Proporciona comentarios específicos basados en lo que observas en ESTA transcripción
-4. Si la transcripción no contiene suficiente información o es un correo de voz, marca como "no cumple" con comentario explicativo
-5. Si no hay una transcripción clara o válida, indica "Transcripción no disponible para análisis"
+INSTRUCCIONES CRÍTICAS:
+1. Evalúa SOLO esta transcripción específica
+2. Para cada comportamiento, responde "cumple" o "no cumple"
+3. Basa los comentarios únicamente en lo que observas en ESTA transcripción
+4. Si no hay suficiente información, marca como "no cumple"
 
-Responde ÚNICAMENTE con un JSON válido en este formato exacto:
+FORMATO DE RESPUESTA OBLIGATORIO - Responde ÚNICAMENTE con este JSON (sin texto adicional):
 [
   {
-    "name": "Nombre del comportamiento",
-    "evaluation": "cumple" o "no cumple",
-    "comments": "Comentario específico basado en la transcripción"
+    "name": "Nombre exacto del comportamiento",
+    "evaluation": "cumple",
+    "comments": "Comentario específico basado en esta transcripción"
+  },
+  {
+    "name": "Nombre exacto del comportamiento",
+    "evaluation": "no cumple", 
+    "comments": "Comentario específico basado en esta transcripción"
   }
 ]
 
-NO incluyas ningún texto adicional, markdown, ni explicaciones fuera del JSON.`;
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openAIKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'Eres un analista experto en evaluación de comportamientos en llamadas. Respondes ÚNICAMENTE con JSON válido sin texto adicional.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      max_tokens: 2000,
-      temperature: 0.3,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('OpenAI API error:', response.status, errorText);
-    throw new Error(`OpenAI API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  
-  if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-    console.error('Invalid OpenAI response structure:', data);
-    throw new Error('Respuesta inválida de OpenAI');
-  }
-
-  const content = data.choices[0].message.content.trim();
-  console.log('Raw OpenAI response:', content);
-
-  // Clean the response to ensure it's valid JSON
-  let cleanedContent = content;
-  
-  // Remove any markdown code blocks
-  cleanedContent = cleanedContent.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-  
-  // Remove any leading/trailing whitespace or newlines
-  cleanedContent = cleanedContent.trim();
-  
-  // Ensure it starts with [ and ends with ]
-  if (!cleanedContent.startsWith('[')) {
-    console.error('Response does not start with [:', cleanedContent);
-    throw new Error('Formato de respuesta inválido - no es un array JSON');
-  }
-  
-  if (!cleanedContent.endsWith(']')) {
-    console.error('Response does not end with ]:', cleanedContent);
-    throw new Error('Formato de respuesta inválido - array JSON incompleto');
-  }
+NO incluyas explicaciones, markdown, ni texto fuera del JSON.`;
 
   try {
-    const analysisResults = JSON.parse(cleanedContent);
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'Eres un analista de llamadas. Respondes ÚNICAMENTE con JSON válido en el formato solicitado. No agregues texto adicional, explicaciones o markdown.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 2000,
+        temperature: 0.1,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenAI API error:', response.status, errorText);
+      throw new Error(`OpenAI API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('Invalid OpenAI response structure:', data);
+      throw new Error('Respuesta inválida de OpenAI');
+    }
+
+    let content = data.choices[0].message.content.trim();
+    console.log('Raw OpenAI response:', content);
+
+    // Clean the response more aggressively
+    content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+    content = content.replace(/^[^[\{]*/, ''); // Remove any text before [ or {
+    content = content.replace(/[^}\]]*$/, ''); // Remove any text after } or ]
+    content = content.trim();
+    
+    // Ensure it's a valid JSON array
+    if (!content.startsWith('[')) {
+      console.error('Response does not start with [:', content);
+      throw new Error('Formato de respuesta inválido');
+    }
+    
+    if (!content.endsWith(']')) {
+      console.error('Response does not end with ]:', content);
+      // Try to fix it by adding the closing bracket
+      content = content + ']';
+    }
+
+    let analysisResults;
+    try {
+      analysisResults = JSON.parse(content);
+    } catch (parseError) {
+      console.error('JSON parsing failed, content:', content);
+      console.error('Parse error:', parseError);
+      
+      // Fallback: create default results
+      return behaviors.map(behavior => ({
+        name: behavior.name,
+        evaluation: "no cumple" as const,
+        comments: "Error al procesar respuesta de análisis"
+      }));
+    }
     
     if (!Array.isArray(analysisResults)) {
       console.error('Parsed result is not an array:', analysisResults);
       throw new Error('La respuesta no es un array válido');
     }
 
-    // Validate each result
+    // Validate and clean results
     const validatedResults: BehaviorAnalysisResult[] = [];
     
-    for (let i = 0; i < analysisResults.length; i++) {
+    for (let i = 0; i < Math.min(analysisResults.length, behaviors.length); i++) {
       const result = analysisResults[i];
+      const behavior = behaviors[i];
       
       if (!result || typeof result !== 'object') {
         console.error(`Invalid result at index ${i}:`, result);
+        validatedResults.push({
+          name: behavior.name,
+          evaluation: "no cumple",
+          comments: "Error en el formato de respuesta"
+        });
         continue;
       }
       
-      if (!result.name || !result.evaluation || !result.comments) {
-        console.error(`Missing required fields in result ${i}:`, result);
-        continue;
-      }
-      
-      if (result.evaluation !== 'cumple' && result.evaluation !== 'no cumple') {
-        console.error(`Invalid evaluation value in result ${i}:`, result.evaluation);
-        result.evaluation = 'no cumple';
-      }
+      const evaluation = result.evaluation === 'cumple' ? 'cumple' : 'no cumple';
       
       validatedResults.push({
-        name: String(result.name),
-        evaluation: result.evaluation as "cumple" | "no cumple",
-        comments: String(result.comments)
+        name: behavior.name,
+        evaluation: evaluation as "cumple" | "no cumple",
+        comments: String(result.comments || "Sin comentarios disponibles")
       });
     }
     
-    console.log(`Successfully parsed and validated ${validatedResults.length} results`);
+    // If we have fewer results than behaviors, fill in the missing ones
+    for (let i = validatedResults.length; i < behaviors.length; i++) {
+      validatedResults.push({
+        name: behaviors[i].name,
+        evaluation: "no cumple",
+        comments: "No se pudo analizar este comportamiento"
+      });
+    }
+    
+    console.log(`Successfully processed ${validatedResults.length} behavior results`);
     return validatedResults;
     
-  } catch (parseError) {
-    console.error('JSON parsing error:', parseError);
-    console.error('Content that failed to parse:', cleanedContent);
+  } catch (error) {
+    console.error('Error in analyzeBehaviorBatch:', error);
     
     // Return default "no cumple" results for all behaviors in this batch
     return behaviors.map(behavior => ({
       name: behavior.name,
       evaluation: "no cumple" as const,
-      comments: `Error al procesar respuesta de análisis: ${parseError.message}`
+      comments: `Error al analizar: ${error.message || 'Error desconocido'}`
     }));
   }
 }
