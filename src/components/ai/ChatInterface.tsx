@@ -1,184 +1,192 @@
 
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Card } from "@/components/ui/card";
-import { Send, Loader2, Bot } from "lucide-react";
-import { toast } from "sonner";
+import { Card, CardContent } from "@/components/ui/card";
+import { Send, Loader2, Bot, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
+import { useAccount } from "@/context/AccountContext";
 
 interface Message {
   id: string;
+  role: 'user' | 'assistant';
   content: string;
-  role: "user" | "assistant";
   timestamp: Date;
 }
 
-const EXAMPLE_QUESTIONS = [
-  "¿Cuántas llamadas se han registrado en total?",
-  "¿Cuál es el promedio de duración de las llamadas?",
-  "¿Qué títulos de llamadas son más frecuentes?",
-  "¿Cuáles son los productos más mencionados?",
-  "¿Cuáles son los motivos más comunes de las llamadas?",
-  "¿Qué tendencias puedes identificar en las llamadas?",
-  "¿Cuál es el sentimiento general de las interacciones?",
-  "¿Qué agentes tienen los mejores resultados?",
-  "¿Hay llamadas con retroalimentación negativa?",
-  "¿Cuáles son las quejas más recurrentes?"
-];
-
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
+  const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { user } = useAuth();
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  const { selectedAccountId } = useAccount();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Add welcome message on mount
+  useEffect(() => {
+    if (messages.length === 0) {
+      const welcomeMessage: Message = {
+        id: "welcome",
+        role: "assistant",
+        content: `👋 ¡Hola! Soy tu asistente de análisis de llamadas de Convertia. 
+
+${selectedAccountId && selectedAccountId !== 'all' 
+  ? `Estoy trabajando con los datos de la cuenta seleccionada: ${selectedAccountId}` 
+  : 'Tengo acceso a los datos de las cuentas que tienes disponibles.'}
+
+Puedo ayudarte con:
+• Análisis de calidad de llamadas
+• Métricas de desempeño de agentes  
+• Tendencias en resultados de ventas
+• Feedback y recomendaciones de mejora
+
+¿En qué puedo ayudarte hoy?`,
+        timestamp: new Date()
+      };
+      setMessages([welcomeMessage]);
+    }
+  }, [selectedAccountId]);
+
   const handleSendMessage = async () => {
-    if (!input.trim()) return;
-    
+    if (!inputValue.trim() || isLoading) return;
+
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: input.trim(),
-      role: "user",
-      timestamp: new Date(),
+      role: 'user',
+      content: inputValue,
+      timestamp: new Date()
     };
-    
-    setMessages((prevMessages) => [...prevMessages, userMessage]);
-    setInput("");
+
+    setMessages(prev => [...prev, userMessage]);
+    setInputValue("");
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("general-chat", {
-        body: { 
-          query: input.trim(),
-          userId: user?.id,
-          history: messages.map(msg => ({
-            role: msg.role,
-            content: msg.content
-          }))
+      console.log('Sending message with account context:', selectedAccountId);
+      
+      const { data, error } = await supabase.functions.invoke("ai-chat", {
+        body: {
+          message: inputValue,
+          context: "calls",
+          accountId: selectedAccountId
         }
       });
 
-      if (error) throw error;
-
-      if (data && data.response) {
-        const aiMessage: Message = {
-          id: Date.now().toString(),
-          content: data.response,
-          role: "assistant",
-          timestamp: new Date(),
-        };
-        
-        setMessages((prevMessages) => [...prevMessages, aiMessage]);
-        
-        // Save chat history
-        await supabase.from("chat_messages").insert([{
-          user_id: user?.id,
-          content: userMessage.content,
-          role: userMessage.role,
-          timestamp: new Date().toISOString(),
-        }]);
-
-        await supabase.from("chat_messages").insert([{
-          user_id: user?.id,
-          content: data.response,
-          role: "assistant",
-          timestamp: new Date().toISOString(),
-        }]);
+      if (error) {
+        console.error("Error calling AI chat function:", error);
+        throw new Error(error.message || "Error al procesar la consulta");
       }
+
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: data.response,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+
     } catch (error) {
-      console.error("Error sending message:", error);
-      toast.error("Error al enviar el mensaje");
+      console.error("Error in chat:", error);
+      toast.error("Error al procesar tu consulta");
+      
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: "Lo siento, hubo un error al procesar tu consulta. Por favor, intenta de nuevo.",
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-220px)]">
-      <Card className="flex-1 overflow-y-auto p-4 mb-4">
-        {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-4">
-            <Bot size={48} className="text-primary mb-4" />
-            <h3 className="text-xl font-medium">Asistente de ConvertIA</h3>
-            <p className="text-muted-foreground mt-2 max-w-md mb-6">
-              Tengo acceso a los datos de tus llamadas. Pregúntame sobre insights, tendencias y análisis.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto text-left">
-              {EXAMPLE_QUESTIONS.map((question, index) => (
-                <Button
-                  key={index}
-                  variant="outline"
-                  className="justify-start text-left h-auto py-2 px-3"
-                  onClick={() => {
-                    setInput(question);
-                  }}
-                >
-                  {question}
-                </Button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${
-                  message.role === "user" ? "justify-end" : "justify-start"
-                }`}
-              >
-                <div
-                  className={`max-w-[80%] rounded-lg p-3 ${
-                    message.role === "user"
-                      ? "bg-green-600 text-white"
-                      : "bg-muted"
-                  }`}
-                >
-                  <p className="whitespace-pre-wrap">{message.content}</p>
-                  <p className="text-xs opacity-70 text-right mt-1">
-                    {message.timestamp.toLocaleTimeString()}
-                  </p>
+    <div className="flex flex-col h-[600px] max-w-4xl mx-auto">
+      {/* Account Context Indicator */}
+      {selectedAccountId && selectedAccountId !== 'all' && (
+        <div className="mb-4 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-700">
+            🔍 Consultando datos de la cuenta: <strong>{selectedAccountId}</strong>
+          </p>
+        </div>
+      )}
+      
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 rounded-lg mb-4">
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <Card className={`max-w-[80%] ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-white'}`}>
+              <CardContent className="p-3">
+                <div className="flex items-start gap-2">
+                  {message.role === 'assistant' && <Bot className="h-5 w-5 mt-0.5 flex-shrink-0" />}
+                  {message.role === 'user' && <User className="h-5 w-5 mt-0.5 flex-shrink-0" />}
+                  <div className="flex-1">
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                      {message.content}
+                    </div>
+                    <div className={`text-xs mt-2 ${message.role === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                      {message.timestamp.toLocaleTimeString()}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
+              </CardContent>
+            </Card>
+          </div>
+        ))}
+        
+        {isLoading && (
+          <div className="flex justify-start">
+            <Card className="bg-white">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <Bot className="h-5 w-5" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm text-muted-foreground">Analizando...</span>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
-      </Card>
+        
+        <div ref={messagesEndRef} />
+      </div>
 
-      <div className="relative">
+      {/* Input Area */}
+      <div className="flex gap-2">
         <Textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Escribe tu mensaje..."
-          className="resize-none pr-12"
-          rows={3}
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyPress={handleKeyPress}
+          placeholder="Escribe tu consulta sobre las llamadas..."
+          className="flex-1 min-h-[60px] max-h-[120px] resize-none"
           disabled={isLoading}
         />
         <Button
-          size="icon"
-          className="absolute right-2 bottom-2 bg-green-600 hover:bg-green-700"
           onClick={handleSendMessage}
-          disabled={isLoading || !input.trim()}
+          disabled={!inputValue.trim() || isLoading}
+          size="lg"
+          className="px-4"
         >
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />

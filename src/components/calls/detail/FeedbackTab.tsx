@@ -5,7 +5,6 @@ import FeedbackLoading from "./feedback/FeedbackLoading";
 import FeedbackContent from "./feedback/FeedbackContent";
 import { useFeedbackAnalysis } from "@/hooks/useFeedbackAnalysis";
 import { toast } from "sonner";
-import FeedbackErrorDisplay from "./feedback/FeedbackErrorDisplay";
 
 interface FeedbackTabProps {
   call: Call;
@@ -40,6 +39,7 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
     activeTab, 
     setActiveTab,
     feedbackAlreadyExists,
+    hasActiveBehaviors
   } = feedbackAnalysisManager;
 
   useEffect(() => {
@@ -56,11 +56,18 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
       return;
     }
     
+    if (!hasActiveBehaviors) {
+      toast.error("No hay comportamientos activos para analizar");
+      return;
+    }
+    
     try {
       setShowLoadingScreen(true);
       await triggerAnalysisFunction();
     } catch (error) {
       console.error("Error in manual generation:", error);
+    } finally {
+      setShowLoadingScreen(false);
     }
   };
 
@@ -72,7 +79,7 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
         onGenerateClick={handleManualGeneration}
         error={analysisError}
         feedbackExists={feedbackAlreadyExists}
-        autoGenerating={false}
+        autoGenerating={isGeneratingFeedback}
       />
     );
   }
@@ -90,7 +97,7 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
       behaviorsToDisplay={displayBehaviors}
       isLoadingBehaviors={isLoadingBehaviors}
       analysisError={analysisError}
-      onRefreshAnalysis={null} // Never allow refresh for existing feedback
+      onRefreshAnalysis={feedbackAlreadyExists ? null : handleManualGeneration}
       activeTab={activeTab}
       setActiveTab={setActiveTab}
     />
