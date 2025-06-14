@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Call, Feedback, BehaviorAnalysis } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -106,16 +107,30 @@ export function useCallData(id: string | undefined) {
         
         let segments: any[] = [];
 
-      // When parsing transcription, never attempt to parse summary or feedback
-      if (callData.transcription && typeof callData.transcription === "string") {
-        const transcriptionText = callData.transcription.trim();
-        // Only timestamped lines will show, never try to parse JSON for summary/feedback
-        segments = parseTimestampedText(transcriptionText);
-      } else if (Array.isArray(callData.transcription)) {
-        segments = callData.transcription.filter(item => item && typeof item === 'object' && item.text);
-      } else {
-        segments = [];
-      }
+        // Parse transcription ONLY if it's a clean timestamped format
+        if (callData.transcription && typeof callData.transcription === "string") {
+          const transcriptionText = callData.transcription.trim();
+          
+          // Only try to parse if it looks like timestamped transcription
+          if (transcriptionText.includes('[') && transcriptionText.includes(']:')) {
+            console.log("Parsing timestamped transcription format");
+            segments = parseTimestampedText(transcriptionText);
+          } else {
+            console.log("Transcription does not appear to be in timestamped format");
+            // Create basic segments from text
+            const lines = transcriptionText.split('\n').filter(line => line.trim());
+            segments = lines.map((line, index) => ({
+              text: line.trim(),
+              speaker: index % 2 === 0 ? 'agent' : 'client',
+              start: index * 5,
+              end: (index + 1) * 5
+            }));
+          }
+        } else if (Array.isArray(callData.transcription)) {
+          segments = callData.transcription.filter(item => item && typeof item === 'object' && item.text);
+        } else {
+          segments = [];
+        }
         
         // Load feedback data
         if (callData.id && isMounted.current) {
@@ -190,6 +205,7 @@ export function useCallData(id: string | undefined) {
           });
           
           setCall(callObject);
+          setTranscriptSegments(segments);
           setIsLoading(false);
           setLoadError(null);
         }
@@ -214,6 +230,8 @@ export function useCallData(id: string | undefined) {
   function parseTimestampedText(text: string): any[] {
     const lines = text.split('\n').filter(line => line.trim());
     const segments: any[] = [];
+    
+    console.log(`Parsing ${lines.length} lines from transcription`);
     
     lines.forEach((line, index) => {
       // Detect format [mm:ss] Speaker: text
@@ -245,7 +263,7 @@ export function useCallData(id: string | undefined) {
           });
         }
       }
-      // Fallback format for any other lines with content
+      // Fallback for any other content lines (not error messages)
       else if (line.trim() && !line.includes('No hay transcripción disponible')) {
         segments.push({
           text: line.trim(),

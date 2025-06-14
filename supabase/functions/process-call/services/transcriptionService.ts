@@ -1,3 +1,4 @@
+
 import OpenAI from "https://esm.sh/openai@4.28.0";
 
 export async function transcribeAudio(audioUrl: string): Promise<string> {
@@ -43,83 +44,80 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
     const audioBlob = new Blob([audioBuffer]);
     const file = new File([audioBlob], 'audio.mp3', { type: 'audio/mpeg' });
     
-    console.log('Starting transcription with speaker diarization...');
+    console.log('Starting transcription with Whisper...');
     
-    // Transcription Stage: never mix summary/feedback here!
+    // Get clean transcription from Whisper with speaker diarization
     const transcription = await openai.audio.transcriptions.create({
       file: file,
       model: 'whisper-1',
       response_format: 'verbose_json',
       timestamp_granularities: ['segment'],
-      language: 'es',
-      prompt: 'Esta es una conversación telefónica comercial entre un asesor de ventas y un cliente potencial. El asesor normalmente se presenta primero, saluda profesionalmente y ofrece productos o servicios. El cliente hace preguntas, expresa dudas o responde. Es importante identificar claramente cuando habla cada persona y marcar los cambios de hablante.'
+      language: 'es'
     });
 
-    // Only return the full formatted plain text with speaker separation and silences, never with analysis
+    // Process segments to create clean transcription with speaker separation
     let formattedTranscription = '';
+    
     if (transcription.segments && transcription.segments.length > 0) {
+      console.log(`Processing ${transcription.segments.length} segments from Whisper`);
+      
       const sortedSegments = transcription.segments.sort((a: any, b: any) => a.start - b.start);
-
-      let currentSpeaker = 'Asesor';
+      let currentSpeaker = 'Asesor'; // Start with advisor
       let lastSpeakerChange = 0;
+      
       sortedSegments.forEach((segment: any, index: number) => {
         const text = segment.text ? segment.text.trim() : '';
-        if (!text) return;
-
-        // --- Speaker detection logic (as before) ---
+        if (!text || text.length < 3) return; // Skip very short segments
+        
+        // Simple speaker alternation with keyword detection
+        const textLower = text.toLowerCase();
+        
+        // Keywords that typically indicate the advisor is speaking
         const advisorKeywords = [
-          'buenos días', 'buenas tardes', 'buenas noches', 'hola', 'saludo',
-          'en qué puedo ayudarle', 'cómo está', 'perfecto', 'exacto', 'correcto',
-          'empresa', 'servicio', 'oferta', 'producto', 'plan', 'promoción',
-          'descuento', 'precio', 'costo', 'beneficio', 'ventaja', 'instalación',
+          'buenos días', 'buenas tardes', 'hola', 'me comunico', 'empresa', 'servicio',
+          'oferta', 'producto', 'plan', 'promoción', 'precio', 'beneficio', 'instalación',
           'técnico', 'soporte', 'llamamos', 'ofrecemos', 'tenemos', 'contrato',
-          'facturación', 'asesor', 'representante', 'empresa', 'compañía',
-          'le explico', 'le comento', 'permíteme', 'disculpe', 'señor', 'señora',
-          'disponemos', 'manejamos', 'trabajamos', 'me comunico', 'contacto'
+          'le explico', 'le comento', 'permíteme', 'señor', 'señora', 'disponemos',
+          'manejamos', 'trabajamos', 'representante', 'asesor', 'compañía'
         ];
         
+        // Keywords that typically indicate the client is speaking
         const clientKeywords = [
-          'sí', 'no', 'bueno', 'okay', 'vale', 'claro', 'entiendo',
-          'quiero', 'necesito', 'me interesa', 'cuánto', 'precio',
-          'gracias', 'pero', 'problema', 'duda', 'pregunta', 'entonces',
-          'ya tengo', 'no me interesa', 'pensarlo', 'consultar',
-          'mmm', 'ah', 'oh', 'ajá', 'uh huh', 'cómo', 'cuándo',
-          'dónde', 'por qué', 'qué tal', 'está bien', 'perfecto',
-          'disculpe', 'perdón', 'no entiendo'
+          'sí', 'no', 'bueno', 'okay', 'claro', 'entiendo', 'quiero', 'necesito',
+          'me interesa', 'cuánto', 'gracias', 'pero', 'problema', 'duda', 'pregunta',
+          'ya tengo', 'no me interesa', 'pensarlo', 'consultar', 'cómo', 'cuándo',
+          'dónde', 'por qué', 'está bien', 'perfecto', 'no entiendo'
         ];
-
-        const textLower = text.toLowerCase();
+        
         const hasAdvisorKeywords = advisorKeywords.some(keyword => textLower.includes(keyword));
         const hasClientKeywords = clientKeywords.some(keyword => textLower.includes(keyword));
-        let speakerForSegment = currentSpeaker;
-
+        
+        // Determine speaker based on content and context
         if (index === 0) {
-          speakerForSegment = 'Asesor';
-        }
-        else if (hasAdvisorKeywords && !hasClientKeywords && text.length > 50) {
-          speakerForSegment = 'Asesor';
-        }
-        else if (hasClientKeywords && !hasAdvisorKeywords) {
-          speakerForSegment = 'Cliente';
-        }
-        else if (segment.start - lastSpeakerChange > 3) {
-          speakerForSegment = currentSpeaker === 'Asesor' ? 'Cliente' : 'Asesor';
-        }
-
-        if (speakerForSegment !== currentSpeaker) {
-          currentSpeaker = speakerForSegment;
+          // First segment is usually the advisor
+          currentSpeaker = 'Asesor';
+        } else if (hasAdvisorKeywords && !hasClientKeywords && text.length > 20) {
+          currentSpeaker = 'Asesor';
+          lastSpeakerChange = segment.start;
+        } else if (hasClientKeywords && !hasAdvisorKeywords) {
+          currentSpeaker = 'Cliente';
+          lastSpeakerChange = segment.start;
+        } else if (segment.start - lastSpeakerChange > 5) {
+          // If enough time has passed, likely speaker change
+          currentSpeaker = currentSpeaker === 'Asesor' ? 'Cliente' : 'Asesor';
           lastSpeakerChange = segment.start;
         }
-
-        // Timestamp formatting (mm:ss)
+        
+        // Format timestamp
         const startTime = Math.floor(segment.start);
         const minutes = Math.floor(startTime / 60);
         const seconds = startTime % 60;
         const timestamp = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-
+        
+        // Add the segment to transcription
         formattedTranscription += `[${timestamp}] ${currentSpeaker}: ${text}\n`;
-
-        // Detect silence
+        
+        // Check for silence between segments
         const nextSegment = sortedSegments[index + 1];
         if (nextSegment) {
           const silenceDuration = nextSegment.start - segment.end;
@@ -133,14 +131,23 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
         }
       });
     } else {
-      // Fallback as before (plain speaker alternation)
-      const sentences = transcription.text.split(/[.!?]+/).filter(s => s.trim());
+      // Fallback: use the raw text and create basic speaker structure
+      console.log('No segments available, using raw text');
+      const rawText = transcription.text || '';
+      
+      if (!rawText || rawText.trim().length < 10) {
+        return 'No hay transcripción disponible - no se detectó contenido de audio';
+      }
+      
+      // Split by sentences and alternate speakers
+      const sentences = rawText.split(/[.!?]+/).filter(s => s.trim().length > 5);
       let currentSpeaker = 'Asesor';
       
       sentences.forEach((sentence, index) => {
-        if (sentence.trim()) {
-          const timestamp = `${Math.floor(index * 15 / 60)}:${(index * 15 % 60).toString().padStart(2, '0')}`;
-          formattedTranscription += `[${timestamp}] ${currentSpeaker}: ${sentence.trim()}\n`;
+        const cleanSentence = sentence.trim();
+        if (cleanSentence) {
+          const timestamp = `${Math.floor(index * 10 / 60)}:${(index * 10 % 60).toString().padStart(2, '0')}`;
+          formattedTranscription += `[${timestamp}] ${currentSpeaker}: ${cleanSentence}.\n`;
           
           // Alternate speaker every 2-3 sentences
           if (index > 0 && index % 2 === 0) {
@@ -150,20 +157,20 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
       });
     }
 
-    // FINAL: Return only this transcription string, never add summary or feedback here
+    // Validate the transcription quality
     if (!formattedTranscription || formattedTranscription.trim() === '') {
       return 'No hay transcripción disponible - error en el procesamiento del audio';
     }
 
-    // Verify we have actual conversation
+    // Check if we have actual conversation
     const lines = formattedTranscription.split('\n').filter(line => line.trim());
     const conversationLines = lines.filter(line => 
       line.includes('Asesor:') || line.includes('Cliente:')
     );
     
     if (conversationLines.length < 2) {
-      console.log('Insufficient conversation detected');
-      return 'No hay transcripción disponible - no se detectó conversación suficiente entre asesor y cliente';
+      console.log('Insufficient conversation detected, lines:', conversationLines.length);
+      return 'No hay transcripción disponible - no se detectó conversación suficiente';
     }
 
     // Ensure we have both speakers
@@ -175,13 +182,17 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
       return 'No hay transcripción disponible - no se detectó conversación completa entre asesor y cliente';
     }
 
-    console.log(`Transcription processed successfully with ${conversationLines.length} conversation segments`);
-    console.log('Final transcription length:', formattedTranscription.length);
+    console.log(`Transcription completed successfully:`);
+    console.log(`- Total lines: ${lines.length}`);
+    console.log(`- Conversation lines: ${conversationLines.length}`);
+    console.log(`- Has advisor: ${hasAdvisor}`);
+    console.log(`- Has client: ${hasClient}`);
+    console.log(`- Final length: ${formattedTranscription.length} characters`);
     
     return formattedTranscription;
     
   } catch (error) {
-    console.error('Error in transcription:', error);
+    console.error('Error in transcription service:', error);
     
     // Enhanced error handling
     if (error.name === 'AbortError') {

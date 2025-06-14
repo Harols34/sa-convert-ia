@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
@@ -21,7 +22,7 @@ serve(async (req) => {
   try {
     const { callId, audioUrl, summaryPrompt, feedbackPrompt, selectedBehaviorIds } = await req.json();
     
-    console.log('Processing call request:', { 
+    console.log('🚀 Processing call request:', { 
       callId, 
       audioUrl: audioUrl ? 'provided' : 'missing', 
       summaryPrompt: summaryPrompt ? 'provided' : 'not provided', 
@@ -49,29 +50,34 @@ serve(async (req) => {
       throw new Error('Could not fetch call data');
     }
 
-    console.log(`Starting processing for call ${callId} (${callData.title}) in account: ${callData.account_id}`);
+    console.log(`📞 Starting processing for call ${callId} (${callData.title}) in account: ${callData.account_id}`);
 
-    // --- STAGE 1: TRANSCRIPTION ---
+    // === STAGE 1: PURE TRANSCRIPTION ONLY ===
+    console.log('🎤 Starting transcription stage...');
     await updateCallInDatabase(supabase, callId, {
       status: 'transcribing',
       progress: 10
     });
 
     const transcription = await transcribeAudio(audioUrl);
+    console.log(`📝 Transcription completed: ${transcription.length} characters`);
 
+    // Save ONLY the transcription, nothing else
     await updateCallInDatabase(supabase, callId, {
-      transcription, // <-- Save only transcription here, never analysis/resumen/feedback.
-      status: (transcription && !transcription.includes('No hay transcripción disponible') && transcription.trim().length > 50) ? 'analyzing' : 'complete',
-      progress: (transcription && !transcription.includes('No hay transcripción disponible') && transcription.trim().length > 50) ? 40 : 100
+      transcription: transcription, // Pure transcription text only
+      status: (transcription && !transcription.includes('No hay transcripción disponible') && transcription.trim().length > 100) ? 'analyzing' : 'complete',
+      progress: (transcription && !transcription.includes('No hay transcripción disponible') && transcription.trim().length > 100) ? 40 : 100
     });
 
-    // --- STAGE 2: ONLY IF transcription válida ---
+    // === VALIDATE TRANSCRIPTION QUALITY ===
     const isValidTranscription = transcription &&
       !transcription.includes('No hay transcripción disponible') &&
-      transcription.trim().length > 50;
+      transcription.trim().length > 100 &&
+      (transcription.includes('Asesor:') || transcription.includes('Cliente:'));
 
     if (!isValidTranscription) {
-      console.log('Invalid or insufficient transcription, marking call as complete with no analysis');
+      console.log('❌ Invalid or insufficient transcription, marking call as complete with no analysis');
+      console.log(`Transcription preview: ${transcription.substring(0, 200)}...`);
       
       // Store minimal feedback for non-analyzable content
       await supabase
@@ -107,12 +113,23 @@ serve(async (req) => {
       );
     }
 
-    // --- STAGE 3: RESUMEN, after transcription ---
-    const summary = await generateSummary(transcription, summaryPrompt || undefined);
-    await updateCallInDatabase(supabase, callId, { summary, progress: 70 });
+    console.log('✅ Valid transcription found, proceeding with analysis...');
 
-    // --- STAGE 4: FEEDBACK, after resumen ---
+    // === STAGE 2: SUMMARY GENERATION ===
+    console.log('📊 Starting summary generation...');
+    const summary = await generateSummary(transcription, summaryPrompt || undefined);
+    console.log(`📄 Summary generated: ${summary.length} characters`);
+    
+    await updateCallInDatabase(supabase, callId, { 
+      summary: summary, 
+      progress: 70 
+    });
+
+    // === STAGE 3: FEEDBACK GENERATION ===
+    console.log('🔍 Starting feedback generation...');
     const feedbackResult = await generateFeedback(transcription, summary, feedbackPrompt || undefined, selectedBehaviorIds || []);
+    console.log(`💬 Feedback generated with score: ${feedbackResult.score}`);
+    
     await updateCallInDatabase(supabase, callId, {
       status: 'complete',
       progress: 100,
@@ -121,7 +138,7 @@ serve(async (req) => {
       topics: feedbackResult.topics
     });
 
-    // Guardar feedback completo
+    // Save complete feedback
     const { error: feedbackError } = await supabase
       .from('feedback')
       .insert({
@@ -142,7 +159,7 @@ serve(async (req) => {
     }
 
     console.log(`✅ Successfully processed call ${callId} for account ${callData.account_id}`);
-    console.log(`Final stats: transcription=${transcription.length} chars, summary=${summary.length} chars, score=${feedbackResult.score}`);
+    console.log(`📈 Final stats: transcription=${transcription.length} chars, summary=${summary.length} chars, score=${feedbackResult.score}`);
 
     return new Response(
       JSON.stringify({ 
