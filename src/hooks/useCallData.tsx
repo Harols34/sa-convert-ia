@@ -107,20 +107,61 @@ export function useCallData(id: string | undefined) {
         
         let segments: any[] = [];
         
+        // Mejorado parsing de transcripción para manejar diferentes formatos
         if (callData.transcription) {
           try {
             if (typeof callData.transcription === 'string') {
-              try {
-                const parsedTranscription = JSON.parse(callData.transcription);
-                segments = parsedTranscription;
-                if (isMounted.current) {
-                  setTranscriptSegments(parsedTranscription);
+              // Limpiar la cadena antes de parsear
+              let cleanTranscription = callData.transcription.trim();
+              
+              // Si empieza con '[' es probablemente un array JSON
+              if (cleanTranscription.startsWith('[')) {
+                try {
+                  const parsedTranscription = JSON.parse(cleanTranscription);
+                  if (Array.isArray(parsedTranscription)) {
+                    segments = parsedTranscription;
+                  } else {
+                    console.warn("Transcription JSON is not an array:", parsedTranscription);
+                    segments = [];
+                  }
+                } catch (parseError) {
+                  console.error("Error parsing transcription JSON:", parseError);
+                  console.log("Original transcription string:", cleanTranscription);
+                  // Si falla el parsing, tratar como texto plano
+                  segments = [{
+                    text: cleanTranscription,
+                    speaker: "agent",
+                    start: 0,
+                    end: 0
+                  }];
                 }
-              } catch (parseError) {
-                console.error("Error parsing transcription JSON:", parseError);
-                if (isMounted.current) {
-                  setTranscriptSegments([]);
-                }
+              } else {
+                // Si no es JSON, tratar como texto plano con formato de timestamps
+                const lines = cleanTranscription.split('\n').filter(line => line.trim());
+                segments = lines.map((line, index) => {
+                  // Detectar formato [mm:ss] Speaker: text
+                  const timestampMatch = line.match(/^\[(\d+):(\d+)\]\s*(.+?):\s*(.+)$/);
+                  if (timestampMatch) {
+                    const [, minutes, seconds, speaker, text] = timestampMatch;
+                    return {
+                      text: text.trim(),
+                      speaker: speaker.toLowerCase().includes('agente') ? 'agent' : 'client',
+                      start: parseInt(minutes) * 60 + parseInt(seconds),
+                      end: parseInt(minutes) * 60 + parseInt(seconds) + 5 // Estimación
+                    };
+                  }
+                  // Formato fallback
+                  return {
+                    text: line,
+                    speaker: index % 2 === 0 ? 'agent' : 'client',
+                    start: index * 5,
+                    end: (index + 1) * 5
+                  };
+                });
+              }
+              
+              if (isMounted.current) {
+                setTranscriptSegments(segments);
               }
             } else if (Array.isArray(callData.transcription)) {
               segments = callData.transcription;

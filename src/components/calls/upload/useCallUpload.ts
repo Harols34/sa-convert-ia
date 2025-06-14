@@ -15,14 +15,21 @@ export interface FileItem {
   info?: string;
 }
 
-// Function to sanitize file names for storage
+// Function to sanitize file names for storage - more aggressive sanitization
 const sanitizeFileName = (fileName: string): string => {
-  // Remove invalid characters and replace with underscores
-  return fileName
+  // Remove file extension temporarily
+  const lastDotIndex = fileName.lastIndexOf('.');
+  const name = lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
+  const extension = lastDotIndex > 0 ? fileName.substring(lastDotIndex) : '';
+  
+  // Sanitize the name part only
+  const sanitizedName = name
     .replace(/[{}[\]()]/g, '_') // Remove braces, brackets, parentheses
     .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace other special chars with underscores
     .replace(/_+/g, '_') // Replace multiple underscores with single one
     .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
+  
+  return sanitizedName + extension;
 };
 
 export function useCallUpload() {
@@ -80,10 +87,14 @@ export function useCallUpload() {
         const sanitizedName = sanitizeFileName(fileItem.file.name);
         const fileName = `${Date.now()}-${sanitizedName}`;
         
-        console.log('Uploading file to storage:', fileName);
+        console.log('Original filename:', fileItem.file.name);
+        console.log('Sanitized filename:', fileName);
+        console.log('Uploading to account folder:', selectedAccountId);
+        
+        // Upload to account-specific folder
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('call-recordings')
-          .upload(fileName, fileItem.file);
+          .upload(`${selectedAccountId}/${fileName}`, fileItem.file);
 
         if (uploadError) {
           console.error('Storage upload error:', uploadError);
@@ -99,7 +110,7 @@ export function useCallUpload() {
         // Get public URL
         const { data: { publicUrl } } = supabase.storage
           .from('call-recordings')
-          .getPublicUrl(fileName);
+          .getPublicUrl(`${selectedAccountId}/${fileName}`);
 
         console.log('File uploaded successfully, public URL:', publicUrl);
         console.log('Creating call record with account_id:', selectedAccountId);
@@ -108,11 +119,11 @@ export function useCallUpload() {
         const { data: callData, error: callError } = await supabase
           .from('calls')
           .insert({
-            title: fileItem.file.name.replace(/\.[^/.]+$/, ""),
-            filename: fileItem.file.name,
-            agent_name: user.name || user.email || 'Usuario',
+            title: sanitizedName.replace(/\.[^/.]+$/, ""), // Remove extension for title
+            filename: sanitizedName,
+            agent_name: user.user_metadata?.full_name || user.email || 'Usuario',
             agent_id: user.id,
-            account_id: selectedAccountId, // Ensure this is set correctly
+            account_id: selectedAccountId,
             audio_url: publicUrl,
             status: 'pending',
             progress: 0
@@ -139,7 +150,7 @@ export function useCallUpload() {
           audioUrl: publicUrl,
           summaryPrompt: config?.summaryPrompt,
           feedbackPrompt: config?.feedbackPrompt,
-          selectedBehaviorIds: config?.selectedBehaviorIds
+          selectedBehaviorIds: config?.selectedBehaviorIds || []
         };
 
         console.log('Calling process-call function with payload:', processPayload);
