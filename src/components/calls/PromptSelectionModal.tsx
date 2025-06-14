@@ -7,10 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAccount } from "@/context/AccountContext";
+import { useAuth } from "@/context/AuthContext";
 
 interface Behavior {
   id: string;
@@ -18,6 +21,18 @@ interface Behavior {
   description: string;
   prompt: string;
   is_active: boolean;
+  account_id?: string;
+  user_id?: string;
+}
+
+interface Prompt {
+  id: string;
+  name: string;
+  content: string;
+  type: "summary" | "feedback";
+  active: boolean;
+  account_id?: string;
+  user_id?: string;
 }
 
 interface PromptSelectionModalProps {
@@ -35,23 +50,105 @@ export default function PromptSelectionModal({
   onOpenChange,
   onConfirm
 }: PromptSelectionModalProps) {
-  const [summaryPrompt, setSummaryPrompt] = useState("");
-  const [feedbackPrompt, setFeedbackPrompt] = useState("");
+  const [customSummaryPrompt, setCustomSummaryPrompt] = useState("");
+  const [customFeedbackPrompt, setCustomFeedbackPrompt] = useState("");
+  const [selectedSummaryPrompt, setSelectedSummaryPrompt] = useState<string>("custom");
+  const [selectedFeedbackPrompt, setSelectedFeedbackPrompt] = useState<string>("custom");
   const [selectedBehaviors, setSelectedBehaviors] = useState<string[]>([]);
   const [selectAllBehaviors, setSelectAllBehaviors] = useState(true);
+  
+  const { selectedAccountId } = useAccount();
+  const { user } = useAuth();
 
-  // Fetch active behaviors
+  // Fetch active behaviors filtered by account
   const { data: behaviors, isLoading: behaviorsLoading, error: behaviorsError } = useQuery({
-    queryKey: ['active-behaviors'],
+    queryKey: ['active-behaviors', selectedAccountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      console.log("Fetching behaviors for account:", selectedAccountId);
+      
+      let query = supabase
         .from('behaviors')
         .select('*')
         .eq('is_active', true)
         .order('name');
+
+      // Apply account filtering
+      if (selectedAccountId && selectedAccountId !== 'all') {
+        query = query.eq('account_id', selectedAccountId);
+      } else if (selectedAccountId === 'all' && user?.role === 'superAdmin') {
+        // SuperAdmin with "all" sees all behaviors
+      } else {
+        // User without specific account - only personal behaviors
+        query = query.eq('user_id', user?.id).is('account_id', null);
+      }
+      
+      const { data, error } = await query;
       
       if (error) throw error;
+      console.log("Behaviors fetched:", data?.length || 0);
       return data as Behavior[];
+    },
+    enabled: open
+  });
+
+  // Fetch summary prompts filtered by account
+  const { data: summaryPrompts, isLoading: summaryPromptsLoading } = useQuery({
+    queryKey: ['summary-prompts', selectedAccountId],
+    queryFn: async () => {
+      console.log("Fetching summary prompts for account:", selectedAccountId);
+      
+      let query = supabase
+        .from('prompts')
+        .select('*')
+        .eq('type', 'summary')
+        .order('updated_at', { ascending: false });
+
+      // Apply account filtering
+      if (selectedAccountId && selectedAccountId !== 'all') {
+        query = query.eq('account_id', selectedAccountId);
+      } else if (selectedAccountId === 'all' && user?.role === 'superAdmin') {
+        // SuperAdmin with "all" sees all prompts
+      } else {
+        // User without specific account - only personal prompts
+        query = query.eq('user_id', user?.id).is('account_id', null);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      console.log("Summary prompts fetched:", data?.length || 0);
+      return data as Prompt[];
+    },
+    enabled: open
+  });
+
+  // Fetch feedback prompts filtered by account
+  const { data: feedbackPrompts, isLoading: feedbackPromptsLoading } = useQuery({
+    queryKey: ['feedback-prompts', selectedAccountId],
+    queryFn: async () => {
+      console.log("Fetching feedback prompts for account:", selectedAccountId);
+      
+      let query = supabase
+        .from('prompts')
+        .select('*')
+        .eq('type', 'feedback')
+        .order('updated_at', { ascending: false });
+
+      // Apply account filtering
+      if (selectedAccountId && selectedAccountId !== 'all') {
+        query = query.eq('account_id', selectedAccountId);
+      } else if (selectedAccountId === 'all' && user?.role === 'superAdmin') {
+        // SuperAdmin with "all" sees all prompts
+      } else {
+        // User without specific account - only personal prompts
+        query = query.eq('user_id', user?.id).is('account_id', null);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      console.log("Feedback prompts fetched:", data?.length || 0);
+      return data as Prompt[];
     },
     enabled: open
   });
@@ -81,16 +178,37 @@ export default function PromptSelectionModal({
   };
 
   const handleConfirm = () => {
+    let finalSummaryPrompt: string | undefined;
+    let finalFeedbackPrompt: string | undefined;
+
+    // Determine summary prompt
+    if (selectedSummaryPrompt === "custom") {
+      finalSummaryPrompt = customSummaryPrompt.trim() || undefined;
+    } else if (selectedSummaryPrompt && selectedSummaryPrompt !== "default") {
+      const selectedPrompt = summaryPrompts?.find(p => p.id === selectedSummaryPrompt);
+      finalSummaryPrompt = selectedPrompt?.content || undefined;
+    }
+
+    // Determine feedback prompt
+    if (selectedFeedbackPrompt === "custom") {
+      finalFeedbackPrompt = customFeedbackPrompt.trim() || undefined;
+    } else if (selectedFeedbackPrompt && selectedFeedbackPrompt !== "default") {
+      const selectedPrompt = feedbackPrompts?.find(p => p.id === selectedFeedbackPrompt);
+      finalFeedbackPrompt = selectedPrompt?.content || undefined;
+    }
+
     onConfirm({
-      summaryPrompt: summaryPrompt.trim() || undefined,
-      feedbackPrompt: feedbackPrompt.trim() || undefined,
+      summaryPrompt: finalSummaryPrompt,
+      feedbackPrompt: finalFeedbackPrompt,
       selectedBehaviors: selectAllBehaviors ? undefined : selectedBehaviors
     });
   };
 
   const handleReset = () => {
-    setSummaryPrompt("");
-    setFeedbackPrompt("");
+    setCustomSummaryPrompt("");
+    setCustomFeedbackPrompt("");
+    setSelectedSummaryPrompt("custom");
+    setSelectedFeedbackPrompt("custom");
     setSelectedBehaviors([]);
     setSelectAllBehaviors(true);
   };
@@ -107,42 +225,100 @@ export default function PromptSelectionModal({
             {/* Summary Prompt Section */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Prompt Personalizado para Resumen</CardTitle>
+                <CardTitle className="text-lg">Prompt para Resumen</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Label htmlFor="summary-prompt">
-                    Prompt para generar el resumen de la llamada (opcional)
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="summary-prompt-select">
+                    Seleccionar prompt de resumen
                   </Label>
-                  <Textarea
-                    id="summary-prompt"
-                    placeholder="Ingrese un prompt personalizado para el resumen o deje vacío para usar el prompt por defecto..."
-                    value={summaryPrompt}
-                    onChange={(e) => setSummaryPrompt(e.target.value)}
-                    className="min-h-[100px]"
-                  />
+                  {summaryPromptsLoading ? (
+                    <div className="flex items-center py-2">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <span className="text-sm">Cargando prompts...</span>
+                    </div>
+                  ) : (
+                    <Select value={selectedSummaryPrompt} onValueChange={setSelectedSummaryPrompt}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar prompt" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">Prompt por defecto del sistema</SelectItem>
+                        <SelectItem value="custom">Prompt personalizado</SelectItem>
+                        {summaryPrompts?.map((prompt) => (
+                          <SelectItem key={prompt.id} value={prompt.id}>
+                            {prompt.name} {prompt.active && "(Activo)"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
+
+                {selectedSummaryPrompt === "custom" && (
+                  <div>
+                    <Label htmlFor="custom-summary-prompt">
+                      Prompt personalizado para resumen
+                    </Label>
+                    <Textarea
+                      id="custom-summary-prompt"
+                      placeholder="Ingrese un prompt personalizado para el resumen..."
+                      value={customSummaryPrompt}
+                      onChange={(e) => setCustomSummaryPrompt(e.target.value)}
+                      className="min-h-[100px]"
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 
             {/* Feedback Prompt Section */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Prompt Personalizado para Feedback</CardTitle>
+                <CardTitle className="text-lg">Prompt para Feedback</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Label htmlFor="feedback-prompt">
-                    Prompt para generar el feedback de la llamada (opcional)
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="feedback-prompt-select">
+                    Seleccionar prompt de feedback
                   </Label>
-                  <Textarea
-                    id="feedback-prompt"
-                    placeholder="Ingrese un prompt personalizado para el feedback o deje vacío para usar el prompt por defecto..."
-                    value={feedbackPrompt}
-                    onChange={(e) => setFeedbackPrompt(e.target.value)}
-                    className="min-h-[100px]"
-                  />
+                  {feedbackPromptsLoading ? (
+                    <div className="flex items-center py-2">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <span className="text-sm">Cargando prompts...</span>
+                    </div>
+                  ) : (
+                    <Select value={selectedFeedbackPrompt} onValueChange={setSelectedFeedbackPrompt}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar prompt" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">Prompt por defecto del sistema</SelectItem>
+                        <SelectItem value="custom">Prompt personalizado</SelectItem>
+                        {feedbackPrompts?.map((prompt) => (
+                          <SelectItem key={prompt.id} value={prompt.id}>
+                            {prompt.name} {prompt.active && "(Activo)"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
+
+                {selectedFeedbackPrompt === "custom" && (
+                  <div>
+                    <Label htmlFor="custom-feedback-prompt">
+                      Prompt personalizado para feedback
+                    </Label>
+                    <Textarea
+                      id="custom-feedback-prompt"
+                      placeholder="Ingrese un prompt personalizado para el feedback..."
+                      value={customFeedbackPrompt}
+                      onChange={(e) => setCustomFeedbackPrompt(e.target.value)}
+                      className="min-h-[100px]"
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -168,7 +344,7 @@ export default function PromptSelectionModal({
                   <Alert>
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      No hay comportamientos activos configurados. Configure comportamientos antes de procesar llamadas.
+                      No hay comportamientos activos configurados para la cuenta seleccionada. Configure comportamientos antes de procesar llamadas.
                     </AlertDescription>
                   </Alert>
                 ) : (
