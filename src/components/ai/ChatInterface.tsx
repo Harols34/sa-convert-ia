@@ -131,29 +131,41 @@ Puedo ayudarte con:
       
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 rounded-lg mb-4">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <Card className={`max-w-[80%] ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-white'}`}>
-              <CardContent className="p-3">
-                <div className="flex items-start gap-2">
-                  {message.role === 'assistant' && <Bot className="h-5 w-5 mt-0.5 flex-shrink-0" />}
-                  {message.role === 'user' && <User className="h-5 w-5 mt-0.5 flex-shrink-0" />}
-                  <div className="flex-1">
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                      {message.content}
-                    </div>
-                    <div className={`text-xs mt-2 ${message.role === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                      {message.timestamp.toLocaleTimeString()}
+        {messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <Bot className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-medium mb-2">Asistente de ConvertIA</h3>
+              <p className="text-muted-foreground">
+                Tengo acceso a los datos de tus llamadas. Pregúntame sobre insights, tendencias y análisis.
+              </p>
+            </div>
+          </div>
+        ) : (
+          messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <Card className={`max-w-[80%] ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-white'}`}>
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-2">
+                    {message.role === 'assistant' && <Bot className="h-5 w-5 mt-0.5 flex-shrink-0" />}
+                    {message.role === 'user' && <User className="h-5 w-5 mt-0.5 flex-shrink-0" />}
+                    <div className="flex-1">
+                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                        {message.content}
+                      </div>
+                      <div className={`text-xs mt-2 ${message.role === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                        {message.timestamp.toLocaleTimeString()}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        ))}
+                </CardContent>
+              </Card>
+            </div>
+          ))
+        )}
         
         {isLoading && (
           <div className="flex justify-start">
