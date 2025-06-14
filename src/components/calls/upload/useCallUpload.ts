@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/integrations/supabase/client";
@@ -72,17 +73,19 @@ export function useCallUpload() {
         const sanitizedName = sanitizeFileName(fileItem.file.name);
         const fileName = `${Date.now()}-${sanitizedName}`;
         
+        console.log('Uploading file to storage:', fileName);
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('call-recordings')
           .upload(fileName, fileItem.file);
 
         if (uploadError) {
+          console.error('Storage upload error:', uploadError);
           throw new Error(`Error uploading file: ${uploadError.message}`);
         }
 
         setFiles(prev => prev.map(f => 
           f.id === fileItem.id 
-            ? { ...f, progress: 50 }
+            ? { ...f, progress: 30 }
             : f
         ));
 
@@ -90,6 +93,8 @@ export function useCallUpload() {
         const { data: { publicUrl } } = supabase.storage
           .from('call-recordings')
           .getPublicUrl(fileName);
+
+        console.log('File uploaded successfully, public URL:', publicUrl);
 
         // Create call record with correct schema including account_id
         const { data: callData, error: callError } = await supabase
@@ -108,32 +113,41 @@ export function useCallUpload() {
           .single();
 
         if (callError) {
+          console.error('Call record creation error:', callError);
           throw new Error(`Error creating call record: ${callError.message}`);
         }
 
+        console.log('Call record created:', callData.id);
+
         setFiles(prev => prev.map(f => 
           f.id === fileItem.id 
-            ? { ...f, status: "processing", progress: 75 }
+            ? { ...f, status: "processing", progress: 60 }
             : f
         ));
 
-        // Process the call
-        const response = await fetch('/api/process-call', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
+        // Process the call using Supabase function
+        console.log('Calling process-call function with:', {
+          callId: callData.id,
+          audioUrl: publicUrl,
+          summaryPrompt: prompts?.summaryPrompt ? 'provided' : 'not provided',
+          feedbackPrompt: prompts?.feedbackPrompt ? 'provided' : 'not provided'
+        });
+
+        const { data: processResult, error: processError } = await supabase.functions.invoke('process-call', {
+          body: {
             callId: callData.id,
             audioUrl: publicUrl,
             summaryPrompt: prompts?.summaryPrompt,
             feedbackPrompt: prompts?.feedbackPrompt
-          }),
+          }
         });
 
-        if (!response.ok) {
-          throw new Error('Error processing call');
+        if (processError) {
+          console.error('Process call error:', processError);
+          throw new Error(`Error processing call: ${processError.message}`);
         }
+
+        console.log('Call processed successfully:', processResult);
 
         setFiles(prev => prev.map(f => 
           f.id === fileItem.id 
