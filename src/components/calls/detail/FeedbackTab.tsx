@@ -5,6 +5,7 @@ import FeedbackLoading from "./feedback/FeedbackLoading";
 import FeedbackContent from "./feedback/FeedbackContent";
 import { useFeedbackAnalysis } from "@/hooks/useFeedbackAnalysis";
 import { toast } from "sonner";
+import FeedbackErrorDisplay from "./feedback/FeedbackErrorDisplay";
 
 interface FeedbackTabProps {
   call: Call;
@@ -15,13 +16,13 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
   const [localFeedback, setLocalFeedback] = useState(feedback);
   const [showLoadingScreen, setShowLoadingScreen] = useState(true);
   
-  console.log("FeedbackTab render:", { 
-    callId: call.id, 
-    hasFeedback: !!feedback, 
-    hasLocalFeedback: !!localFeedback,
-    showLoadingScreen,
-    feedbackBehaviorsLength: feedback?.behaviors_analysis?.length || 0
-  });
+  // Update local feedback state when call feedback changes
+  useEffect(() => {
+    if (feedback) {
+      setLocalFeedback(feedback);
+      setShowLoadingScreen(false);
+    }
+  }, [feedback]);
 
   // Use our hook to manage feedback analysis
   const feedbackAnalysisManager = useFeedbackAnalysis({
@@ -41,91 +42,30 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
     feedbackAlreadyExists,
   } = feedbackAnalysisManager;
 
-  // Update local feedback state when call feedback changes
   useEffect(() => {
-    console.log("Feedback changed:", feedback);
-    
-    if (feedback && feedback.behaviors_analysis && feedback.behaviors_analysis.length > 0) {
-      console.log("Valid feedback with behaviors found, showing content");
-      setLocalFeedback(feedback);
+    // Check if feedback exists and show content immediately if it does
+    if (localFeedback || feedbackAlreadyExists) {
       setShowLoadingScreen(false);
-    } else if (feedback) {
-      // Check if this is a "pending" feedback (default created or empty behaviors)
-      const isPendingFeedback = Array.isArray(feedback.positive) && 
-        feedback.positive.length === 1 && 
-        feedback.positive[0] === "Pendiente por generar";
-      
-      const hasEmptyBehaviors = !feedback.behaviors_analysis || feedback.behaviors_analysis.length === 0;
-      
-      if (isPendingFeedback || hasEmptyBehaviors) {
-        console.log("Detected pending feedback or empty behaviors, showing loading screen");
-        setShowLoadingScreen(true);
-        setLocalFeedback(undefined);
-      } else {
-        console.log("Regular feedback without behaviors, showing content");
-        setLocalFeedback(feedback);
-        setShowLoadingScreen(false);
-      }
-    } else {
-      console.log("No feedback found, showing loading screen");
-      setShowLoadingScreen(true);
-      setLocalFeedback(undefined);
     }
-  }, [feedback]);
+  }, [localFeedback, feedbackAlreadyExists]);
 
-  // Handle the feedback exists logic
-  useEffect(() => {
-    const hasValidLocalFeedback = localFeedback && 
-      localFeedback.behaviors_analysis && 
-      localFeedback.behaviors_analysis.length > 0;
-    
-    const hasValidCallFeedback = feedback && 
-      feedback.behaviors_analysis && 
-      feedback.behaviors_analysis.length > 0;
-
-    if (hasValidLocalFeedback || hasValidCallFeedback || feedbackAlreadyExists) {
-      console.log("Valid feedback exists, hiding loading screen");
-      setShowLoadingScreen(false);
-    } else {
-      console.log("No valid feedback found, showing loading screen");
-      setShowLoadingScreen(true);
-    }
-  }, [localFeedback, feedback, feedbackAlreadyExists]);
-
-  // Handle manual generation of feedback with optional behavior selection
-  const handleManualGeneration = async (selectedBehaviorIds?: string[]) => {
-    // Check if we already have real feedback (not pending)
-    const hasRealFeedback = (localFeedback || feedback) && 
-      (localFeedback?.behaviors_analysis?.length > 0 || feedback?.behaviors_analysis?.length > 0);
-    
-    if (hasRealFeedback || feedbackAlreadyExists) {
+  // Handle manual generation of feedback
+  const handleManualGeneration = async () => {
+    if (feedbackAlreadyExists || localFeedback) {
       toast.info("El feedback de esta llamada ya existe y es permanente");
       return;
     }
     
     try {
-      console.log("Starting manual generation with behaviors:", selectedBehaviorIds);
       setShowLoadingScreen(true);
-      await triggerAnalysisFunction(selectedBehaviorIds);
+      await triggerAnalysisFunction();
     } catch (error) {
       console.error("Error in manual generation:", error);
-      setShowLoadingScreen(false);
-      toast.error("Error al generar análisis", {
-        description: error instanceof Error ? error.message : "Error desconocido"
-      });
     }
   };
 
-  // Determine if we should show loading screen
-  const shouldShowLoading = showLoadingScreen && 
-    !feedbackAlreadyExists && 
-    (!localFeedback || !localFeedback.behaviors_analysis || localFeedback.behaviors_analysis.length === 0) &&
-    (!feedback || !feedback.behaviors_analysis || feedback.behaviors_analysis.length === 0);
-
-  console.log("Should show loading:", shouldShowLoading);
-
   // Show proper loading screen when appropriate
-  if (shouldShowLoading) {
+  if (showLoadingScreen && (!localFeedback && !feedbackAlreadyExists)) {
     return (
       <FeedbackLoading 
         isLoading={isGeneratingFeedback}

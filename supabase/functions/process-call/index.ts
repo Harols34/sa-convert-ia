@@ -63,30 +63,24 @@ serve(async (req) => {
 
     // Step 1: Transcribe audio - CRITICAL: Ensure transcription happens
     console.log('Starting transcription with audio URL:', audioUrl);
-    const transcriptionResult = await transcribeAudio(audioUrl);
+    const transcription = await transcribeAudio(audioUrl);
     
-    if (!transcriptionResult || !transcriptionResult.text || !transcriptionResult.segments) {
-      throw new Error('Failed to transcribe audio - no transcription text or segments returned');
+    if (!transcription || transcription.trim() === '') {
+      throw new Error('Failed to transcribe audio - no transcription text returned');
     }
 
-    // Format transcription with timestamps for summary
-    const formattedTranscription = transcriptionResult.segments.map((segment: any) => {
-        const start = new Date(segment.start * 1000).toISOString().substring(14, 19);
-        return `[${start}] ${segment.text.trim()}`;
-    }).join('\n');
-
-    console.log('Transcription completed successfully, length:', transcriptionResult.text.length);
+    console.log('Transcription completed successfully, length:', transcription.length);
 
     // Update with transcription - CRITICAL: Save transcription to database
     await updateCallInDatabase(supabase, callId, {
-      transcription: JSON.stringify(transcriptionResult.segments),
+      transcription,
       status: 'analyzing',
       progress: 40
     });
 
     // Step 2: Generate summary with the EXACT custom prompt provided (if any)
     console.log('Generating summary with custom prompt:', !!summaryPrompt);
-    const summary = await generateSummary(formattedTranscription, summaryPrompt || undefined);
+    const summary = await generateSummary(transcription, summaryPrompt || undefined);
     
     // Update with summary
     await updateCallInDatabase(supabase, callId, {
@@ -96,7 +90,7 @@ serve(async (req) => {
 
     // Step 3: Generate feedback with the EXACT custom prompt provided (if any)
     console.log('Generating feedback with custom prompt:', !!feedbackPrompt);
-    const feedbackResult = await generateFeedback(transcriptionResult.text, summary, feedbackPrompt || undefined);
+    const feedbackResult = await generateFeedback(transcription, summary, feedbackPrompt || undefined);
     
     // Step 4: Update call with all results - use 'complete' status
     await updateCallInDatabase(supabase, callId, {
@@ -128,7 +122,7 @@ serve(async (req) => {
     }
 
     console.log(`Successfully processed call ${callId} for account ${callData.account_id}`);
-    console.log('Final transcription length:', transcriptionResult.text.length);
+    console.log('Final transcription length:', transcription.length);
     console.log('Used custom prompts:', {
       summary: !!summaryPrompt,
       feedback: !!feedbackPrompt
@@ -140,7 +134,7 @@ serve(async (req) => {
         callId,
         accountId: callData.account_id,
         message: 'Call processed successfully with transcription',
-        transcriptionLength: transcriptionResult.text.length,
+        transcriptionLength: transcription.length,
         usedCustomPrompts: {
           summary: !!summaryPrompt,
           feedback: !!feedbackPrompt

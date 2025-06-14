@@ -25,20 +25,9 @@ export default function CallUpload() {
     setShowPromptModal(true);
   };
 
-  const handlePromptConfirm = (data: { 
-    prompts: { summaryPrompt?: string; feedbackPrompt?: string };
-    selectedBehaviorIds: string[];
-  }) => {
+  const handlePromptConfirm = (prompts: { summaryPrompt?: string; feedbackPrompt?: string }) => {
     setShowPromptModal(false);
-    
-    // Pass selected behavior IDs along with prompts.
-    // The backend `process-call` function is expected to handle this.
-    const processingOptions = {
-      ...data.prompts,
-      selectedBehaviorIds: data.selectedBehaviorIds,
-    };
-
-    uploadFiles(processingOptions);
+    uploadFiles(prompts);
   };
 
   return (

@@ -24,8 +24,8 @@ serve(async (req) => {
       });
     }
 
-    // Get the call ID and optional selected behavior IDs from the request body
-    const { callId, selectedBehaviorIds } = await req.json();
+    // Get the call ID from the request body
+    const { callId } = await req.json();
     
     if (!callId) {
       return new Response(JSON.stringify({ error: "ID de llamada no proporcionado" }), {
@@ -33,9 +33,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
-
-    console.log("Analyzing call:", callId);
-    console.log("Selected behavior IDs:", selectedBehaviorIds);
 
     // Create Supabase client
     const supabaseAdmin = createClient(
@@ -92,22 +89,16 @@ serve(async (req) => {
       });
     }
 
-    // Get behaviors - either selected ones or all active behaviors
-    console.log("Fetching behaviors for analysis...");
+    // Get active behaviors - filter by account if call has account_id
+    console.log("Fetching active behaviors for analysis...");
     let behaviorsQuery = supabaseAdmin
       .from('behaviors')
       .select('*')
       .eq('is_active', true);
 
-    // If specific behavior IDs are selected, filter by those
-    if (selectedBehaviorIds && Array.isArray(selectedBehaviorIds) && selectedBehaviorIds.length > 0) {
-      console.log("Filtering behaviors by selected IDs:", selectedBehaviorIds);
-      behaviorsQuery = behaviorsQuery.in('id', selectedBehaviorIds);
-    } else {
-      // If call has account_id, get behaviors for that account or global behaviors
-      if (call.account_id) {
-        behaviorsQuery = behaviorsQuery.or(`account_id.eq.${call.account_id},account_id.is.null`);
-      }
+    // If call has account_id, get behaviors for that account or global behaviors
+    if (call.account_id) {
+      behaviorsQuery = behaviorsQuery.or(`account_id.eq.${call.account_id},account_id.is.null`);
     }
 
     const { data: behaviors, error: behaviorsError } = await behaviorsQuery;
@@ -121,22 +112,14 @@ serve(async (req) => {
     }
 
     if (!behaviors || behaviors.length === 0) {
-      const errorMessage = selectedBehaviorIds && selectedBehaviorIds.length > 0 
-        ? "Los comportamientos seleccionados no están disponibles o no están activos"
-        : "No hay comportamientos activos para analizar";
-      
-      console.warn(errorMessage);
-      return new Response(JSON.stringify({ error: errorMessage }), {
+      console.warn("No active behaviors found for analysis");
+      return new Response(JSON.stringify({ error: "No hay comportamientos activos para analizar" }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    const behaviorSource = selectedBehaviorIds && selectedBehaviorIds.length > 0 
-      ? `${behaviors.length} comportamientos seleccionados`
-      : `${behaviors.length} comportamientos activos (account: ${call.account_id})`;
-    
-    console.log(`Found ${behaviorSource} for analysis`);
+    console.log(`Found ${behaviors.length} active behaviors for analysis (account: ${call.account_id})`);
 
     // Analyze behaviors
     const behaviorsAnalysis = await analyzeBehaviors(call, behaviors);

@@ -116,8 +116,8 @@ export const useFeedbackAnalysis = ({
     loadBehaviorsAnalysis();
   }, [loadBehaviorsAnalysis]);
   
-  // Function to generate feedback for the call - now supports selected behaviors
-  const generateFeedback = useCallback(async (selectedBehaviorIds?: string[]) => {
+  // Function to generate feedback for the call - only runs when manually triggered
+  const generateFeedback = useCallback(async () => {
     if (!call.id) return [];
     
     // First check if feedback already exists
@@ -186,17 +186,8 @@ export const useFeedbackAnalysis = ({
       toast.loading("Analizando llamada...", { id: "generate-feedback" });
       
       console.log("Triggering manual behavior analysis for call:", call.id);
-      console.log("Selected behavior IDs:", selectedBehaviorIds);
-      
-      const requestBody: any = { callId: call.id };
-      
-      // Add selected behavior IDs if provided
-      if (selectedBehaviorIds && selectedBehaviorIds.length > 0) {
-        requestBody.selectedBehaviorIds = selectedBehaviorIds;
-      }
-      
       const { data, error } = await supabase.functions.invoke("analyze-call", {
-        body: requestBody
+        body: { callId: call.id }
       });
       
       if (error) {
@@ -236,8 +227,7 @@ export const useFeedbackAnalysis = ({
           onFeedbackUpdate();
         }
         
-        const behaviorCount = selectedBehaviorIds ? selectedBehaviorIds.length : "todos los";
-        toast.success(`Análisis completado para ${behaviorCount} comportamientos`, { id: "generate-feedback" });
+        toast.success("Análisis generado", { id: "generate-feedback" });
         setActiveTab("behaviors");
         
         return newBehaviors;
