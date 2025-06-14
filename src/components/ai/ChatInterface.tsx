@@ -30,31 +30,6 @@ export default function ChatInterface() {
     scrollToBottom();
   }, [messages]);
 
-  // Add welcome message on mount
-  useEffect(() => {
-    if (messages.length === 0) {
-      const welcomeMessage: Message = {
-        id: "welcome",
-        role: "assistant",
-        content: `👋 ¡Hola! Soy tu asistente de análisis de llamadas de Convertia. 
-
-${selectedAccountId && selectedAccountId !== 'all' 
-  ? `Estoy trabajando con los datos de la cuenta seleccionada: ${selectedAccountId}` 
-  : 'Tengo acceso a los datos de las cuentas que tienes disponibles.'}
-
-Puedo ayudarte con:
-• Análisis de calidad de llamadas
-• Métricas de desempeño de agentes  
-• Tendencias en resultados de ventas
-• Feedback y recomendaciones de mejora
-
-¿En qué puedo ayudarte hoy?`,
-        timestamp: new Date()
-      };
-      setMessages([welcomeMessage]);
-    }
-  }, [selectedAccountId]);
-
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
 
@@ -120,15 +95,6 @@ Puedo ayudarte con:
 
   return (
     <div className="flex flex-col h-[600px] max-w-4xl mx-auto">
-      {/* Account Context Indicator */}
-      {selectedAccountId && selectedAccountId !== 'all' && (
-        <div className="mb-4 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-700">
-            🔍 Consultando datos de la cuenta: <strong>{selectedAccountId}</strong>
-          </p>
-        </div>
-      )}
-      
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 rounded-lg mb-4">
         {messages.length === 0 ? (
