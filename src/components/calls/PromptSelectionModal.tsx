@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -9,6 +8,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAccount } from "@/context/AccountContext";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Loader2 } from "lucide-react";
+import { useBehaviors, Behavior } from "@/hooks/useBehaviors";
+import { Separator } from "@/components/ui/separator";
 
 interface Prompt {
   id: string;
@@ -20,7 +24,10 @@ interface Prompt {
 interface PromptSelectionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (prompts: { summaryPrompt?: string; feedbackPrompt?: string }) => void;
+  onConfirm: (data: { 
+    prompts: { summaryPrompt?: string; feedbackPrompt?: string };
+    selectedBehaviorIds: string[];
+  }) => void;
 }
 
 export default function PromptSelectionModal({
@@ -35,13 +42,17 @@ export default function PromptSelectionModal({
   const [customSummaryPrompt, setCustomSummaryPrompt] = useState<string>("");
   const [customFeedbackPrompt, setCustomFeedbackPrompt] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [selectedBehaviors, setSelectedBehaviors] = useState<string[]>([]);
   
   const { selectedAccountId } = useAccount();
   const { user } = useAuth();
+  const { behaviors, loading: loadingBehaviors } = useBehaviors();
 
   useEffect(() => {
     if (open && selectedAccountId && selectedAccountId !== 'all' && user) {
       loadPrompts();
+      // Behaviors are loaded by the useBehaviors hook automatically
+      setSelectedBehaviors([]); // Reset on open
     }
   }, [open, selectedAccountId, user]);
 
@@ -92,6 +103,14 @@ export default function PromptSelectionModal({
     }
   };
 
+  const handleBehaviorToggle = (behaviorId: string) => {
+    setSelectedBehaviors(prev => 
+      prev.includes(behaviorId)
+        ? prev.filter(id => id !== behaviorId)
+        : [...prev, behaviorId]
+    );
+  };
+
   const handleConfirm = () => {
     const prompts: { summaryPrompt?: string; feedbackPrompt?: string } = {};
 
@@ -114,21 +133,23 @@ export default function PromptSelectionModal({
     }
 
     console.log("Final prompts being sent to process-call:", prompts);
+    console.log("Selected behavior IDs for analysis:", selectedBehaviors);
 
-    onConfirm(prompts);
+    onConfirm({ prompts, selectedBehaviorIds: selectedBehaviors });
     onOpenChange(false);
     
     setSelectedSummaryPrompt("");
     setSelectedFeedbackPrompt("");
     setCustomSummaryPrompt("");
     setCustomFeedbackPrompt("");
+    setSelectedBehaviors([]);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Seleccionar Prompts para Procesamiento</DialogTitle>
+          <DialogTitle>Seleccionar Prompts y Comportamientos</DialogTitle>
         </DialogHeader>
 
         {!selectedAccountId || selectedAccountId === 'all' ? (
@@ -215,6 +236,49 @@ export default function PromptSelectionModal({
                   </p>
                 </div>
               )}
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <Label>Comportamientos a Analizar (Opcional)</Label>
+              <p className="text-sm text-muted-foreground">
+                Selecciona los comportamientos para analizar. Si no seleccionas ninguno, se analizarán todos los comportamientos activos.
+              </p>
+              <ScrollArea className="h-[200px] pr-4 border rounded-md p-2">
+                {loadingBehaviors ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                    <span className="ml-2">Cargando comportamientos...</span>
+                  </div>
+                ) : behaviors.filter(b => b.is_active).length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+                    No hay comportamientos activos para esta cuenta.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {behaviors.filter(b => b.is_active).map((behavior) => (
+                      <div
+                        key={behavior.id}
+                        className="flex items-center space-x-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                        onClick={() => handleBehaviorToggle(behavior.id)}
+                      >
+                        <Checkbox
+                          id={`behavior-${behavior.id}`}
+                          checked={selectedBehaviors.includes(behavior.id)}
+                          onCheckedChange={() => handleBehaviorToggle(behavior.id)}
+                        />
+                        <label
+                          htmlFor={`behavior-${behavior.id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1 cursor-pointer"
+                        >
+                          {behavior.name}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
             </div>
 
             {summaryPrompts.length === 0 && feedbackPrompts.length === 0 && (
