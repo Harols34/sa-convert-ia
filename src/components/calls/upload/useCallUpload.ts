@@ -1,9 +1,9 @@
-
 import { useState, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import { useAccount } from "@/context/AccountContext";
 
 export interface FileItem {
   id: string;
@@ -28,6 +28,7 @@ export function useCallUpload() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const { user } = useAuth();
+  const { selectedAccountId } = useAccount();
 
   const addFiles = useCallback((newFiles: File[]) => {
     const fileItems: FileItem[] = newFiles.map((file) => ({
@@ -47,6 +48,11 @@ export function useCallUpload() {
   const uploadFiles = useCallback(async (prompts?: { summaryPrompt?: string; feedbackPrompt?: string }) => {
     if (!user) {
       toast.error("Debes estar autenticado para subir archivos");
+      return;
+    }
+
+    if (!selectedAccountId) {
+      toast.error("Debes seleccionar una cuenta antes de subir archivos");
       return;
     }
 
@@ -85,13 +91,15 @@ export function useCallUpload() {
           .from('call-recordings')
           .getPublicUrl(fileName);
 
-        // Create call record with correct schema
+        // Create call record with correct schema including account_id
         const { data: callData, error: callError } = await supabase
           .from('calls')
           .insert({
             title: fileItem.file.name.replace(/\.[^/.]+$/, ""),
             filename: fileItem.file.name,
             agent_name: user.name || user.email || 'Usuario',
+            agent_id: user.id,
+            account_id: selectedAccountId,
             audio_url: publicUrl,
             status: 'pending',
             progress: 0
@@ -147,7 +155,7 @@ export function useCallUpload() {
     } finally {
       setIsUploading(false);
     }
-  }, [files, user]);
+  }, [files, user, selectedAccountId]);
 
   return {
     files,
