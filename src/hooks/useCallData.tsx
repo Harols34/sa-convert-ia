@@ -107,14 +107,14 @@ export function useCallData(id: string | undefined) {
         
         let segments: any[] = [];
 
-        // Parse transcription ONLY if it's a clean timestamped format
+        // Parse transcription with improved timestamp handling
         if (callData.transcription && typeof callData.transcription === "string") {
           const transcriptionText = callData.transcription.trim();
           
           // Only try to parse if it looks like timestamped transcription
           if (transcriptionText.includes('[') && transcriptionText.includes(']:')) {
             console.log("Parsing timestamped transcription format");
-            segments = parseTimestampedText(transcriptionText);
+            segments = parseTimestampedTranscription(transcriptionText);
           } else {
             console.log("Transcription does not appear to be in timestamped format");
             // Create basic segments from text
@@ -226,29 +226,39 @@ export function useCallData(id: string | undefined) {
     };
   }, [id]);
 
-  // Helper function to parse timestamped text format
-  function parseTimestampedText(text: string): any[] {
+  // Improved helper function to parse timestamped text format
+  function parseTimestampedTranscription(text: string): any[] {
     const lines = text.split('\n').filter(line => line.trim());
     const segments: any[] = [];
     
     console.log(`Parsing ${lines.length} lines from transcription`);
     
     lines.forEach((line, index) => {
-      // Detect format [mm:ss] Speaker: text
+      // Match format [mm:ss] Speaker: text or [m:ss] Speaker: text
       const timestampMatch = line.match(/^\[(\d+):(\d+)\]\s*(.+?):\s*(.+)$/);
       if (timestampMatch) {
         const [, minutes, seconds, speaker, text] = timestampMatch;
-        const speakerType = speaker.toLowerCase().includes('asesor') || speaker.toLowerCase().includes('agente') ? 'agent' : 'client';
+        
+        // Determine speaker type more accurately
+        let speakerType = 'agent';
+        const speakerLower = speaker.toLowerCase();
+        
+        if (speakerLower.includes('cliente') || speakerLower.includes('client')) {
+          speakerType = 'client';
+        } else if (speakerLower.includes('asesor') || speakerLower.includes('agente') || speakerLower.includes('agent')) {
+          speakerType = 'agent';
+        }
+        
         const startTime = parseInt(minutes) * 60 + parseInt(seconds);
         
         segments.push({
           text: text.trim(),
           speaker: speakerType,
           start: startTime,
-          end: startTime + 5 // Estimation
+          end: startTime + 5 // Estimate 5 seconds per segment
         });
       }
-      // Detect silence periods
+      // Handle silence periods
       else if (line.includes('Silencio:')) {
         const silenceMatch = line.match(/^\[(\d+):(\d+)\]\s*Silencio:\s*(\d+)/);
         if (silenceMatch) {
@@ -263,18 +273,24 @@ export function useCallData(id: string | undefined) {
           });
         }
       }
-      // Fallback for any other content lines (not error messages)
+      // Fallback for any other content lines
       else if (line.trim() && !line.includes('No hay transcripción disponible')) {
+        // Try to extract speaker from line content
+        let speakerType = 'agent';
+        if (line.toLowerCase().includes('cliente:')) {
+          speakerType = 'client';
+        }
+        
         segments.push({
           text: line.trim(),
-          speaker: index % 2 === 0 ? 'agent' : 'client',
+          speaker: speakerType,
           start: index * 5,
           end: (index + 1) * 5
         });
       }
     });
     
-    console.log("Parsed", segments.length, "segments from timestamped text");
+    console.log("Parsed", segments.length, "segments from timestamped transcription");
     return segments;
   }
 

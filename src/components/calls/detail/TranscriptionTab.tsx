@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from "react";
 import { Call } from "@/lib/types";
 import { Card } from "@/components/ui/card";
@@ -31,17 +30,49 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
     );
   }
 
-  // Parse transcript segments if needed
+  // Parse transcript segments with better validation
   let segments = transcriptSegments;
 
   if (segments.length === 0 && typeof call.transcription === 'string') {
-    try {
-      segments = JSON.parse(call.transcription);
-    } catch (e) {
-      console.error("Error parsing transcript segments:", e);
-      segments = [];
-    }
+    // Don't try to parse as JSON, treat as formatted text
+    segments = [];
+    console.log("Transcription is text format, not parsing as JSON");
   }
+
+  // Process segments with improved speaker normalization
+  const processedSegments = useMemo(() => {
+    return segments.map(segment => {
+      const processedSegment = { ...segment };
+      
+      // Handle silence segments
+      if (
+        (processedSegment.text && 
+         (processedSegment.text.toLowerCase().includes("silencio") || 
+          processedSegment.text.toLowerCase().includes("silence"))) ||
+        processedSegment.speaker === "silence"
+      ) {
+        processedSegment.speaker = "silence";
+        return processedSegment;
+      }
+      
+      // Normalize speaker roles based on the actual content
+      if (processedSegment.speaker) {
+        const speakerLower = processedSegment.speaker.toLowerCase();
+        
+        if (speakerLower.includes("asesor") || speakerLower.includes("agente") || speakerLower === "agent") {
+          processedSegment.speaker = "agent";
+        } 
+        else if (speakerLower.includes("cliente") || speakerLower === "client") {
+          processedSegment.speaker = "client";
+        }
+        else if (speakerLower.includes("silence")) {
+          processedSegment.speaker = "silence";
+        }
+      }
+      
+      return processedSegment;
+    });
+  }, [segments]);
 
   // Enhanced silence detection - more strict detection
   const silences = useMemo(() => {
@@ -88,43 +119,6 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
     return [...explicitSilences, ...implicitSilences]
       .filter(silence => silence.duration >= 2)
       .sort((a, b) => a.start - b.start);
-  }, [segments]);
-
-  // Normalize speaker roles without using keyword detection
-  const processedSegments = useMemo(() => {
-    return segments.map(segment => {
-      // Create a copy of the segment to avoid mutating the original
-      const processedSegment = { ...segment };
-      
-      // Check if it's a silence segment
-      if (
-        (processedSegment.text && 
-         (processedSegment.text.toLowerCase().includes("silencio") || 
-          processedSegment.text.toLowerCase().includes("silence"))) ||
-        processedSegment.speaker === "silence"
-      ) {
-        processedSegment.speaker = "silence";
-        return processedSegment;
-      }
-      
-      // Use speaker assigned by the acoustic diarization
-      if (processedSegment.speaker) {
-        // Simple normalization to standard values
-        const speakerLower = processedSegment.speaker.toLowerCase();
-        
-        if (speakerLower.includes("asesor") || speakerLower === "speaker_0") {
-          processedSegment.speaker = "agent";
-        } 
-        else if (speakerLower.includes("cliente") || speakerLower === "speaker_1") {
-          processedSegment.speaker = "client";
-        }
-        else if (speakerLower.includes("silence")) {
-          processedSegment.speaker = "silence";
-        }
-      }
-      
-      return processedSegment;
-    });
   }, [segments]);
 
   // Calculate total speaking time and percentages
@@ -216,7 +210,7 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
   return (
     <Card className="glass-card dark:glass-card-dark p-6">
       <div className="space-y-6">
-        {/* Speaker statistics section - Enhanced with detailed time information */}
+        {/* Enhanced speaker statistics section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex flex-col p-4 bg-blue-100 dark:bg-blue-900/30 rounded-md">
             <div className="flex items-center space-x-2 mb-2">
@@ -310,26 +304,25 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
             <div className="space-y-4">
               {filteredSegments && filteredSegments.length > 0 ? (
                 filteredSegments.map((segment, index) => {
-                  // Determine speaker type and style
+                  // Enhanced speaker identification and styling
                   let speakerClass = "";
                   let speakerLabel = "";
                   let speakerIcon = null;
                   
                   if (segment.speaker === "agent") {
-                    speakerClass = "bg-blue-100 dark:bg-blue-900/30 border-l-4 border-blue-500";
+                    speakerClass = "bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500";
                     speakerLabel = "Asesor";
                     speakerIcon = <UserRound className="h-4 w-4 text-blue-600 dark:text-blue-400 mr-2" />;
                   } else if (segment.speaker === "client") {
-                    speakerClass = "bg-green-100 dark:bg-green-900/30 border-l-4 border-green-500";
+                    speakerClass = "bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500";
                     speakerLabel = "Cliente";
                     speakerIcon = <User className="h-4 w-4 text-green-600 dark:text-green-400 mr-2" />;
                   } else if (segment.speaker === "silence") {
-                    speakerClass = "bg-yellow-100 dark:bg-yellow-900/30 border-l-4 border-yellow-400";
+                    speakerClass = "bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400";
                     speakerLabel = "Silencio";
                     speakerIcon = <VolumeX className="h-4 w-4 text-yellow-600 dark:text-yellow-400 mr-2" />;
                   } else {
-                    // Fallback styling for unknown speaker
-                    speakerClass = "bg-gray-100 dark:bg-gray-800/50 border-l-4 border-gray-400";
+                    speakerClass = "bg-gray-50 dark:bg-gray-800/30 border-l-4 border-gray-400";
                     speakerLabel = "Desconocido";
                     speakerIcon = <Volume className="h-4 w-4 text-gray-600 dark:text-gray-400 mr-2" />;
                   }
@@ -337,26 +330,26 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
                   return (
                     <div 
                       key={index} 
-                      className={`p-3 rounded-md ${speakerClass}`}
+                      className={`p-4 rounded-lg ${speakerClass} transition-all hover:shadow-sm`}
                     >
-                      <div className="flex items-start gap-2">
-                        <div className="font-semibold text-sm flex items-center">
+                      <div className="flex items-start gap-3">
+                        <div className="font-semibold text-sm flex items-center min-w-0">
                           {speakerIcon}
-                          {speakerLabel}:
+                          <span className="truncate">{speakerLabel}:</span>
                         </div>
                         {searchQuery && segment.text ? (
                           <div 
-                            className="flex-1"
+                            className="flex-1 text-sm leading-relaxed"
                             dangerouslySetInnerHTML={{ __html: highlightSearchTerms(segment.text) }}
                           />
                         ) : (
-                          <div className="flex-1">
+                          <div className="flex-1 text-sm leading-relaxed">
                             {segment.text}
                           </div>
                         )}
-                        {segment.start !== undefined && segment.end !== undefined && (
-                          <div className="text-xs text-muted-foreground whitespace-nowrap">
-                            {formatTime(segment.start)} - {formatTime(segment.end)}
+                        {segment.start !== undefined && (
+                          <div className="text-xs text-muted-foreground whitespace-nowrap ml-2">
+                            {formatTime(segment.start)}
                           </div>
                         )}
                       </div>
@@ -364,9 +357,12 @@ export default function TranscriptionTab({ call, transcriptSegments }: Transcrip
                   );
                 })
               ) : (
-                <p className="text-muted-foreground">
-                  {searchQuery ? "No se encontraron resultados para la búsqueda." : "No se encontraron segmentos en la transcripción."}
-                </p>
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">
+                    {searchQuery ? "No se encontraron resultados para la búsqueda." : "No se encontraron segmentos en la transcripción."}
+                  </p>
+                </div>
               )}
             </div>
           </ScrollArea>
