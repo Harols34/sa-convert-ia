@@ -1,41 +1,23 @@
 
 const openAIKey = Deno.env.get('OPENAI_API_KEY') || Deno.env.get('API_DE_OPENAI');
 
-export async function generateSummary(transcriptionResult: any, customPrompt?: string): Promise<string> {
+export async function generateSummary(transcription: string, customPrompt?: string): Promise<string> {
   if (!openAIKey) {
     console.warn('No OpenAI API key found, skipping summary generation');
     return 'Resumen no disponible - API key no configurada';
   }
 
-  // Check if we have valid content to analyze
-  if (!transcriptionResult.hasValidContent || !transcriptionResult.text || transcriptionResult.text.trim().length === 0) {
-    return 'No hay transcripción disponible para generar resumen';
-  }
-
   try {
-    const defaultPrompt = `Analiza ÚNICAMENTE la siguiente transcripción de una llamada telefónica y proporciona un resumen preciso basado EXCLUSIVAMENTE en lo que se dice en esta conversación específica.
+    const defaultPrompt = `Analiza la siguiente transcripción de una llamada y proporciona un resumen conciso y profesional que incluya:
 
-INSTRUCCIONES CRÍTICAS:
-- Base su análisis SOLO en el contenido de esta transcripción
-- NO invente información que no esté presente en la conversación
-- NO asuma detalles que no se mencionan explícitamente
-- Si algo no se discute en la llamada, indique claramente "No se menciona en la llamada"
+1. Motivo principal de la llamada
+2. Puntos clave discutidos
+3. Resolución o resultado
+4. Próximos pasos (si aplica)
 
-Transcripción con hablantes identificados:
-${transcriptionResult.segments.map((segment: any) => 
-  `[${segment.speaker?.toUpperCase() || 'DESCONOCIDO'}]: ${segment.text}`
-).join('\n')}
+Mantén el resumen entre 100-200 palabras y usa un tono profesional.
 
-Proporciona un resumen estructurado que incluya:
-
-1. **Motivo de la llamada**: ¿Por qué contactó el cliente?
-2. **Información recopilada**: ¿Qué datos específicos se obtuvieron del cliente?
-3. **Ofrecimiento realizado**: ¿Qué productos/servicios se ofrecieron específicamente?
-4. **Respuesta del cliente**: ¿Cómo reaccionó el cliente a las propuestas?
-5. **Resultado**: ¿Cómo terminó la llamada?
-6. **Próximos pasos**: ¿Se establecieron acciones futuras?
-
-IMPORTANTE: Si alguna sección no aplica porque no se menciona en la conversación, indique "No se menciona en esta llamada".`;
+Transcripción:`;
 
     const promptToUse = customPrompt || defaultPrompt;
 
@@ -49,16 +31,12 @@ IMPORTANTE: Si alguna sección no aplica porque no se menciona en la conversaci�
         model: 'gpt-4o-mini',
         messages: [
           {
-            role: 'system',
-            content: 'Eres un analista experto en llamadas de servicio al cliente. Analiza ÚNICAMENTE el contenido proporcionado sin agregar información externa o asumir detalles no mencionados.'
-          },
-          {
             role: 'user',
-            content: promptToUse
+            content: `${promptToUse}\n\n${transcription}`
           }
         ],
-        max_tokens: 800,
-        temperature: 0.1, // Very low temperature for consistency
+        max_tokens: 500,
+        temperature: 0.3,
       }),
     });
 
@@ -73,7 +51,7 @@ IMPORTANTE: Si alguna sección no aplica porque no se menciona en la conversaci�
     }
 
     const summary = data.choices[0].message.content;
-    console.log('Generated summary for specific call transcription');
+    console.log('Generated summary with custom prompt:', !!customPrompt);
     
     return summary;
   } catch (error) {

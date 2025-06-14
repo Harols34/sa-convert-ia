@@ -1,13 +1,13 @@
 
 import { Button } from "@/components/ui/button";
-import { CallFile } from "./useCallUpload";
+import { FileItem as FileItemType } from "../upload/useCallUpload";
 import FileItemComponent from "./FileItem";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info, Upload } from "lucide-react";
 import { memo } from "react";
 
 interface FileListProps {
-  files: CallFile[];
+  files: FileItemType[];
   onRemoveFile: (id: string) => void;
   isUploading: boolean;
   onUploadFiles: () => void;

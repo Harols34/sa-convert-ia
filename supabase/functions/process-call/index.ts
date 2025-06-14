@@ -20,14 +20,13 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    const { callId, audioUrl, summaryPrompt, feedbackPrompt, selectedBehaviors } = await req.json();
+    const { callId, audioUrl, summaryPrompt, feedbackPrompt } = await req.json();
     
     console.log('Request payload:', { 
       callId, 
       audioUrl: audioUrl ? 'provided' : 'missing', 
       summaryPrompt: summaryPrompt ? 'provided' : 'not provided', 
-      feedbackPrompt: feedbackPrompt ? 'provided' : 'not provided',
-      selectedBehaviors: selectedBehaviors ? `${selectedBehaviors.length} behaviors` : 'all behaviors'
+      feedbackPrompt: feedbackPrompt ? 'provided' : 'not provided'
     });
     
     if (!callId) {
@@ -53,8 +52,7 @@ serve(async (req) => {
     console.log(`Processing call ${callId} with audio URL: ${audioUrl} for account: ${callData.account_id}`);
     console.log('Custom prompts provided:', {
       hasSummaryPrompt: !!summaryPrompt,
-      hasFeedbackPrompt: !!feedbackPrompt,
-      hasSelectedBehaviors: !!selectedBehaviors
+      hasFeedbackPrompt: !!feedbackPrompt
     });
 
     // Update status to transcribing
@@ -63,51 +61,26 @@ serve(async (req) => {
       progress: 10
     });
 
-    // Step 1: Transcribe audio with enhanced speaker detection
-    console.log('Starting transcription with enhanced speaker detection...');
-    const transcriptionResult = await transcribeAudio(audioUrl);
+    // Step 1: Transcribe audio - CRITICAL: Ensure transcription happens
+    console.log('Starting transcription with audio URL:', audioUrl);
+    const transcription = await transcribeAudio(audioUrl);
     
-    if (!transcriptionResult.hasValidContent) {
-      console.log('No valid content found in transcription');
-      await updateCallInDatabase(supabase, callId, {
-        transcription: transcriptionResult.text,
-        summary: 'No hay contenido válido para analizar en esta grabación',
-        status: 'complete',
-        progress: 100
-      });
-
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          callId,
-          accountId: callData.account_id,
-          message: 'Call processed - no valid content found',
-          hasValidContent: false
-        }),
-        { 
-          headers: { 
-            ...corsHeaders, 
-            'Content-Type': 'application/json' 
-          } 
-        }
-      );
+    if (!transcription || transcription.trim() === '') {
+      throw new Error('Failed to transcribe audio - no transcription text returned');
     }
 
-    console.log('Transcription completed successfully, length:', transcriptionResult.text.length);
+    console.log('Transcription completed successfully, length:', transcription.length);
 
-    // Store both raw text and structured segments
-    const transcriptionToStore = JSON.stringify(transcriptionResult.segments);
-
-    // Update with transcription
+    // Update with transcription - CRITICAL: Save transcription to database
     await updateCallInDatabase(supabase, callId, {
-      transcription: transcriptionToStore,
+      transcription,
       status: 'analyzing',
       progress: 40
     });
 
-    // Step 2: Generate summary based on the structured transcription
-    console.log('Generating summary with structured transcription data');
-    const summary = await generateSummary(transcriptionResult, summaryPrompt || undefined);
+    // Step 2: Generate summary with the EXACT custom prompt provided (if any)
+    console.log('Generating summary with custom prompt:', !!summaryPrompt);
+    const summary = await generateSummary(transcription, summaryPrompt || undefined);
     
     // Update with summary
     await updateCallInDatabase(supabase, callId, {
@@ -115,15 +88,11 @@ serve(async (req) => {
       progress: 70
     });
 
-    // Step 3: Generate feedback with structured data
-    console.log('Generating feedback with structured transcription data');
-    const feedbackResult = await generateFeedback(
-      transcriptionResult.text, 
-      summary, 
-      feedbackPrompt || undefined
-    );
+    // Step 3: Generate feedback with the EXACT custom prompt provided (if any)
+    console.log('Generating feedback with custom prompt:', !!feedbackPrompt);
+    const feedbackResult = await generateFeedback(transcription, summary, feedbackPrompt || undefined);
     
-    // Step 4: Update call with all results
+    // Step 4: Update call with all results - use 'complete' status
     await updateCallInDatabase(supabase, callId, {
       status: 'complete',
       progress: 100,
@@ -137,7 +106,7 @@ serve(async (req) => {
       .from('feedback')
       .insert({
         call_id: callId,
-        account_id: callData.account_id,
+        account_id: callData.account_id, // Ensure account_id is saved
         score: feedbackResult.score,
         positive: feedbackResult.positive,
         negative: feedbackResult.negative,
@@ -152,34 +121,11 @@ serve(async (req) => {
       console.error('Error inserting feedback:', feedbackError);
     }
 
-    // Step 6: Trigger behavior analysis if behaviors are selected or available
-    if (selectedBehaviors || (!selectedBehaviors)) {
-      try {
-        console.log('Triggering behavior analysis...');
-        const { data: analysisData, error: analysisError } = await supabase.functions.invoke("analyze-call", {
-          body: { 
-            callId: callId,
-            selectedBehaviors: selectedBehaviors // Pass selected behaviors to analysis function
-          }
-        });
-        
-        if (analysisError) {
-          console.error('Error in behavior analysis:', analysisError);
-        } else {
-          console.log('Behavior analysis completed successfully');
-        }
-      } catch (analysisError) {
-        console.error('Error triggering behavior analysis:', analysisError);
-        // Don't fail the main process if behavior analysis fails
-      }
-    }
-
     console.log(`Successfully processed call ${callId} for account ${callData.account_id}`);
-    console.log('Final transcription length:', transcriptionResult.text.length);
+    console.log('Final transcription length:', transcription.length);
     console.log('Used custom prompts:', {
       summary: !!summaryPrompt,
-      feedback: !!feedbackPrompt,
-      selectedBehaviors: !!selectedBehaviors
+      feedback: !!feedbackPrompt
     });
 
     return new Response(
@@ -187,14 +133,11 @@ serve(async (req) => {
         success: true, 
         callId,
         accountId: callData.account_id,
-        message: 'Call processed successfully with enhanced transcription',
-        transcriptionLength: transcriptionResult.text.length,
-        hasValidContent: transcriptionResult.hasValidContent,
-        segmentsCount: transcriptionResult.segments.length,
+        message: 'Call processed successfully with transcription',
+        transcriptionLength: transcription.length,
         usedCustomPrompts: {
           summary: !!summaryPrompt,
-          feedback: !!feedbackPrompt,
-          selectedBehaviors: !!selectedBehaviors
+          feedback: !!feedbackPrompt
         }
       }),
       { 
