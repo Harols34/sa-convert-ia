@@ -1,26 +1,33 @@
 
 import React, { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
-import { useAccount } from "@/context/AccountContext";
-import { useAuth } from "@/context/AuthContext";
-import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-interface Prompt {
+interface Behavior {
   id: string;
   name: string;
-  content: string;
-  type: "summary" | "feedback";
+  description: string;
+  prompt: string;
+  is_active: boolean;
 }
 
 interface PromptSelectionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (prompts: { summaryPrompt?: string; feedbackPrompt?: string }) => void;
+  onConfirm: (prompts: { 
+    summaryPrompt?: string; 
+    feedbackPrompt?: string;
+    selectedBehaviors?: string[];
+  }) => void;
 }
 
 export default function PromptSelectionModal({
@@ -28,212 +35,223 @@ export default function PromptSelectionModal({
   onOpenChange,
   onConfirm
 }: PromptSelectionModalProps) {
-  const [summaryPrompts, setSummaryPrompts] = useState<Prompt[]>([]);
-  const [feedbackPrompts, setFeedbackPrompts] = useState<Prompt[]>([]);
-  const [selectedSummaryPrompt, setSelectedSummaryPrompt] = useState<string>("");
-  const [selectedFeedbackPrompt, setSelectedFeedbackPrompt] = useState<string>("");
-  const [customSummaryPrompt, setCustomSummaryPrompt] = useState<string>("");
-  const [customFeedbackPrompt, setCustomFeedbackPrompt] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-  
-  const { selectedAccountId } = useAccount();
-  const { user } = useAuth();
+  const [summaryPrompt, setSummaryPrompt] = useState("");
+  const [feedbackPrompt, setFeedbackPrompt] = useState("");
+  const [selectedBehaviors, setSelectedBehaviors] = useState<string[]>([]);
+  const [selectAllBehaviors, setSelectAllBehaviors] = useState(true);
+
+  // Fetch active behaviors
+  const { data: behaviors, isLoading: behaviorsLoading, error: behaviorsError } = useQuery({
+    queryKey: ['active-behaviors'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('behaviors')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+      
+      if (error) throw error;
+      return data as Behavior[];
+    },
+    enabled: open
+  });
 
   useEffect(() => {
-    if (open && selectedAccountId && selectedAccountId !== 'all' && user) {
-      loadPrompts();
+    if (behaviors && behaviors.length > 0 && selectAllBehaviors) {
+      setSelectedBehaviors(behaviors.map(b => b.id));
     }
-  }, [open, selectedAccountId, user]);
+  }, [behaviors, selectAllBehaviors]);
 
-  const loadPrompts = async () => {
-    if (!selectedAccountId || selectedAccountId === 'all' || !user) {
-      console.warn("No specific account selected or user not authenticated");
-      return;
+  const handleBehaviorToggle = (behaviorId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedBehaviors(prev => [...prev, behaviorId]);
+    } else {
+      setSelectedBehaviors(prev => prev.filter(id => id !== behaviorId));
+      setSelectAllBehaviors(false);
     }
+  };
 
-    setLoading(true);
-    
-    try {
-      console.log("Loading prompts STRICTLY for account:", selectedAccountId);
-
-      const { data: prompts, error } = await supabase
-        .from('prompts')
-        .select('*')
-        .eq('account_id', selectedAccountId)
-        .order('name');
-
-      if (error) {
-        console.error("Error loading prompts:", error);
-        toast.error("Error al cargar prompts");
-        return;
-      }
-
-      console.log("Loaded prompts STRICTLY for account", selectedAccountId, ":", prompts?.length || 0);
-
-      const typedPrompts = (prompts || []).map(p => ({
-        ...p,
-        type: p.type as "summary" | "feedback"
-      }));
-
-      const summaryPromptsData = typedPrompts.filter(p => p.type === 'summary');
-      const feedbackPromptsData = typedPrompts.filter(p => p.type === 'feedback');
-
-      setSummaryPrompts(summaryPromptsData);
-      setFeedbackPrompts(feedbackPromptsData);
-
-      console.log("Summary prompts for account:", summaryPromptsData.length);
-      console.log("Feedback prompts for account:", feedbackPromptsData.length);
-
-    } catch (error) {
-      console.error("Error loading prompts:", error);
-      toast.error("Error al cargar prompts");
-    } finally {
-      setLoading(false);
+  const handleSelectAllToggle = (checked: boolean) => {
+    setSelectAllBehaviors(checked);
+    if (checked && behaviors) {
+      setSelectedBehaviors(behaviors.map(b => b.id));
+    } else {
+      setSelectedBehaviors([]);
     }
   };
 
   const handleConfirm = () => {
-    const prompts: { summaryPrompt?: string; feedbackPrompt?: string } = {};
+    onConfirm({
+      summaryPrompt: summaryPrompt.trim() || undefined,
+      feedbackPrompt: feedbackPrompt.trim() || undefined,
+      selectedBehaviors: selectAllBehaviors ? undefined : selectedBehaviors
+    });
+  };
 
-    if (selectedSummaryPrompt === "custom") {
-      prompts.summaryPrompt = customSummaryPrompt.trim();
-      console.log("Using custom summary prompt:", prompts.summaryPrompt);
-    } else if (selectedSummaryPrompt) {
-      const prompt = summaryPrompts.find(p => p.id === selectedSummaryPrompt);
-      prompts.summaryPrompt = prompt?.content;
-      console.log("Using existing summary prompt:", prompt?.name, "Content:", prompt?.content);
-    }
-
-    if (selectedFeedbackPrompt === "custom") {
-      prompts.feedbackPrompt = customFeedbackPrompt.trim();
-      console.log("Using custom feedback prompt:", prompts.feedbackPrompt);
-    } else if (selectedFeedbackPrompt) {
-      const prompt = feedbackPrompts.find(p => p.id === selectedFeedbackPrompt);
-      prompts.feedbackPrompt = prompt?.content;
-      console.log("Using existing feedback prompt:", prompt?.name, "Content:", prompt?.content);
-    }
-
-    console.log("Final prompts being sent to process-call:", prompts);
-
-    onConfirm(prompts);
-    onOpenChange(false);
-    
-    setSelectedSummaryPrompt("");
-    setSelectedFeedbackPrompt("");
-    setCustomSummaryPrompt("");
-    setCustomFeedbackPrompt("");
+  const handleReset = () => {
+    setSummaryPrompt("");
+    setFeedbackPrompt("");
+    setSelectedBehaviors([]);
+    setSelectAllBehaviors(true);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
-          <DialogTitle>Seleccionar Prompts para Procesamiento</DialogTitle>
+          <DialogTitle>Configuración de Análisis de Llamadas</DialogTitle>
         </DialogHeader>
 
-        {!selectedAccountId || selectedAccountId === 'all' ? (
-          <div className="text-center py-4">
-            <p className="text-muted-foreground">
-              Por favor selecciona una cuenta específica para ver los prompts disponibles.
-            </p>
-          </div>
-        ) : loading ? (
-          <div className="text-center py-4">
-            <p>Cargando prompts para la cuenta seleccionada...</p>
-          </div>
-        ) : (
+        <ScrollArea className="max-h-[70vh] pr-4">
           <div className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="summary-prompt">Prompt de Resumen (Opcional)</Label>
-              <Select
-                value={selectedSummaryPrompt}
-                onValueChange={setSelectedSummaryPrompt}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un prompt de resumen existente o déjalo vacío" />
-                </SelectTrigger>
-                <SelectContent>
-                  {summaryPrompts.map((prompt) => (
-                    <SelectItem key={prompt.id} value={prompt.id}>
-                      {prompt.name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="custom">Prompt personalizado</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              {selectedSummaryPrompt === "custom" && (
-                <Textarea
-                  placeholder="Escribe tu prompt personalizado para el resumen..."
-                  value={customSummaryPrompt}
-                  onChange={(e) => setCustomSummaryPrompt(e.target.value)}
-                  className="min-h-[100px]"
-                />
-              )}
-              
-              {selectedSummaryPrompt && selectedSummaryPrompt !== "custom" && (
-                <div className="p-3 bg-muted rounded-md">
-                  <p className="text-sm">
-                    {summaryPrompts.find(p => p.id === selectedSummaryPrompt)?.content}
-                  </p>
+            {/* Summary Prompt Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Prompt Personalizado para Resumen</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label htmlFor="summary-prompt">
+                    Prompt para generar el resumen de la llamada (opcional)
+                  </Label>
+                  <Textarea
+                    id="summary-prompt"
+                    placeholder="Ingrese un prompt personalizado para el resumen o deje vacío para usar el prompt por defecto..."
+                    value={summaryPrompt}
+                    onChange={(e) => setSummaryPrompt(e.target.value)}
+                    className="min-h-[100px]"
+                  />
                 </div>
-              )}
-            </div>
+              </CardContent>
+            </Card>
 
-            <div className="space-y-2">
-              <Label htmlFor="feedback-prompt">Prompt de Feedback (Opcional)</Label>
-              <Select
-                value={selectedFeedbackPrompt}
-                onValueChange={setSelectedFeedbackPrompt}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un prompt de feedback existente o déjalo vacío" />
-                </SelectTrigger>
-                <SelectContent>
-                  {feedbackPrompts.map((prompt) => (
-                    <SelectItem key={prompt.id} value={prompt.id}>
-                      {prompt.name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="custom">Prompt personalizado</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              {selectedFeedbackPrompt === "custom" && (
-                <Textarea
-                  placeholder="Escribe tu prompt personalizado para el feedback..."
-                  value={customFeedbackPrompt}
-                  onChange={(e) => setCustomFeedbackPrompt(e.target.value)}
-                  className="min-h-[100px]"
-                />
-              )}
-              
-              {selectedFeedbackPrompt && selectedFeedbackPrompt !== "custom" && (
-                <div className="p-3 bg-muted rounded-md">
-                  <p className="text-sm">
-                    {feedbackPrompts.find(p => p.id === selectedFeedbackPrompt)?.content}
-                  </p>
+            {/* Feedback Prompt Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Prompt Personalizado para Feedback</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label htmlFor="feedback-prompt">
+                    Prompt para generar el feedback de la llamada (opcional)
+                  </Label>
+                  <Textarea
+                    id="feedback-prompt"
+                    placeholder="Ingrese un prompt personalizado para el feedback o deje vacío para usar el prompt por defecto..."
+                    value={feedbackPrompt}
+                    onChange={(e) => setFeedbackPrompt(e.target.value)}
+                    className="min-h-[100px]"
+                  />
                 </div>
-              )}
-            </div>
+              </CardContent>
+            </Card>
 
-            {summaryPrompts.length === 0 && feedbackPrompts.length === 0 && (
-              <div className="text-center py-4 text-muted-foreground">
-                <p>No hay prompts disponibles para la cuenta seleccionada.</p>
-                <p className="text-sm">Puedes proceder sin prompts específicos o crear prompts personalizados.</p>
-              </div>
-            )}
+            {/* Behaviors Selection Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Selección de Comportamientos a Analizar</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {behaviorsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                    <span>Cargando comportamientos...</span>
+                  </div>
+                ) : behaviorsError ? (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Error al cargar comportamientos: {behaviorsError.message}
+                    </AlertDescription>
+                  </Alert>
+                ) : !behaviors || behaviors.length === 0 ? (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      No hay comportamientos activos configurados. Configure comportamientos antes de procesar llamadas.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Select All Option */}
+                    <div className="flex items-center space-x-2 p-4 bg-muted/50 rounded-lg">
+                      <Checkbox
+                        id="select-all"
+                        checked={selectAllBehaviors}
+                        onCheckedChange={handleSelectAllToggle}
+                      />
+                      <Label htmlFor="select-all" className="font-medium">
+                        Analizar todos los comportamientos activos
+                      </Label>
+                    </div>
+
+                    {!selectAllBehaviors && (
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">
+                          Seleccione los comportamientos específicos a analizar:
+                        </Label>
+                        <div className="grid gap-3 max-h-[300px] overflow-y-auto">
+                          {behaviors.map((behavior) => (
+                            <div
+                              key={behavior.id}
+                              className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                            >
+                              <Checkbox
+                                id={behavior.id}
+                                checked={selectedBehaviors.includes(behavior.id)}
+                                onCheckedChange={(checked) => 
+                                  handleBehaviorToggle(behavior.id, checked as boolean)
+                                }
+                              />
+                              <div className="flex-1 min-w-0">
+                                <Label
+                                  htmlFor={behavior.id}
+                                  className="font-medium cursor-pointer"
+                                >
+                                  {behavior.name}
+                                </Label>
+                                {behavior.description && (
+                                  <p className="text-sm text-muted-foreground mt-1">
+                                    {behavior.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Selection Summary */}
+                    <div className="text-sm text-muted-foreground">
+                      {selectAllBehaviors 
+                        ? `Se analizarán todos los ${behaviors.length} comportamientos activos`
+                        : `${selectedBehaviors.length} comportamiento(s) seleccionado(s) para análisis`
+                      }
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
-        )}
+        </ScrollArea>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
+        <div className="flex justify-between pt-4 border-t">
+          <Button variant="outline" onClick={handleReset}>
+            Restablecer
           </Button>
-          <Button onClick={handleConfirm} disabled={!selectedAccountId || selectedAccountId === 'all'}>
-            Procesar Archivos
-          </Button>
-        </DialogFooter>
+          <div className="space-x-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleConfirm}
+              disabled={!selectAllBehaviors && selectedBehaviors.length === 0 && behaviors && behaviors.length > 0}
+            >
+              Procesar Llamadas
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

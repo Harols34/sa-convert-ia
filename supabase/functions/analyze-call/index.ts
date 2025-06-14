@@ -24,8 +24,8 @@ serve(async (req) => {
       });
     }
 
-    // Get the call ID from the request body
-    const { callId } = await req.json();
+    // Get the call ID and selected behaviors from the request body
+    const { callId, selectedBehaviors } = await req.json();
     
     if (!callId) {
       return new Response(JSON.stringify({ error: "ID de llamada no proporcionado" }), {
@@ -89,12 +89,18 @@ serve(async (req) => {
       });
     }
 
-    // Get active behaviors - filter by account if call has account_id
-    console.log("Fetching active behaviors for analysis...");
+    // Get behaviors - either selected ones or all active ones
+    console.log("Fetching behaviors for analysis...");
     let behaviorsQuery = supabaseAdmin
       .from('behaviors')
       .select('*')
       .eq('is_active', true);
+
+    // If specific behaviors are selected, filter by those IDs
+    if (selectedBehaviors && Array.isArray(selectedBehaviors) && selectedBehaviors.length > 0) {
+      behaviorsQuery = behaviorsQuery.in('id', selectedBehaviors);
+      console.log(`Filtering by ${selectedBehaviors.length} selected behaviors`);
+    }
 
     // If call has account_id, get behaviors for that account or global behaviors
     if (call.account_id) {
@@ -112,14 +118,21 @@ serve(async (req) => {
     }
 
     if (!behaviors || behaviors.length === 0) {
-      console.warn("No active behaviors found for analysis");
-      return new Response(JSON.stringify({ error: "No hay comportamientos activos para analizar" }), {
+      const errorMessage = selectedBehaviors && selectedBehaviors.length > 0
+        ? "Los comportamientos seleccionados no están disponibles o activos"
+        : "No hay comportamientos activos para analizar";
+      
+      console.warn(errorMessage);
+      return new Response(JSON.stringify({ error: errorMessage }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    console.log(`Found ${behaviors.length} active behaviors for analysis (account: ${call.account_id})`);
+    console.log(`Found ${behaviors.length} behaviors for analysis (account: ${call.account_id})`);
+    if (selectedBehaviors) {
+      console.log(`Using selected behaviors: ${behaviors.map(b => b.name).join(', ')}`);
+    }
 
     // Analyze behaviors
     const behaviorsAnalysis = await analyzeBehaviors(call, behaviors);
