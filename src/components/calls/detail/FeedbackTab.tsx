@@ -49,8 +49,8 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
     }
   }, [localFeedback, feedbackAlreadyExists]);
 
-  // Handle manual generation of feedback
-  const handleManualGeneration = async () => {
+  // Handle manual generation of feedback with optional behavior selection
+  const handleManualGeneration = async (selectedBehaviorIds?: string[]) => {
     if (feedbackAlreadyExists || localFeedback) {
       toast.info("El feedback de esta llamada ya existe y es permanente");
       return;
@@ -58,7 +58,7 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
     
     try {
       setShowLoadingScreen(true);
-      await triggerAnalysisFunction();
+      await triggerAnalysisFunction(selectedBehaviorIds);
     } catch (error) {
       console.error("Error in manual generation:", error);
     }
