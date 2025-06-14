@@ -1,7 +1,11 @@
 
-import { Call } from "../types/index.ts";
-
 const openAIKey = Deno.env.get('OPENAI_API_KEY') || Deno.env.get('API_DE_OPENAI');
+
+interface Call {
+  id: string;
+  transcription?: string;
+  [key: string]: any;
+}
 
 interface BehaviorAnalysisResult {
   name: string;
