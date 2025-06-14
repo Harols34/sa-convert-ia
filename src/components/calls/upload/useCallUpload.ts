@@ -3,7 +3,7 @@ import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useUser } from "@/hooks/useUser";
-import { useAuth } from "@/context/AuthContext";
+import { useAccount } from "@/context/AccountContext";
 
 export interface CallFile {
   id: string;
@@ -23,12 +23,13 @@ export function useCallUpload() {
   const [files, setFiles] = useState<CallFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const { user } = useUser();
-  const { user: authUser } = useAuth();
+  const { selectedAccountId } = useAccount();
 
-  // Get account_id from the auth context user or fallback
+  // Get account_id from the account context
   const getAccountId = useCallback(() => {
-    return (authUser as any)?.account_id || null;
-  }, [authUser]);
+    console.log('Getting account ID:', selectedAccountId);
+    return selectedAccountId;
+  }, [selectedAccountId]);
 
   const addFiles = useCallback((newFiles: File[]) => {
     const callFiles: CallFile[] = newFiles.map(file => ({
@@ -58,6 +59,8 @@ export function useCallUpload() {
     }
 
     const accountId = getAccountId();
+    console.log('Account ID for upload:', accountId);
+    
     if (!accountId) {
       toast.error("No se ha seleccionado una cuenta");
       return;
@@ -105,6 +108,8 @@ export function useCallUpload() {
       updateFileProgress(10, undefined, "uploading");
 
       const accountId = getAccountId();
+      console.log('Using account ID for file upload:', accountId);
+      
       if (!accountId) {
         throw new Error("Account ID not found");
       }
