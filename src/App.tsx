@@ -30,7 +30,7 @@ import AssignUsers from "./pages/AssignUsers";
 
 import "./App.css";
 
-// Optimize QueryClient with better defaults
+// Create QueryClient outside component to prevent recreating on each render
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -49,41 +49,43 @@ const queryClient = new QueryClient({
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="light">
-        <TooltipProvider>
-          <Router>
-            <AuthProvider>
-              <AccountProvider>
-                <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 w-full">
-                  <Routes>
-                    <Route path="/" element={<Index />} />
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/analytics" element={<Analytics />} />
-                    <Route path="/calls/*" element={<Calls />} />
-                    <Route path="/agents" element={<Agents />} />
-                    <Route path="/workforce" element={<Workforce />} />
-                    <Route path="/tools" element={<Tools />} />
-                    <Route path="/chat" element={<Chat />} />
-                    <Route path="/behaviors" element={<Behaviors />} />
-                    <Route path="/tipificaciones" element={<Tipificaciones />} />
-                    <Route path="/prompts/*" element={<Prompts />} />
-                    <Route path="/users/*" element={<Users />} />
-                    <Route path="/accounts/*" element={<AccountsPage />} />
-                    <Route path="/accounts/new" element={<CreateAccount />} />
-                    <Route path="/accounts/assign" element={<AssignUsers />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="/dashboard" element={<Navigate to="/analytics" replace />} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </div>
-                <Toaster />
-              </AccountProvider>
-            </AuthProvider>
-          </Router>
-        </TooltipProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <React.StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider attribute="class" defaultTheme="light">
+          <TooltipProvider>
+            <Router>
+              <AuthProvider>
+                <AccountProvider>
+                  <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 w-full">
+                    <Routes>
+                      <Route path="/" element={<Index />} />
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/analytics" element={<Analytics />} />
+                      <Route path="/calls/*" element={<Calls />} />
+                      <Route path="/agents" element={<Agents />} />
+                      <Route path="/workforce" element={<Workforce />} />
+                      <Route path="/tools" element={<Tools />} />
+                      <Route path="/chat" element={<Chat />} />
+                      <Route path="/behaviors" element={<Behaviors />} />
+                      <Route path="/tipificaciones" element={<Tipificaciones />} />
+                      <Route path="/prompts/*" element={<Prompts />} />
+                      <Route path="/users/*" element={<Users />} />
+                      <Route path="/accounts/*" element={<AccountsPage />} />
+                      <Route path="/accounts/new" element={<CreateAccount />} />
+                      <Route path="/accounts/assign" element={<AssignUsers />} />
+                      <Route path="/settings" element={<Settings />} />
+                      <Route path="/dashboard" element={<Navigate to="/analytics" replace />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </div>
+                  <Toaster />
+                </AccountProvider>
+              </AuthProvider>
+            </Router>
+          </TooltipProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </React.StrictMode>
   );
 }
 
