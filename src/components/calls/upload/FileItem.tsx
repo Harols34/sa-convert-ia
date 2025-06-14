@@ -1,118 +1,138 @@
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { X, AlertCircle, CheckCircle2, UploadCloud } from "lucide-react";
-import { formatBytes } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { X, FileAudio, Clock, CheckCircle2, AlertCircle, Upload } from "lucide-react";
 import { FileItem as FileItemType } from "./useCallUpload";
 
-export default function FileItem({
-  file,
-  onRemove,
-  disabled,
-}: {
+interface FileItemProps {
   file: FileItemType;
   onRemove: (id: string) => void;
   disabled: boolean;
-}) {
-  // Formatea el tamaño del archivo para mostrarlo legible
-  const formattedSize = formatBytes(file.file.size);
+}
 
-  // Función para renderizar el icono según el estado
-  const renderStatusIcon = () => {
+export default function FileItem({ file, onRemove, disabled }: FileItemProps) {
+  const getStatusIcon = () => {
     switch (file.status) {
       case "idle":
-        return <UploadCloud className="h-5 w-5 text-blue-500" />;
+        return <FileAudio className="h-4 w-4 text-muted-foreground" />;
       case "uploading":
-        return <UploadCloud className="h-5 w-5 text-blue-500" />;
+        return <Upload className="h-4 w-4 text-blue-500 animate-pulse" />;
+      case "uploaded":
+        return <Clock className="h-4 w-4 text-orange-500" />;
       case "processing":
-        return <UploadCloud className="h-5 w-5 text-amber-500 animate-pulse" />;
+        return <Clock className="h-4 w-4 text-yellow-500 animate-spin" />;
       case "success":
-        return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
       case "error":
-        return <AlertCircle className="h-5 w-5 text-red-500" />;
+        return <AlertCircle className="h-4 w-4 text-red-500" />;
       default:
-        return <UploadCloud className="h-5 w-5 text-blue-500" />;
+        return <FileAudio className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
-  // Función para renderizar el mensaje de estado
-  const renderStatusText = () => {
+  const getStatusColor = () => {
     switch (file.status) {
       case "idle":
-        return "Listo para subir";
+        return "secondary";
       case "uploading":
-        return `Subiendo... ${file.progress}%`;
+        return "default";
+      case "uploaded":
+        return "default";
       case "processing":
-        return `Procesando... ${file.progress}%`;
+        return "default";
       case "success":
-        return "Carga completa";
+        return "default";
       case "error":
-        return file.error || "Error en la carga";
+        return "destructive";
       default:
-        return "Esperando...";
+        return "secondary";
     }
   };
 
-  // Determinar el color de la barra de progreso
-  const getProgressColor = () => {
+  const getStatusText = () => {
     switch (file.status) {
+      case "idle":
+        return "Pendiente";
       case "uploading":
+        return "Subiendo";
+      case "uploaded":
+        return "Subido - Análisis en segundo plano";
       case "processing":
-        return "bg-blue-500";
+        return "Analizando";
       case "success":
-        return "bg-green-500";
+        return "Completado";
       case "error":
-        return "bg-red-500";
+        return "Error";
       default:
-        return "bg-blue-500";
+        return "Desconocido";
     }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   return (
-    <div className="flex flex-col p-4 rounded-lg border border-border mb-4 bg-background">
-      <div className="flex justify-between items-center mb-2">
-        <div className="flex items-center">
-          {renderStatusIcon()}
-          <div className="ml-3 flex-1 overflow-hidden">
-            <p className="text-sm font-medium truncate">{file.file.name}</p>
-            <p className="text-xs text-muted-foreground">{formattedSize}</p>
+    <div className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/5 transition-colors">
+      <div className="flex items-center space-x-3 flex-1 min-w-0">
+        {getStatusIcon()}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate" title={file.file.name}>
+            {file.file.name}
+          </p>
+          <div className="flex items-center space-x-2 mt-1">
+            <p className="text-xs text-muted-foreground">
+              {formatFileSize(file.file.size)}
+            </p>
+            <Badge variant={getStatusColor()} className="text-xs">
+              {getStatusText()}
+            </Badge>
           </div>
+          {file.info && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {file.info}
+            </p>
+          )}
+          {file.error && (
+            <p className="text-xs text-red-500 mt-1">
+              {file.error}
+            </p>
+          )}
         </div>
+      </div>
+      
+      <div className="flex items-center space-x-3">
+        {(file.status === "uploading" || file.status === "processing") && (
+          <div className="w-20">
+            <Progress value={file.progress} className="h-2" />
+            <p className="text-xs text-center text-muted-foreground mt-1">
+              {file.progress}%
+            </p>
+          </div>
+        )}
+        
+        {file.status === "uploaded" && (
+          <div className="text-xs text-orange-600 dark:text-orange-400 text-center">
+            <Clock className="h-3 w-3 mx-auto mb-1" />
+            Análisis en progreso
+          </div>
+        )}
+        
         <Button
           variant="ghost"
-          size="icon"
-          disabled={disabled}
+          size="sm"
           onClick={() => onRemove(file.id)}
-          className="text-muted-foreground hover:text-foreground"
+          disabled={disabled}
+          className="h-8 w-8 p-0"
         >
           <X className="h-4 w-4" />
         </Button>
       </div>
-      
-      <div className="w-full mt-2">
-        <Progress 
-          value={file.progress} 
-          className="h-2" 
-          // Aplicamos el color condicionalmente usando estilos en línea
-          style={{ 
-            '--progress-background': getProgressColor() 
-          } as React.CSSProperties}
-        />
-        <p className="text-xs text-muted-foreground mt-1">{renderStatusText()}</p>
-      </div>
-      
-      {file.status === "error" && file.error && (
-        <div className="mt-2 p-2 text-xs bg-red-50 text-red-600 rounded">
-          {file.error}
-        </div>
-      )}
-      
-      {file.info && (
-        <div className="mt-2 p-2 text-xs bg-blue-50 text-blue-600 rounded">
-          {file.info}
-        </div>
-      )}
     </div>
   );
 }

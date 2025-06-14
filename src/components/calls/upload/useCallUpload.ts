@@ -9,30 +9,28 @@ import { useAccount } from "@/context/AccountContext";
 export interface FileItem {
   id: string;
   file: File;
-  status: "idle" | "uploading" | "processing" | "success" | "error";
+  status: "idle" | "uploading" | "uploaded" | "processing" | "success" | "error";
   progress: number;
   error?: string;
   info?: string;
 }
 
-// Function to sanitize file names for storage - more aggressive sanitization
+// Function to sanitize file names for storage
 const sanitizeFileName = (fileName: string): string => {
-  // Remove file extension temporarily
   const lastDotIndex = fileName.lastIndexOf('.');
   const name = lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
   const extension = lastDotIndex > 0 ? fileName.substring(lastDotIndex) : '';
   
-  // Sanitize the name part only - removing all problematic characters
   const sanitizedName = name
-    .replace(/[{}[\]()]/g, '_') // Remove braces, brackets, parentheses
-    .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace other special chars with underscores
-    .replace(/_+/g, '_') // Replace multiple underscores with single one
-    .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
+    .replace(/[{}[\]()]/g, '_')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
   
   return sanitizedName + extension;
 };
 
-// Enhanced batch processing utility for large scale operations
+// Enhanced batch processing utility
 const processBatch = async <T>(
   items: T[],
   batchSize: number,
@@ -48,9 +46,8 @@ const processBatch = async <T>(
     completed += batch.length;
     onProgress?.(completed, total);
     
-    // Add delay between large batches to prevent overwhelming the system
     if (batch.length === batchSize && i + batchSize < items.length) {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
 };
@@ -76,6 +73,39 @@ export function useCallUpload() {
     setFiles((prev) => prev.filter((file) => file.id !== id));
   }, []);
 
+  // Background analysis function
+  const startBackgroundAnalysis = async (callId: string, audioUrl: string, config?: { 
+    summaryPrompt?: string; 
+    feedbackPrompt?: string;
+    selectedBehaviorIds?: string[];
+  }) => {
+    try {
+      console.log(`Starting background analysis for call ${callId}`);
+      
+      // Call the analysis function in background without awaiting
+      supabase.functions.invoke('process-call', {
+        body: {
+          callId,
+          audioUrl,
+          summaryPrompt: config?.summaryPrompt,
+          feedbackPrompt: config?.feedbackPrompt,
+          selectedBehaviorIds: config?.selectedBehaviorIds || []
+        }
+      }).then(({ error: processError }) => {
+        if (processError) {
+          console.error(`Background analysis failed for call ${callId}:`, processError);
+        } else {
+          console.log(`Background analysis completed for call ${callId}`);
+        }
+      }).catch((error) => {
+        console.error(`Background analysis error for call ${callId}:`, error);
+      });
+      
+    } catch (error) {
+      console.error(`Error starting background analysis for call ${callId}:`, error);
+    }
+  };
+
   const uploadFiles = useCallback(async (config?: { 
     summaryPrompt?: string; 
     feedbackPrompt?: string;
@@ -87,7 +117,6 @@ export function useCallUpload() {
     }
 
     console.log("Current selectedAccountId:", selectedAccountId);
-    console.log("User context:", user);
 
     if (!selectedAccountId || selectedAccountId === 'all') {
       toast.error("Debes seleccionar una cuenta específica antes de subir archivos");
@@ -105,46 +134,41 @@ export function useCallUpload() {
         return;
       }
 
-      console.log(`Starting batch processing of ${totalFiles} files`);
+      console.log(`Starting batch upload of ${totalFiles} files`);
       
-      // Enhanced batch processing - scale up for large volumes
-      let BATCH_SIZE = 10; // Start with 10 files at a time
-      
-      // Adjust batch size based on total files for optimal performance
+      // Increase batch size for faster upload
+      let UPLOAD_BATCH_SIZE = 20;
       if (totalFiles >= 100) {
-        BATCH_SIZE = 20; // Increase batch size for large volumes
-        toast.info(`Procesando ${totalFiles} archivos en lotes optimizados para mejor rendimiento`);
-      } else if (totalFiles >= 50) {
-        BATCH_SIZE = 15;
+        UPLOAD_BATCH_SIZE = 50;
+        toast.info(`Procesando ${totalFiles} archivos en modo rápido`);
       }
 
-      let processedCount = 0;
+      let uploadedCount = 0;
+      const callsToAnalyze: Array<{callId: string, audioUrl: string}> = [];
 
       await processBatch(
         filesToProcess, 
-        BATCH_SIZE, 
+        UPLOAD_BATCH_SIZE, 
         async (batch) => {
-          // Process each file in the batch concurrently with better error handling
+          // Process uploads concurrently
           const uploadPromises = batch.map(async (fileItem) => {
             try {
               setFiles(prev => prev.map(f => 
                 f.id === fileItem.id 
-                  ? { ...f, status: "uploading", progress: 10, info: "Subiendo archivo..." }
+                  ? { ...f, status: "uploading", progress: 20, info: "Subiendo archivo..." }
                   : f
               ));
 
-              // Enhanced file name sanitization
               const sanitizedName = sanitizeFileName(fileItem.file.name);
               const fileName = `${Date.now()}-${sanitizedName}`;
               
-              console.log('Processing file:', sanitizedName);
-              console.log('Uploading to account folder:', selectedAccountId);
+              console.log('Uploading file:', sanitizedName);
               
-              // Upload with enhanced retry logic
+              // Upload with retry logic
               let uploadAttempts = 0;
               let uploadData, uploadError;
               
-              while (uploadAttempts < 3) {
+              while (uploadAttempts < 2) { // Reduced retries for speed
                 const result = await supabase.storage
                   .from('call-recordings')
                   .upload(`${selectedAccountId}/${fileName}`, fileItem.file);
@@ -155,20 +179,19 @@ export function useCallUpload() {
                 if (!uploadError) break;
                 
                 uploadAttempts++;
-                if (uploadAttempts < 3) {
-                  console.log(`Upload attempt ${uploadAttempts} failed, retrying...`);
-                  await new Promise(resolve => setTimeout(resolve, 1000 * uploadAttempts));
+                if (uploadAttempts < 2) {
+                  await new Promise(resolve => setTimeout(resolve, 500));
                 }
               }
 
               if (uploadError) {
-                console.error('Storage upload error after retries:', uploadError);
+                console.error('Storage upload error:', uploadError);
                 throw new Error(`Error uploading file: ${uploadError.message}`);
               }
 
               setFiles(prev => prev.map(f => 
                 f.id === fileItem.id 
-                  ? { ...f, progress: 30, info: "Archivo subido, creando registro..." }
+                  ? { ...f, progress: 60, info: "Creando registro..." }
                   : f
               ));
 
@@ -177,19 +200,19 @@ export function useCallUpload() {
                 .from('call-recordings')
                 .getPublicUrl(`${selectedAccountId}/${fileName}`);
 
-              console.log('File uploaded successfully, creating call record...');
+              console.log('Creating call record...');
 
-              // Create call record with optimized data
+              // Create call record
               const { data: callData, error: callError } = await supabase
                 .from('calls')
                 .insert({
-                  title: sanitizedName.replace(/\.[^/.]+$/, ""), // Remove extension for title
+                  title: sanitizedName.replace(/\.[^/.]+$/, ""),
                   filename: sanitizedName,
                   agent_name: user.full_name || user.name || user.email || 'Usuario',
                   agent_id: user.id,
                   account_id: selectedAccountId,
                   audio_url: publicUrl,
-                  status: 'pending',
+                  status: 'pending', // Will be updated by background processing
                   progress: 0
                 })
                 .select()
@@ -200,75 +223,83 @@ export function useCallUpload() {
                 throw new Error(`Error creating call record: ${callError.message}`);
               }
 
+              // Mark as uploaded and ready for background processing
               setFiles(prev => prev.map(f => 
                 f.id === fileItem.id 
-                  ? { ...f, status: "processing", progress: 50, info: "Iniciando análisis..." }
+                  ? { ...f, status: "uploaded", progress: 100, info: "Subido - Análisis en segundo plano" }
                   : f
               ));
 
-              // Process the call using Supabase function with enhanced payload
-              const processPayload = {
+              // Add to background analysis queue
+              callsToAnalyze.push({
                 callId: callData.id,
-                audioUrl: publicUrl,
-                summaryPrompt: config?.summaryPrompt,
-                feedbackPrompt: config?.feedbackPrompt,
-                selectedBehaviorIds: config?.selectedBehaviorIds || []
-              };
-
-              console.log('Processing call with enhanced analysis...');
-
-              const { data: processResult, error: processError } = await supabase.functions.invoke('process-call', {
-                body: processPayload
+                audioUrl: publicUrl
               });
 
-              if (processError) {
-                console.error('Process call error:', processError);
-                throw new Error(`Error processing call: ${processError.message}`);
-              }
-
-              setFiles(prev => prev.map(f => 
-                f.id === fileItem.id 
-                  ? { ...f, status: "success", progress: 100, info: "Análisis completado" }
-                  : f
-              ));
-
-              processedCount++;
-              console.log(`File ${processedCount}/${totalFiles} processed successfully`);
+              uploadedCount++;
+              console.log(`File ${uploadedCount}/${totalFiles} uploaded successfully`);
 
             } catch (error) {
-              console.error(`Error processing file ${fileItem.file.name}:`, error);
+              console.error(`Error uploading file ${fileItem.file.name}:`, error);
               setFiles(prev => prev.map(f => 
                 f.id === fileItem.id 
                   ? { 
                       ...f, 
                       status: "error", 
                       error: error instanceof Error ? error.message : 'Error desconocido',
-                      info: "Error en el procesamiento"
+                      info: "Error en la subida"
                     }
                   : f
               ));
             }
           });
 
-          // Wait for all files in the batch to complete
           await Promise.allSettled(uploadPromises);
         },
         (completed, total) => {
-          // Progress callback for large batches
           if (total >= 50) {
             const percentage = Math.round((completed / total) * 100);
-            toast.info(`Progreso: ${completed}/${total} archivos procesados (${percentage}%)`);
+            toast.info(`Subida: ${completed}/${total} archivos (${percentage}%)`);
           }
         }
       );
 
-      const successCount = files.filter(f => f.status === "success").length;
+      // Start background analysis for all uploaded calls
+      if (callsToAnalyze.length > 0) {
+        console.log(`Starting background analysis for ${callsToAnalyze.length} calls`);
+        toast.success(`${uploadedCount} archivos subidos. Análisis iniciado en segundo plano.`);
+        
+        // Process analysis in smaller batches to avoid overwhelming the system
+        const ANALYSIS_BATCH_SIZE = 5;
+        let analysisIndex = 0;
+        
+        const processAnalysisBatch = async () => {
+          const batch = callsToAnalyze.slice(analysisIndex, analysisIndex + ANALYSIS_BATCH_SIZE);
+          if (batch.length === 0) return;
+          
+          // Start analysis for this batch
+          batch.forEach(({ callId, audioUrl }) => {
+            startBackgroundAnalysis(callId, audioUrl, config);
+          });
+          
+          analysisIndex += ANALYSIS_BATCH_SIZE;
+          
+          // Schedule next batch after a small delay
+          if (analysisIndex < callsToAnalyze.length) {
+            setTimeout(processAnalysisBatch, 2000); // 2 second delay between batches
+          }
+        };
+        
+        // Start the analysis process
+        processAnalysisBatch();
+      }
+
       const errorCount = files.filter(f => f.status === "error").length;
       
       if (errorCount === 0) {
-        toast.success(`${successCount} archivos procesados exitosamente`);
+        toast.success(`${uploadedCount} archivos procesados exitosamente. Análisis en progreso.`);
       } else {
-        toast.warning(`${successCount} archivos procesados, ${errorCount} con errores`);
+        toast.warning(`${uploadedCount} archivos subidos, ${errorCount} con errores. Análisis en progreso.`);
       }
 
     } catch (error) {
