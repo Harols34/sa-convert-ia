@@ -10,14 +10,12 @@ import {
 interface UseFeedbackAnalysisProps {
   call: Call;
   feedback?: Feedback;
-  onFeedbackUpdate?: () => void;
   setLocalFeedback?: React.Dispatch<React.SetStateAction<Feedback | undefined>>;
 }
 
 export const useFeedbackAnalysis = ({
   call,
   feedback,
-  onFeedbackUpdate,
   setLocalFeedback
 }: UseFeedbackAnalysisProps) => {
   const [behaviors, setBehaviors] = useState<BehaviorAnalysis[]>([]);
@@ -62,7 +60,7 @@ export const useFeedbackAnalysis = ({
     checkActiveBehaviors();
   }, [call.account_id]);
   
-  // Function to load behaviors analysis - only checks if feedback exists
+  // Load existing feedback analysis
   const loadBehaviorsAnalysis = useCallback(async () => {
     if (!call.id) return false;
     
@@ -101,40 +99,24 @@ export const useFeedbackAnalysis = ({
         setFeedbackAlreadyExists(true);
         
         if (setLocalFeedback) {
-          setLocalFeedback(prevFeedback => {
-            if (!prevFeedback) {
-              const typedFeedback: Feedback = {
-                id: existingFeedback.id,
-                call_id: existingFeedback.call_id,
-                score: existingFeedback.score || 0,
-                positive: existingFeedback.positive || [],
-                negative: existingFeedback.negative || [],
-                opportunities: existingFeedback.opportunities || [],
-                behaviors_analysis: validatedAnalysis,
-                created_at: existingFeedback.created_at,
-                updated_at: existingFeedback.updated_at,
-                sentiment: existingFeedback.sentiment,
-                topics: existingFeedback.topics || [],
-                entities: existingFeedback.entities || []
-              };
-              return typedFeedback;
-            }
-            
-            return {
-              ...prevFeedback,
-              behaviors_analysis: validatedAnalysis
-            };
-          });
+          const typedFeedback: Feedback = {
+            id: existingFeedback.id,
+            call_id: existingFeedback.call_id,
+            score: existingFeedback.score || 0,
+            positive: existingFeedback.positive || [],
+            negative: existingFeedback.negative || [],
+            opportunities: existingFeedback.opportunities || [],
+            behaviors_analysis: validatedAnalysis,
+            created_at: existingFeedback.created_at,
+            updated_at: existingFeedback.updated_at,
+            sentiment: existingFeedback.sentiment,
+            topics: existingFeedback.topics || [],
+            entities: existingFeedback.entities || []
+          };
+          setLocalFeedback(typedFeedback);
         }
         
         setIsLoadingBehaviors(false);
-        return true;
-      }
-      
-      // Auto-generate if call is complete and has transcription but no feedback
-      if (call.status === 'complete' && call.transcription && hasActiveBehaviors && !feedbackAlreadyExists) {
-        console.log("Auto-generating feedback for completed call without feedback");
-        await generateFeedback();
         return true;
       }
       
@@ -147,7 +129,7 @@ export const useFeedbackAnalysis = ({
     } finally {
       setIsLoadingBehaviors(false);
     }
-  }, [call.id, call.status, call.transcription, feedback, setLocalFeedback, hasActiveBehaviors, feedbackAlreadyExists]);
+  }, [call.id, feedback, setLocalFeedback]);
   
   // Initial check on component mount
   useEffect(() => {
@@ -155,7 +137,7 @@ export const useFeedbackAnalysis = ({
   }, [loadBehaviorsAnalysis]);
   
   // Function to generate feedback for the call
-  const generateFeedback = useCallback(async () => {
+  const triggerAnalysisFunction = useCallback(async () => {
     if (!call.id) return [];
     
     // Check if feedback already exists first
@@ -259,10 +241,6 @@ export const useFeedbackAnalysis = ({
           setLocalFeedback(typedFeedback);
         }
         
-        if (onFeedbackUpdate) {
-          onFeedbackUpdate();
-        }
-        
         toast.success("Análisis generado", { id: "generate-feedback" });
         setActiveTab("behaviors");
         
@@ -281,13 +259,13 @@ export const useFeedbackAnalysis = ({
     } finally {
       setIsGeneratingFeedback(false);
     }
-  }, [call.id, onFeedbackUpdate, setLocalFeedback, hasActiveBehaviors]);
+  }, [call.id, setLocalFeedback, hasActiveBehaviors]);
   
   return {
     behaviors,
     isLoadingBehaviors,
     isGeneratingFeedback,
-    triggerAnalysisFunction: generateFeedback,
+    triggerAnalysisFunction,
     loadBehaviorsAnalysis,
     analysisError,
     activeTab,

@@ -45,10 +45,10 @@ RESUMEN: {summary}
 
 Analiza TODA la transcripción completa para generar un feedback preciso y detallado.
 
-Proporciona tu análisis en el siguiente formato JSON exacto (sin markdown, sin backticks):
+Proporciona tu análisis en el siguiente formato JSON exacto:
 {
   "score": [número del 0-100 basado en el desempeño general del asesor],
-  "positive": ["punto positivo específico 1", "punto positivo específico 2"],
+  "positive": ["punto positivo específico 1", "punto positivo específico 2", "punto positivo específico 3"],
   "negative": ["área de mejora específica 1", "área de mejora específica 2"],
   "opportunities": ["oportunidad de mejora 1", "oportunidad de mejora 2"],
   "sentiment": "positive|negative|neutral",
@@ -122,10 +122,12 @@ IMPORTANTE: Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional
       const parsedFeedback = JSON.parse(content);
       console.log('Successfully parsed feedback JSON');
       
-      // Validate and return structured feedback
+      // Validate and return structured feedback with proper field names
       const result = {
-        score: typeof parsedFeedback.score === 'number' ? parsedFeedback.score : 0,
-        positive: Array.isArray(parsedFeedback.positive) ? parsedFeedback.positive : [],
+        score: typeof parsedFeedback.score === 'number' ? parsedFeedback.score : 
+               (typeof parsedFeedback.puntuacion_general === 'number' ? parsedFeedback.puntuacion_general : 0),
+        positive: Array.isArray(parsedFeedback.positive) ? parsedFeedback.positive : 
+                 (Array.isArray(parsedFeedback.aspectos_positivos) ? parsedFeedback.aspectos_positivos : []),
         negative: Array.isArray(parsedFeedback.negative) ? parsedFeedback.negative : [],
         opportunities: Array.isArray(parsedFeedback.opportunities) ? parsedFeedback.opportunities : [],
         sentiment: ['positive', 'negative', 'neutral'].includes(parsedFeedback.sentiment) ? parsedFeedback.sentiment : 'neutral',
