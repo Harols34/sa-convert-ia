@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAccount } from "@/context/AccountContext";
 import { useAuth } from "@/context/AuthContext";
+import QuickQuestions from "./QuickQuestions";
 
 interface Message {
   id: string;
@@ -116,8 +117,9 @@ export default function ChatInterface() {
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return;
+  const handleSendMessage = async (messageText?: string) => {
+    const textToSend = messageText || inputValue;
+    if (!textToSend.trim() || isLoading) return;
 
     if (!user) {
       toast.error("Debes estar autenticado para enviar mensajes");
@@ -127,7 +129,7 @@ export default function ChatInterface() {
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: inputValue,
+      content: textToSend,
       timestamp: new Date()
     };
 
@@ -143,7 +145,7 @@ export default function ChatInterface() {
       
       const { data, error } = await supabase.functions.invoke("ai-chat", {
         body: {
-          message: inputValue,
+          message: textToSend,
           context: "calls",
           accountId: selectedAccountId
         }
@@ -191,18 +193,25 @@ export default function ChatInterface() {
     }
   };
 
+  const handleQuestionSelect = (question: string) => {
+    if (!isLoading) {
+      handleSendMessage(question);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full w-full">
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50 rounded-lg mb-3 sm:mb-4 min-h-0">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full min-h-[300px] sm:min-h-[400px]">
-            <div className="text-center px-4">
+            <div className="text-center px-4 max-w-4xl w-full">
               <Bot className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
               <h3 className="text-base sm:text-lg font-medium mb-2">Asistente de ConvertIA</h3>
-              <p className="text-sm sm:text-base text-muted-foreground max-w-md mx-auto leading-relaxed">
+              <p className="text-sm sm:text-base text-muted-foreground max-w-md mx-auto leading-relaxed mb-6">
                 Tengo acceso a los datos de tus llamadas. Pregúntame sobre insights, tendencias y análisis.
               </p>
+              <QuickQuestions onQuestionSelect={handleQuestionSelect} isLoading={isLoading} />
             </div>
           </div>
         ) : (
@@ -259,7 +268,7 @@ export default function ChatInterface() {
           disabled={isLoading}
         />
         <Button
-          onClick={handleSendMessage}
+          onClick={() => handleSendMessage()}
           disabled={!inputValue.trim() || isLoading}
           size="lg"
           className="px-3 sm:px-4 h-auto min-h-[50px] sm:min-h-[60px]"
