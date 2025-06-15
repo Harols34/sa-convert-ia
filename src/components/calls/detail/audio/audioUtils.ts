@@ -5,59 +5,9 @@
  * @returns Formatted time string
  */
 export const formatTime = (time: number) => {
-  if (!time || isNaN(time) || time < 0) {
-    return "0:00";
-  }
-  
   const minutes = Math.floor(time / 60);
   const seconds = Math.floor(time % 60);
   return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
-};
-
-/**
- * Formats duration from seconds to a readable format
- * @param seconds Duration in seconds
- * @returns Formatted duration string
- */
-export const formatDuration = (seconds: number): string => {
-  if (!seconds || isNaN(seconds) || seconds <= 0) {
-    return "0:00";
-  }
-  
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = Math.floor(seconds % 60);
-  
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-  }
-  
-  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-};
-
-/**
- * Calculates audio duration from file
- * @param file Audio file
- * @returns Promise with duration in seconds
- */
-export const getAudioDuration = (file: File): Promise<number> => {
-  return new Promise((resolve) => {
-    const audio = document.createElement('audio');
-    const objectUrl = URL.createObjectURL(file);
-    
-    audio.addEventListener('loadedmetadata', () => {
-      const duration = audio.duration;
-      URL.revokeObjectURL(objectUrl);
-      resolve(isNaN(duration) ? 0 : Math.round(duration));
-    });
-    
-    audio.addEventListener('error', () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(0);
-    });
-    
-    audio.src = objectUrl;
-  });
 };
 
 /**

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Search, Filter, Calendar, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -106,15 +107,17 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
     onFilterChange(filters);
   }, [filters, onFilterChange]);
   
-  
+  // Optimized search with even shorter debounce (100ms) para mayor rapidez
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setSearchInputValue(newValue);
     
+    // Clear previous timeout if exists
     if (searchTimeout) {
       clearTimeout(searchTimeout);
     }
     
+    // Create new timeout with shorter delay (100ms)
     const newTimeout = setTimeout(() => {
       console.log("Aplicando búsqueda desde input:", newValue);
       setFilters(prev => ({ ...prev, search: newValue }));
@@ -123,6 +126,7 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
     setSearchTimeout(newTimeout);
   };
   
+  // Immediate search on Enter key
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       if (searchTimeout) {
@@ -142,6 +146,7 @@ export default function CallListFilters({ onFilterChange }: CallListFiltersProps
     setSearchInputValue(""); 
   };
 
+  // Function to get translated status name
   const getStatusName = (status: string): string => {
     switch (status) {
       case 'pending': return 'Pendiente';
