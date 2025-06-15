@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -6,7 +7,7 @@ import { Send, Loader2, Bot, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAccount } from "@/context/AccountContext";
-import { useUser } from "@/hooks/useUser";
+import { useAuth } from "@/context/AuthContext";
 
 interface Message {
   id: string;
@@ -21,7 +22,7 @@ export default function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { selectedAccountId } = useAccount();
-  const { user } = useUser();
+  const { user } = useAuth();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -34,12 +35,17 @@ export default function ChatInterface() {
   // Cargar historial de chat al montar el componente
   useEffect(() => {
     loadChatHistory();
-  }, []);
+  }, [user]);
 
   const loadChatHistory = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log("No user found, skipping chat history load");
+      return;
+    }
 
     try {
+      console.log("Loading chat history for user:", user.id);
+      
       // Calcular fecha de hace 15 días
       const fifteenDaysAgo = new Date();
       fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
@@ -56,6 +62,8 @@ export default function ChatInterface() {
         return;
       }
 
+      console.log("Chat history loaded:", data?.length, "messages");
+
       if (data && data.length > 0) {
         const chatMessages: Message[] = data.map(msg => ({
           id: msg.id,
@@ -71,9 +79,14 @@ export default function ChatInterface() {
   };
 
   const saveChatMessage = async (message: Message) => {
-    if (!user) return;
+    if (!user) {
+      console.error("No user found, cannot save message");
+      return;
+    }
 
     try {
+      console.log("Saving chat message for user:", user.id, "account:", selectedAccountId);
+      
       const { error } = await supabase
         .from('chat_messages')
         .insert({
@@ -86,14 +99,23 @@ export default function ChatInterface() {
 
       if (error) {
         console.error("Error saving chat message:", error);
+        toast.error("Error al guardar el mensaje");
+      } else {
+        console.log("Chat message saved successfully");
       }
     } catch (error) {
       console.error("Error saving chat message:", error);
+      toast.error("Error al guardar el mensaje");
     }
   };
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
+
+    if (!user) {
+      toast.error("Debes estar autenticado para enviar mensajes");
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
