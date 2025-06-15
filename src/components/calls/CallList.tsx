@@ -1,11 +1,10 @@
-
 import { useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, X, RefreshCcw, Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import CallUploadButton from "./CallUploadButton";
-import CallListFilters from "./CallListFilters";
+import CallListFilters, { CallFilters } from "./CallListFilters";
 import CallListExport from "./CallListExport";
 import { useCallList } from "@/hooks/useCallList";
 import { CallTable } from "./CallTable";
@@ -19,7 +18,16 @@ export default function CallList() {
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState<number>(20);
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [filters, setFilters] = useState<any>({});
+  
+  // Initialize filters with proper structure
+  const [filters, setFilters] = useState<CallFilters>({
+    status: [],
+    sentiment: [],
+    result: [],
+    agent: [],
+    dateRange: "all",
+    product: []
+  });
   
   const {
     calls,
@@ -36,6 +44,17 @@ export default function CallList() {
     toggleCallSelection,
     toggleAllCalls
   } = useCallList();
+
+  // Get agents for filter options
+  const agents = useMemo(() => {
+    const uniqueAgents = calls.reduce((acc, call) => {
+      if (call.agent_id && call.agentName && !acc.find(a => a.id === call.agent_id)) {
+        acc.push({ id: call.agent_id, name: call.agentName });
+      }
+      return acc;
+    }, [] as { id: string; name: string }[]);
+    return uniqueAgents;
+  }, [calls]);
 
   // Pagination memoization for performance
   const {
@@ -59,12 +78,11 @@ export default function CallList() {
     };
   }, [calls, currentPage, pageSize]);
 
-  // Optimized filter change handler - REMOVED automatic fetchCalls to prevent auto-refresh
-  const handleFilterChange = useCallback((newFilters: any) => {
+  // Optimized filter change handler
+  const handleFilterChange = useCallback((newFilters: CallFilters) => {
     console.log("Filter change detected:", newFilters);
     setFilters(newFilters);
     setCurrentPage(1); // Reset to first page on filter change
-    // REMOVED: fetchCalls(newFilters, true); - User must manually refresh
   }, []);
 
   const handlePageSizeChange = useCallback((value: string) => {
@@ -310,7 +328,11 @@ export default function CallList() {
         </div>
       </div>
 
-      <CallListFilters onFilterChange={handleFilterChange} />
+      <CallListFilters 
+        filters={filters}
+        onFiltersChange={handleFilterChange}
+        agents={agents}
+      />
 
       <div className="transition-all duration-300">
         {renderContent()}
