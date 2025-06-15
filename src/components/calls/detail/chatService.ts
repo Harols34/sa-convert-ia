@@ -7,10 +7,15 @@ export async function loadChatHistory(callId: string): Promise<ChatMessage[]> {
   if (!callId) return [];
 
   try {
+    // Calcular fecha de hace 15 días
+    const fifteenDaysAgo = new Date();
+    fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+
     const response: any = await supabase
-      .from('chat_messages')
+      .from('call_chat_messages')
       .select('*')
       .eq('call_id', callId)
+      .gte('timestamp', fifteenDaysAgo.toISOString())
       .order('timestamp', { ascending: true });
     
     if (response.error) {
@@ -43,7 +48,7 @@ export async function saveChatMessage(message: ChatMessage): Promise<boolean> {
 
   try {
     const response: any = await supabase
-      .from('chat_messages')
+      .from('call_chat_messages')
       .insert({
         content: message.content,
         role: message.role,

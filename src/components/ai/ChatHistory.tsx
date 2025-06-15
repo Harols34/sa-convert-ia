@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,11 +43,17 @@ export default function ChatHistory() {
   const fetchChatHistory = async () => {
     try {
       setIsLoading(true);
-      // Use the chat_messages table instead of chat_history
+      
+      // Calcular fecha de hace 15 días
+      const fifteenDaysAgo = new Date();
+      fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+
+      // Usar la tabla chat_messages para el chat global
       const { data, error } = await supabase
         .from("chat_messages")
         .select("*")
         .eq("user_id", user?.id)
+        .gte("timestamp", fifteenDaysAgo.toISOString())
         .order("timestamp", { ascending: false });
 
       if (error) {
@@ -67,7 +72,7 @@ export default function ChatHistory() {
             const assistantResponse = data.find(
               resp => resp.role === "assistant" && 
                      resp.timestamp > message.timestamp &&
-                     (!resp.call_id || resp.call_id === message.call_id)
+                     Math.abs(new Date(resp.timestamp).getTime() - new Date(message.timestamp).getTime()) < 60000 // Within 1 minute
             );
             
             if (assistantResponse) {

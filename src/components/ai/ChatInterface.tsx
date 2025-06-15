@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,6 +6,7 @@ import { Send, Loader2, Bot, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAccount } from "@/context/AccountContext";
+import { useUser } from "@/hooks/useUser";
 
 interface Message {
   id: string;
@@ -21,6 +21,7 @@ export default function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { selectedAccountId } = useAccount();
+  const { user } = useUser();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -29,6 +30,67 @@ export default function ChatInterface() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Cargar historial de chat al montar el componente
+  useEffect(() => {
+    loadChatHistory();
+  }, []);
+
+  const loadChatHistory = async () => {
+    if (!user) return;
+
+    try {
+      // Calcular fecha de hace 15 días
+      const fifteenDaysAgo = new Date();
+      fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('timestamp', fifteenDaysAgo.toISOString())
+        .order('timestamp', { ascending: true });
+
+      if (error) {
+        console.error("Error loading chat history:", error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const chatMessages: Message[] = data.map(msg => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          timestamp: new Date(msg.timestamp)
+        }));
+        setMessages(chatMessages);
+      }
+    } catch (error) {
+      console.error("Error loading chat history:", error);
+    }
+  };
+
+  const saveChatMessage = async (message: Message) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('chat_messages')
+        .insert({
+          content: message.content,
+          role: message.role,
+          user_id: user.id,
+          timestamp: message.timestamp.toISOString(),
+          account_id: selectedAccountId
+        });
+
+      if (error) {
+        console.error("Error saving chat message:", error);
+      }
+    } catch (error) {
+      console.error("Error saving chat message:", error);
+    }
+  };
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
@@ -43,6 +105,9 @@ export default function ChatInterface() {
     setMessages(prev => [...prev, userMessage]);
     setInputValue("");
     setIsLoading(true);
+
+    // Guardar mensaje del usuario
+    await saveChatMessage(userMessage);
 
     try {
       console.log('Sending message with account context:', selectedAccountId);
@@ -69,6 +134,9 @@ export default function ChatInterface() {
 
       setMessages(prev => [...prev, assistantMessage]);
 
+      // Guardar respuesta del asistente
+      await saveChatMessage(assistantMessage);
+
     } catch (error) {
       console.error("Error in chat:", error);
       toast.error("Error al procesar tu consulta");
@@ -81,6 +149,7 @@ export default function ChatInterface() {
       };
       
       setMessages(prev => [...prev, errorMessage]);
+      await saveChatMessage(errorMessage);
     } finally {
       setIsLoading(false);
     }
