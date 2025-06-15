@@ -9,51 +9,6 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      account_limits: {
-        Row: {
-          account_id: string
-          creado_por: string | null
-          fecha_creacion: string
-          id: string
-          limite_consultas: number
-          limite_horas: number
-          updated_at: string
-        }
-        Insert: {
-          account_id: string
-          creado_por?: string | null
-          fecha_creacion?: string
-          id?: string
-          limite_consultas?: number
-          limite_horas?: number
-          updated_at?: string
-        }
-        Update: {
-          account_id?: string
-          creado_por?: string | null
-          fecha_creacion?: string
-          id?: string
-          limite_consultas?: number
-          limite_horas?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "account_limits_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: true
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "account_limits_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: true
-            referencedRelation: "limits_dashboard"
-            referencedColumns: ["account_id"]
-          },
-        ]
-      }
       accounts: {
         Row: {
           created_at: string
@@ -119,13 +74,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "agents_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "limits_dashboard"
-            referencedColumns: ["account_id"]
           },
         ]
       }
@@ -198,13 +146,6 @@ export type Database = {
             referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "behaviors_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "limits_dashboard"
-            referencedColumns: ["account_id"]
-          },
         ]
       }
       call_chat_messages: {
@@ -242,13 +183,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "call_chat_messages_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "limits_dashboard"
-            referencedColumns: ["account_id"]
           },
           {
             foreignKeyName: "call_chat_messages_call_id_fkey"
@@ -347,13 +281,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "calls_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "limits_dashboard"
-            referencedColumns: ["account_id"]
-          },
-          {
             foreignKeyName: "calls_tipificacion_id_fkey"
             columns: ["tipificacion_id"]
             isOneToOne: false
@@ -397,13 +324,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chat_messages_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "limits_dashboard"
-            referencedColumns: ["account_id"]
           },
           {
             foreignKeyName: "chat_messages_call_id_fkey"
@@ -467,13 +387,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "feedback_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "limits_dashboard"
-            referencedColumns: ["account_id"]
           },
           {
             foreignKeyName: "feedback_call_id_fkey"
@@ -559,13 +472,6 @@ export type Database = {
             referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "prompts_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "limits_dashboard"
-            referencedColumns: ["account_id"]
-          },
         ]
       }
       tipificaciones: {
@@ -606,13 +512,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tipificaciones_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "limits_dashboard"
-            referencedColumns: ["account_id"]
           },
         ]
       }
@@ -664,54 +563,6 @@ export type Database = {
         }
         Relationships: []
       }
-      usage_tracking: {
-        Row: {
-          account_id: string
-          cantidad: number
-          costo_usd: number | null
-          created_at: string
-          fecha: string
-          id: string
-          origen: string | null
-          tipo: string
-        }
-        Insert: {
-          account_id: string
-          cantidad?: number
-          costo_usd?: number | null
-          created_at?: string
-          fecha?: string
-          id?: string
-          origen?: string | null
-          tipo: string
-        }
-        Update: {
-          account_id?: string
-          cantidad?: number
-          costo_usd?: number | null
-          created_at?: string
-          fecha?: string
-          id?: string
-          origen?: string | null
-          tipo?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "usage_tracking_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "usage_tracking_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "limits_dashboard"
-            referencedColumns: ["account_id"]
-          },
-        ]
-      }
       user_accounts: {
         Row: {
           account_id: string
@@ -738,13 +589,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_accounts_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "limits_dashboard"
-            referencedColumns: ["account_id"]
           },
         ]
       }
@@ -822,31 +666,9 @@ export type Database = {
       }
     }
     Views: {
-      limits_dashboard: {
-        Row: {
-          account_id: string | null
-          account_name: string | null
-          costo_total_mes: number | null
-          limite_consultas: number | null
-          limite_horas: number | null
-          porcentaje_consultas: number | null
-          porcentaje_transcripcion: number | null
-          uso_consultas_mes: number | null
-          uso_transcripcion_mes: number | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
-      check_account_limits: {
-        Args: { p_account_id: string; p_tipo: string }
-        Returns: {
-          limite_alcanzado: boolean
-          uso_actual: number
-          limite_total: number
-          porcentaje_uso: number
-        }[]
-      }
       count_calls_by_account: {
         Args: { account_uuid: string }
         Returns: number
@@ -879,16 +701,6 @@ export type Database = {
       is_super_admin_user: {
         Args: Record<PropertyKey, never>
         Returns: boolean
-      }
-      register_usage: {
-        Args: {
-          p_account_id: string
-          p_tipo: string
-          p_cantidad: number
-          p_origen?: string
-          p_costo_usd?: number
-        }
-        Returns: undefined
       }
     }
     Enums: {

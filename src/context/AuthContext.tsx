@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { Session, User } from '@supabase/supabase-js';
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User as AppUser } from "@/lib/types";
 import { toast } from "sonner";
@@ -29,6 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   // Helper function to validate language
   const validateLanguage = useCallback((lang: string | null | undefined): 'es' | 'en' => {
@@ -252,7 +254,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("Error refreshing session:", error);
         // If refresh fails, clean up and redirect to login
         cleanupAuthState();
-        window.location.href = '/login';
+        navigate('/login');
         return;
       }
       
@@ -263,9 +265,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error("Unexpected error refreshing session:", error);
       cleanupAuthState();
-      window.location.href = '/login';
+      navigate('/login');
     }
-  }, []);
+  }, [navigate]);
 
   // Update user data function
   const updateUser = useCallback(async (userData: Partial<AppUser>) => {

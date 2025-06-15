@@ -1,223 +1,163 @@
-
-import { useState } from "react";
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from "@/context/AuthContext";
+import React, { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Settings, LogOut, Menu } from "lucide-react";
-import { User } from "@/lib/types";
-import { BarChart3, Users, Calendar, MessageSquare, FileText, Target, UserCheck, Shield, Wrench, Gauge } from "lucide-react";
-
-interface MenuItem {
-  name: string;
-  href: string;
-  icon: React.ReactNode;
-  role: User["role"][];
-}
-
-export function Sidebar() {
-  const navigate = useNavigate();
+import { useAuth } from "@/context/AuthContext";
+import { useAccount } from "@/context/AccountContext";
+import AccountSelector from "./AccountSelector";
+import { BarChart3, Phone, Users, Eye, Wrench, MessageSquare, Brain, Tag, FileText, User, Building2, Settings, ChevronLeft, ChevronRight, LogOut, Search } from "lucide-react";
+import { MenuItem } from "@/lib/types";
+const menuItems: MenuItem[] = [{
+  name: "Análisis",
+  href: "/analytics",
+  icon: <BarChart3 className="h-4 w-4" />,
+  role: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"]
+}, {
+  name: "Llamadas",
+  href: "/calls",
+  icon: <Phone className="h-4 w-4" />,
+  role: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"]
+}, {
+  name: "Agentes",
+  href: "/agents",
+  icon: <Users className="h-4 w-4" />,
+  role: ["superAdmin", "admin", "supervisor"]
+}, {
+  name: "Supervisión",
+  href: "/workforce",
+  icon: <Eye className="h-4 w-4" />,
+  role: ["superAdmin", "admin", "supervisor"]
+}, {
+  name: "Herramientas",
+  href: "/tools",
+  icon: <Wrench className="h-4 w-4" />,
+  role: ["superAdmin", "admin"]
+}, {
+  name: "Consulta IA",
+  href: "/chat",
+  icon: <MessageSquare className="h-4 w-4" />,
+  role: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"]
+}, {
+  name: "Comportamientos",
+  href: "/behaviors",
+  icon: <Brain className="h-4 w-4" />,
+  role: ["superAdmin", "admin", "qualityAnalyst", "supervisor"]
+}, {
+  name: "Tipificaciones",
+  href: "/tipificaciones",
+  icon: <Tag className="h-4 w-4" />,
+  role: ["superAdmin", "admin", "qualityAnalyst", "supervisor"]
+}, {
+  name: "Prompts",
+  href: "/prompts",
+  icon: <FileText className="h-4 w-4" />,
+  role: ["superAdmin", "admin", "qualityAnalyst", "supervisor"]
+}, {
+  name: "Usuarios",
+  href: "/users",
+  icon: <User className="h-4 w-4" />,
+  role: ["superAdmin", "admin"]
+}, {
+  name: "Cuentas",
+  href: "/accounts",
+  icon: <Building2 className="h-4 w-4" />,
+  role: ["superAdmin"]
+}];
+export default function Sidebar() {
   const location = useLocation();
-  const { user, signOut } = useAuth();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
+  const {
+    user,
+    signOut
+  } = useAuth();
+  const [collapsed, setCollapsed] = useState(false);
   const handleSignOut = async () => {
-    await signOut();
-    navigate('/login');
+    try {
+      await signOut();
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
   };
 
-  const menuItems: MenuItem[] = [
-    {
-      name: "Dashboard",
-      href: "/dashboard",
-      icon: <BarChart3 className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"]
-    },
-    {
-      name: "Llamadas",
-      href: "/calls", 
-      icon: <FileText className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"]
-    },
-    {
-      name: "Analytics",
-      href: "/analytics",
-      icon: <BarChart3 className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "qualityAnalyst", "supervisor"]
-    },
-    {
-      name: "Chat IA",
-      href: "/chat",
-      icon: <MessageSquare className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"]
-    },
-    {
-      name: "Límites",
-      href: "/limits",
-      icon: <Gauge className="h-5 w-5" />,
-      role: ["superAdmin"]
-    },
-    {
-      name: "Cuentas",
-      href: "/accounts",
-      icon: <Shield className="h-5 w-5" />,
-      role: ["superAdmin"]
-    },
-    {
-      name: "Usuarios",
-      href: "/users",
-      icon: <Users className="h-5 w-5" />,
-      role: ["superAdmin", "admin"]
-    },
-    {
-      name: "Asignar Usuarios",
-      href: "/assign-users",
-      icon: <UserCheck className="h-5 w-5" />,
-      role: ["superAdmin"]
-    },
-    {
-      name: "Comportamientos",
-      href: "/behaviors",
-      icon: <Target className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "qualityAnalyst"]
-    },
-    {
-      name: "Prompts",
-      href: "/prompts",
-      icon: <FileText className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "qualityAnalyst"]
-    },
-    {
-      name: "Tipificaciones",
-      href: "/tipificaciones",
-      icon: <FileText className="h-5 w-5" />,
-      role: ["superAdmin", "admin"]
-    },
-    {
-      name: "Agentes",
-      href: "/agents",
-      icon: <Users className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "supervisor"]
-    },
-    {
-      name: "Workforce",
-      href: "/workforce",
-      icon: <Calendar className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "supervisor"]
-    },
-    {
-      name: "Herramientas",
-      href: "/tools",
-      icon: <Wrench className="h-5 w-5" />,
-      role: ["superAdmin", "admin"]
-    },
-    {
-      name: "Configuración",
-      href: "/settings",
-      icon: <Settings className="h-5 w-5" />,
-      role: ["superAdmin", "admin", "qualityAnalyst", "supervisor", "agent"]
-    }
-  ];
-
-  const filteredMenuItems = menuItems.filter(item => item.role.includes(user?.role || 'agent'));
-
-  return (
-    <div className="flex flex-col h-full bg-gray-100 border-r py-4 w-60">
-      <div className="px-4 mb-4">
-        <Avatar className="h-10 w-10">
-          <AvatarImage src={user?.avatar_url || "/avatars/01.png"} alt={user?.name} />
-          <AvatarFallback>{user?.name?.substring(0, 2)}</AvatarFallback>
-        </Avatar>
-        <div className="mt-2">
-          <p className="font-semibold">{user?.full_name || user?.name}</p>
-          <p className="text-sm text-gray-500">{user?.email}</p>
+  // Filter menu items based on user role
+  const filteredMenuItems = React.useMemo(() => {
+    if (!user) return [];
+    return menuItems.filter(item => item.role.includes(user.role));
+  }, [user]);
+  if (!user) {
+    return <div className="w-64 border-r bg-gray-50/40 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>;
+  }
+  return <div className={cn("border-r bg-gray-50/40 transition-all duration-300 flex flex-col h-full", collapsed ? "w-16" : "w-64")}>
+      {/* Header */}
+      <div className="flex h-14 items-center border-b lg:h-[60px] lg:px-6 shrink-0 px-[17px] mx-[-6px]">
+        <div className="flex items-center justify-between w-full mx-[-8px] py-0 my-[2px] px-[0px]">
+          {!collapsed && <Link to="/" className="flex items-center gap-2 font-semibold">
+              <img src="https://www.convertia.com/favicon/favicon-convertia.png" alt="Convert-IA Logo" className="h-6 w-6" />
+              <span className="text-lg text-primary">Convert-IA</span>
+            </Link>}
+          {collapsed && <img src="https://www.convertia.com/favicon/favicon-convertia.png" alt="Convert-IA Logo" className="h-6 w-6 mx-auto" />}
+          <Button variant="ghost" size="sm" onClick={() => setCollapsed(!collapsed)} className="h-8 w-8 p-0 shrink-0">
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </Button>
         </div>
       </div>
 
-      <Separator className="mb-4" />
+      {/* Account Selector - Only show when not collapsed */}
+      {!collapsed && <AccountSelector />}
 
-      <ScrollArea className="flex-1 px-4">
-        <nav className="flex flex-col space-y-1">
-          {filteredMenuItems.map((item) => (
-            <Button
-              key={item.name}
-              variant="ghost"
-              className={cn(
-                "justify-start font-normal",
-                location.pathname === item.href ? "bg-gray-200 hover:bg-gray-200" : "hover:bg-gray-100"
-              )}
-              onClick={() => navigate(item.href)}
-            >
-              {item.icon}
-              <span>{item.name}</span>
-            </Button>
-          ))}
-        </nav>
-      </ScrollArea>
-
-      <Separator className="my-4" />
-
-      <div className="px-4">
-        <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/settings')}>
-          <Settings className="h-4 w-4 mr-2" />
-          Configuración
-        </Button>
-        <Button variant="destructive" className="w-full justify-start mt-2" onClick={handleSignOut}>
-          <LogOut className="h-4 w-4 mr-2" />
-          Cerrar sesión
-        </Button>
+      {/* Navigation with ScrollArea */}
+      <div className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="flex flex-col gap-2 p-4">
+            {filteredMenuItems.map(item => <Link key={item.href} to={item.href} className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground", location.pathname.startsWith(item.href.split('?')[0]) ? "bg-accent text-accent-foreground" : "text-muted-foreground", collapsed && "justify-center px-2")} title={collapsed ? item.name : undefined}>
+                {item.icon}
+                {!collapsed && <span>{item.name}</span>}
+              </Link>)}
+            
+            {/* Search hint for Ctrl+K */}
+            {!collapsed && <div className="mt-4 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 text-xs text-blue-600">
+                  <Search className="h-3 w-3" />
+                  <span>Presiona <kbd className="px-1 py-0.5 bg-blue-100 rounded">Ctrl+K</kbd> para buscar</span>
+                </div>
+              </div>}
+          </div>
+        </ScrollArea>
       </div>
 
-      {/* Mobile menu */}
-      <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-        <SheetTrigger asChild>
-          <Button variant="ghost" size="icon" className="absolute top-2 right-2 md:hidden">
-            <Menu className="h-6 w-6" />
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="left" className="w-80">
-          <SheetHeader>
-            <SheetTitle>Menu</SheetTitle>
-          </SheetHeader>
-          <ScrollArea className="my-4">
-            <nav className="grid gap-4">
-              {filteredMenuItems.map((item) => (
-                <Button
-                  key={item.name}
-                  variant="ghost"
-                  className={cn(
-                    "justify-start font-normal",
-                    location.pathname === item.href ? "bg-gray-200 hover:bg-gray-200" : "hover:bg-gray-100"
-                  )}
-                  onClick={() => {
-                    navigate(item.href);
-                    setIsMenuOpen(false); // Close the menu after navigation
-                  }}
-                >
-                  {item.icon}
-                  <span>{item.name}</span>
-                </Button>
-              ))}
-            </nav>
-          </ScrollArea>
-          <Separator className="my-4" />
-          <Button variant="outline" className="w-full justify-start" onClick={() => {
-            navigate('/settings');
-            setIsMenuOpen(false);
-          }}>
-            <Settings className="h-4 w-4 mr-2" />
-            Configuración
-          </Button>
-          <Button variant="destructive" className="w-full justify-start mt-2" onClick={handleSignOut}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Cerrar sesión
-          </Button>
-        </SheetContent>
-      </Sheet>
-    </div>
-  );
+      {/* User Section */}
+      <div className="shrink-0 mt-auto">
+        <Separator />
+        <div className="p-4">
+          {/* Settings Link */}
+          <Link to="/settings" className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground mb-2", location.pathname === "/settings" && "bg-accent text-accent-foreground", collapsed && "justify-center px-2")} title={collapsed ? "Configuración" : undefined}>
+            <Settings className="h-4 w-4" />
+            {!collapsed && <span>Configuración</span>}
+          </Link>
+
+          {/* User Info and Logout */}
+          {!collapsed && user && <div className="space-y-2">
+              <div className="px-3 py-2 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground truncate">
+                  {user.full_name || user.email}
+                </p>
+                <p className="capitalize">{user.role}</p>
+              </div>
+              
+              <Button variant="ghost" size="sm" onClick={handleSignOut} className="w-full justify-start text-muted-foreground hover:text-accent-foreground">
+                <LogOut className="h-4 w-4 mr-2" />
+                Cerrar Sesión
+              </Button>
+            </div>}
+
+          {/* Collapsed logout button */}
+          {collapsed && <Button variant="ghost" size="sm" onClick={handleSignOut} className="w-full p-2 justify-center" title="Cerrar Sesión">
+              <LogOut className="h-4 w-4" />
+            </Button>}
+        </div>
+      </div>
+    </div>;
 }

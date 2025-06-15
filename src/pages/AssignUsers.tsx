@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, UserCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import Layout from "@/components/layout/Layout";
 import { useAuth } from "@/context/AuthContext";
 
 interface User {
@@ -44,15 +45,17 @@ const AssignUsers = () => {
   // Only superAdmins can assign users
   if (user?.role !== "superAdmin") {
     return (
-      <div className="container mx-auto py-8">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">
-              Solo los Super Administradores pueden asignar usuarios a cuentas.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <Layout>
+        <div className="container mx-auto py-8">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-center text-muted-foreground">
+                Solo los Super Administradores pueden asignar usuarios a cuentas.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </Layout>
     );
   }
 
@@ -184,119 +187,121 @@ const AssignUsers = () => {
   };
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="mb-6">
-        <Button
-          variant="ghost"
-          onClick={() => navigate("/accounts")}
-          className="mb-4"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Volver a Cuentas
-        </Button>
-        
-        <div className="flex items-center gap-2">
-          <UserCheck className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold">Asignar Usuarios a Cuentas</h1>
+    <Layout>
+      <div className="container mx-auto py-8">
+        <div className="mb-6">
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/accounts")}
+            className="mb-4"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Volver a Cuentas
+          </Button>
+          
+          <div className="flex items-center gap-2">
+            <UserCheck className="h-6 w-6 text-primary" />
+            <h1 className="text-3xl font-bold">Asignar Usuarios a Cuentas</h1>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Assignment Form */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Nueva Asignación</CardTitle>
+              <CardDescription>
+                Asigna un usuario a una cuenta específica.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleAssign} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="user">Usuario *</Label>
+                  <Select value={selectedUser} onValueChange={setSelectedUser}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar usuario" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.full_name} ({user.role})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="account">Cuenta *</Label>
+                  <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar cuenta" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accounts.map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.name} ({account.status})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={loading || !selectedUser || !selectedAccount}
+                  className="w-full"
+                >
+                  {loading ? "Asignando..." : "Asignar Usuario"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Current Assignments */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Asignaciones Actuales</CardTitle>
+              <CardDescription>
+                Lista de usuarios asignados a cuentas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {assignments.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">
+                    No hay asignaciones registradas.
+                  </p>
+                ) : (
+                  assignments.map((assignment) => (
+                    <div
+                      key={assignment.id}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium">{assignment.user?.full_name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {assignment.account?.name}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRemoveAssignment(assignment.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Assignment Form */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Nueva Asignación</CardTitle>
-            <CardDescription>
-              Asigna un usuario a una cuenta específica.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleAssign} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="user">Usuario *</Label>
-                <Select value={selectedUser} onValueChange={setSelectedUser}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar usuario" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.full_name} ({user.role})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="account">Cuenta *</Label>
-                <Select value={selectedAccount} onValueChange={setSelectedAccount}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar cuenta" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accounts.map((account) => (
-                      <SelectItem key={account.id} value={account.id}>
-                        {account.name} ({account.status})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Button
-                type="submit"
-                disabled={loading || !selectedUser || !selectedAccount}
-                className="w-full"
-              >
-                {loading ? "Asignando..." : "Asignar Usuario"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Current Assignments */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Asignaciones Actuales</CardTitle>
-            <CardDescription>
-              Lista de usuarios asignados a cuentas.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {assignments.length === 0 ? (
-                <p className="text-muted-foreground text-center py-4">
-                  No hay asignaciones registradas.
-                </p>
-              ) : (
-                assignments.map((assignment) => (
-                  <div
-                    key={assignment.id}
-                    className="flex items-center justify-between p-3 border rounded-lg"
-                  >
-                    <div className="flex-1">
-                      <p className="font-medium">{assignment.user?.full_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {assignment.account?.name}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRemoveAssignment(assignment.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    </Layout>
   );
 };
 

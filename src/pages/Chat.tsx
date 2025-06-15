@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
+import Layout from "@/components/layout/Layout";
 import ChatInterface from "@/components/ai/ChatInterface";
 import ChatHistory from "@/components/ai/ChatHistory";
 import { useAuth } from "@/context/AuthContext";
@@ -32,23 +33,25 @@ export default function ChatPage() {
   }
   
   return (
-    <div className="flex flex-col h-full w-full p-4 sm:p-6">
-      <Routes>
-        <Route path="/" element={
-          <div className="flex flex-col h-full space-y-4 sm:space-y-6">
-            <div className="flex-shrink-0">
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Consulta tus Insights de Voz</h2>
-              <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-2">
-                Explora tus llamadas y obtén insights avanzados generados por la IA de Convertia.
-              </p>
+    <Layout>
+      <div className="flex flex-col h-full w-full p-4 sm:p-6">
+        <Routes>
+          <Route path="/" element={
+            <div className="flex flex-col h-full space-y-4 sm:space-y-6">
+              <div className="flex-shrink-0">
+                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Consulta tus Insights de Voz</h2>
+                <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-2">
+                  Explora tus llamadas y obtén insights avanzados generados por la IA de Convertia.
+                </p>
+              </div>
+              <div className="flex-1 min-h-0">
+                <ChatInterface />
+              </div>
             </div>
-            <div className="flex-1 min-h-0">
-              <ChatInterface />
-            </div>
-          </div>
-        } />
-        <Route path="history" element={<ChatHistory />} />
-      </Routes>
-    </div>
+          } />
+          <Route path="history" element={<ChatHistory />} />
+        </Routes>
+      </div>
+    </Layout>
   );
 }

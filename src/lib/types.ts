@@ -182,36 +182,3 @@ export interface SpeakerAnalysis {
   silencios_prolongados: number;
   tiempo_silencios: number;
 }
-
-export interface AccountLimit {
-  id: string;
-  account_id: string;
-  limite_horas: number;
-  limite_consultas: number;
-  fecha_creacion: string;
-  creado_por: string | null;
-  updated_at: string;
-}
-
-export interface UsageRecord {
-  id: string;
-  account_id: string;
-  tipo: "transcripcion" | "chat_llamada" | "chat_general";
-  cantidad: number;
-  fecha: string;
-  origen: string | null;
-  costo_usd: number;
-  created_at: string;
-}
-
-export interface LimitsDashboardData {
-  account_id: string;
-  account_name: string;
-  limite_horas: number | null;
-  limite_consultas: number | null;
-  uso_transcripcion_mes: number;
-  uso_consultas_mes: number;
-  costo_total_mes: number;
-  porcentaje_transcripcion: number;
-  porcentaje_consultas: number;
-}
