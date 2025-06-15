@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,15 +20,15 @@ interface Call {
   duration: number;
   score?: number;
   agent_name?: string;
+  agent_id?: string;
   type?: string;
+  product?: string;
   // Additional fields from Supabase
   account_id?: string;
-  agent_id?: string;
   audio_url?: string;
   date?: string;
   entities?: string[];
   filename?: string;
-  product?: string;
   updated_at?: string;
 }
 
@@ -157,12 +158,10 @@ export default function AnalyticsPage() {
 
           if (error) throw error;
 
-          // Transform the data to match our Call interface
+          // Transform the data to ensure we have the needed fields
           const transformedData: Call[] = (data || []).map(call => ({
             ...call,
             score: call.score || Math.random() * 10, // Fallback if no score
-            agent: call.agent_name || call.agent_id || 'Unknown Agent',
-            type: call.type || call.product || 'General'
           }));
 
           setCalls(transformedData);
@@ -182,7 +181,7 @@ export default function AnalyticsPage() {
     const agents: { [key: string]: { calls: number; totalScore: number; totalDuration: number } } = {};
 
     calls.forEach((call) => {
-      const agentKey = call.agent || call.agent_name || 'Unknown Agent';
+      const agentKey = call.agent_name || call.agent_id || 'Unknown Agent';
       if (!agents[agentKey]) {
         agents[agentKey] = { calls: 0, totalScore: 0, totalDuration: 0 };
       }
@@ -214,7 +213,8 @@ export default function AnalyticsPage() {
     const typeCounts: { [key: string]: number } = {};
 
     calls.forEach((call) => {
-      typeCounts[call.type] = (typeCounts[call.type] || 0) + 1;
+      const callType = call.type || call.product || 'General';
+      typeCounts[callType] = (typeCounts[callType] || 0) + 1;
     });
 
     return Object.entries(typeCounts).map(([name, value]) => ({ name, value }));
@@ -228,7 +228,7 @@ export default function AnalyticsPage() {
       if (!dailyScores[date]) {
         dailyScores[date] = { totalScore: 0, count: 0 };
       }
-      dailyScores[date].totalScore += call.score;
+      dailyScores[date].totalScore += call.score || 0;
       dailyScores[date].count += 1;
     });
 
@@ -247,7 +247,7 @@ export default function AnalyticsPage() {
         dailyData[date] = { calls: 0, totalQuality: 0 };
       }
       dailyData[date].calls += 1;
-      dailyData[date].totalQuality += call.score >= 6 ? 1 : 0;
+      dailyData[date].totalQuality += (call.score || 0) >= 6 ? 1 : 0;
     });
 
     return Object.entries(dailyData).map(([date, data]) => ({
@@ -261,7 +261,7 @@ export default function AnalyticsPage() {
     const distribution: { [key: number]: number } = {};
 
     calls.forEach((call) => {
-      const score = Math.floor(call.score);
+      const score = Math.floor(call.score || 0);
       distribution[score] = (distribution[score] || 0) + 1;
     });
 
@@ -277,7 +277,7 @@ export default function AnalyticsPage() {
     const avgDuration = totalCalls > 0 ? `${Math.floor(totalDuration / totalCalls)}s` : '0s';
     const totalScore = calls.reduce((sum, call) => sum + (call.score || 0), 0);
     const avgScore = totalCalls > 0 ? parseFloat((totalScore / totalCalls).toFixed(2)) : 0;
-    const activeAgents = new Set(calls.map((call) => call.agent || call.agent_name || 'Unknown')).size;
+    const activeAgents = new Set(calls.map((call) => call.agent_name || call.agent_id || 'Unknown')).size;
 
     // Placeholder growth values - replace with actual calculations
     const callsGrowth = 5;
