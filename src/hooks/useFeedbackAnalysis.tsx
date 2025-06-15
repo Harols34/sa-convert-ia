@@ -140,24 +140,70 @@ export const useFeedbackAnalysis = ({
   const triggerAnalysisFunction = useCallback(async () => {
     if (!call.id) return [];
     
+    // Check if feedback already exists first
+    const { data: existingFeedback, error: feedbackCheckError } = await supabase
+      .from('feedback')
+      .select('behaviors_analysis')
+      .eq('call_id', call.id)
+      .maybeSingle();
+      
+    if (feedbackCheckError && feedbackCheckError.code !== 'PGRST116') {
+      console.error("Error checking existing feedback:", feedbackCheckError);
+    }
+    
+    if (existingFeedback && existingFeedback.behaviors_analysis && 
+        Array.isArray(existingFeedback.behaviors_analysis) && 
+        existingFeedback.behaviors_analysis.length > 0) {
+      console.log("Feedback already exists, using existing data");
+      
+      setFeedbackAlreadyExists(true);
+      
+      const validatedAnalysis = validateBehaviorsAnalysis(existingFeedback.behaviors_analysis);
+      setBehaviors(validatedAnalysis);
+      
+      toast.info("El feedback de esta llamada ya existe y es permanente");
+      
+      const { data: fullFeedback } = await supabase
+        .from('feedback')
+        .select('*')
+        .eq('call_id', call.id)
+        .maybeSingle();
+        
+      if (fullFeedback && setLocalFeedback) {
+        const validatedBehaviors = validateBehaviorsAnalysis(fullFeedback.behaviors_analysis);
+        
+        const typedFeedback: Feedback = {
+          id: fullFeedback.id,
+          call_id: fullFeedback.call_id,
+          score: fullFeedback.score || 0,
+          positive: fullFeedback.positive || [],
+          negative: fullFeedback.negative || [],
+          opportunities: fullFeedback.opportunities || [],
+          behaviors_analysis: validatedBehaviors,
+          created_at: fullFeedback.created_at,
+          updated_at: fullFeedback.updated_at,
+          sentiment: fullFeedback.sentiment,
+          topics: fullFeedback.topics || [],
+          entities: fullFeedback.entities || []
+        };
+        
+        setLocalFeedback(typedFeedback);
+      }
+      
+      return validatedAnalysis;
+    }
+    
     if (!hasActiveBehaviors) {
       toast.error("No hay comportamientos activos para analizar");
       setAnalysisError("No hay comportamientos activos definidos en el sistema. Agregue al menos un comportamiento activo para poder realizar el análisis.");
       return [];
     }
     
-    // Check if analysis already exists
-    if (feedbackAlreadyExists || (behaviors && behaviors.length > 0)) {
-      console.log("Analysis already exists, using existing data");
-      toast.info("El análisis de comportamientos ya existe para esta llamada");
-      return behaviors;
-    }
-    
     setIsGeneratingFeedback(true);
     setAnalysisError(null);
     
     try {
-      toast.loading("Analizando comportamientos...", { id: "generate-feedback" });
+      toast.loading("Analizando llamada...", { id: "generate-feedback" });
       
       console.log("Triggering behavior analysis for call:", call.id);
       const { data, error } = await supabase.functions.invoke("analyze-call", {
@@ -195,17 +241,17 @@ export const useFeedbackAnalysis = ({
           setLocalFeedback(typedFeedback);
         }
         
-        toast.success("Análisis de comportamientos generado", { id: "generate-feedback" });
+        toast.success("Análisis generado", { id: "generate-feedback" });
         setActiveTab("behaviors");
         
         return newBehaviors;
       } else {
-        throw new Error("No se generaron resultados de análisis de comportamientos");
+        throw new Error("No se generaron resultados de análisis");
       }
     } catch (error) {
-      console.error("Error generating behavior analysis:", error);
+      console.error("Error generating feedback:", error);
       setAnalysisError(error instanceof Error ? error.message : "Error desconocido");
-      toast.error("Error generando análisis de comportamientos", { 
+      toast.error("Error generando análisis", { 
         id: "generate-feedback", 
         description: error instanceof Error ? error.message : "Error desconocido" 
       });
@@ -213,7 +259,7 @@ export const useFeedbackAnalysis = ({
     } finally {
       setIsGeneratingFeedback(false);
     }
-  }, [call.id, setLocalFeedback, hasActiveBehaviors, feedbackAlreadyExists, behaviors]);
+  }, [call.id, setLocalFeedback, hasActiveBehaviors]);
   
   return {
     behaviors,

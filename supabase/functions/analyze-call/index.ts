@@ -34,8 +34,6 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Starting behavior analysis for call: ${callId}`);
-
     // Create Supabase client
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -83,11 +81,8 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Call found: ${call.title}, account: ${call.account_id}`);
-
     // Verify call has transcription
     if (!call.transcription) {
-      console.error("Call has no transcription");
       return new Response(JSON.stringify({ error: "La llamada no tiene transcripción" }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -104,7 +99,6 @@ serve(async (req) => {
     // If call has account_id, get behaviors for that account or global behaviors
     if (call.account_id) {
       behaviorsQuery = behaviorsQuery.or(`account_id.eq.${call.account_id},account_id.is.null`);
-      console.log(`Filtering behaviors by account: ${call.account_id}`);
     }
 
     const { data: behaviors, error: behaviorsError } = await behaviorsQuery;
@@ -125,19 +119,15 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Found ${behaviors.length} active behaviors for analysis:`, behaviors.map(b => b.name));
+    console.log(`Found ${behaviors.length} active behaviors for analysis (account: ${call.account_id})`);
 
     // Analyze behaviors
-    console.log("Starting behavior analysis...");
     const behaviorsAnalysis = await analyzeBehaviors(call, behaviors);
-    console.log("Behavior analysis completed:", behaviorsAnalysis);
 
     // Calculate score and generate feedback details
     const score = scoreFromEvaluations(behaviorsAnalysis);
     const opportunities = generateOpportunities(behaviorsAnalysis);
     const positives = generatePositives(behaviorsAnalysis, score);
-    
-    console.log(`Generated score: ${score}, positives: ${positives.length}, opportunities: ${opportunities.length}`);
     
     // Create or update feedback with account_id
     const response = await createOrUpdateFeedback(
@@ -151,18 +141,13 @@ serve(async (req) => {
       opportunities
     );
 
-    console.log("Feedback created/updated successfully");
-
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
     
   } catch (error) {
-    console.error("Unexpected error in analyze-call:", error);
-    return new Response(JSON.stringify({ 
-      error: error.message || "Error inesperado",
-      details: error.stack 
-    }), {
+    console.error("Unexpected error:", error);
+    return new Response(JSON.stringify({ error: error.message || "Error inesperado" }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

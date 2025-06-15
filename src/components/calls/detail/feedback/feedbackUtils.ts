@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { BehaviorAnalysis } from "@/lib/types";
 
-// Función para disparar el análisis de comportamientos
+// Función para disparar el análisis de comportamientos - solo se llama manualmente
 export async function triggerBehaviorAnalysis(callId: string): Promise<BehaviorAnalysis[]> {
   if (!callId) {
     throw new Error("Call ID is required");
@@ -23,19 +23,19 @@ export async function triggerBehaviorAnalysis(callId: string): Promise<BehaviorA
       console.error("Error checking existing feedback:", feedbackError);
     }
     
-    // If feedback with behaviors_analysis already exists, return it
+    // If feedback with behaviors_analysis already exists, return it (prevent regeneration)
     if (existingFeedback && existingFeedback.behaviors_analysis && 
         Array.isArray(existingFeedback.behaviors_analysis) && 
         existingFeedback.behaviors_analysis.length > 0) {
       console.log("Using existing behaviors_analysis from database:", existingFeedback.behaviors_analysis);
-      toast.info("El análisis de comportamientos ya existe para esta llamada");
+      toast.info("El feedback de esta llamada ya existe y es permanente");
       return validateBehaviorsAnalysis(existingFeedback.behaviors_analysis);
     }
     
     // Check if there are active behaviors
     const { data: activeBehaviors, error: behaviorsError } = await supabase
       .from('behaviors')
-      .select('*')
+      .select('id')
       .eq('is_active', true);
       
     if (behaviorsError) {
@@ -46,51 +46,55 @@ export async function triggerBehaviorAnalysis(callId: string): Promise<BehaviorA
     if (!activeBehaviors || activeBehaviors.length === 0) {
       console.warn("No active behaviors found");
       toast.error("No hay comportamientos activos para analizar");
-      throw new Error("No hay comportamientos activos para analizar");
+      return [];
     }
     
-    console.log(`Found ${activeBehaviors.length} active behaviors:`, activeBehaviors.map(b => b.name));
+    console.log(`Found ${activeBehaviors.length} active behaviors, calling analyze-call function`);
     
     // Call the analyze-call Supabase edge function
-    toast.loading("Analizando comportamientos...", { id: "analyze-call" });
+    toast.loading("Analizando llamada...", { id: "analyze-call" });
     
-    const { data: functionData, error: functionError } = await supabase.functions.invoke("analyze-call", {
-      body: { callId: callId }
-    });
-    
-    if (functionError) {
-      console.error("Error invoking analyze-call function:", functionError);
-      toast.error("Error al analizar comportamientos", { 
-        id: "analyze-call",
-        description: functionError.message || "Verifica la configuración de la API de OpenAI"
+    try {
+      const { data: functionData, error: functionError } = await supabase.functions.invoke("analyze-call", {
+        body: { callId: callId }
       });
-      throw new Error(functionError.message || "Error al analizar comportamientos");
-    }
-    
-    console.log("Analysis function result:", functionData);
-    
-    // Check if we got behaviors_analysis in the response
-    if (functionData?.behaviors_analysis && Array.isArray(functionData.behaviors_analysis) && functionData.behaviors_analysis.length > 0) {
-      console.log("Received behaviors_analysis:", functionData.behaviors_analysis);
-      toast.success("Análisis de comportamientos generado", { id: "analyze-call" });
       
-      return validateBehaviorsAnalysis(functionData.behaviors_analysis);
-    } else {
-      console.warn("No behaviors_analysis in response:", functionData);
-      toast.error("No se generaron análisis de comportamientos", { id: "analyze-call" });
-      
-      if (functionData?.error) {
-        throw new Error(functionData.error);
+      if (functionError) {
+        console.error("Error invoking analyze-call function:", functionError);
+        toast.error("Error al analizar la llamada", { 
+          id: "analyze-call",
+          description: functionError.message || "Verifica la configuración de la API de OpenAI"
+        });
+        throw new Error(functionError.message || "Error al analizar la llamada");
       }
       
-      throw new Error("No se pudieron analizar los comportamientos");
+      console.log("Analysis result:", functionData);
+      
+      // Check if we got behaviors_analysis in the response
+      if (functionData?.behaviors_analysis && Array.isArray(functionData.behaviors_analysis) && functionData.behaviors_analysis.length > 0) {
+        console.log("Received behaviors_analysis:", functionData.behaviors_analysis);
+        toast.success("Análisis generado", { id: "analyze-call" });
+        
+        return validateBehaviorsAnalysis(functionData.behaviors_analysis);
+      } else {
+        console.warn("No behaviors_analysis in response:", functionData);
+        toast.error("No se encontraron análisis de comportamientos", { id: "analyze-call" });
+        
+        if (functionData?.error) {
+          throw new Error(functionData.error);
+        }
+        
+        return [];
+      }
+    } catch (error) {
+      toast.error("Error al analizar la llamada", { 
+        id: "analyze-call",
+        description: error instanceof Error ? error.message : "Error desconocido"
+      });
+      throw error;
     }
   } catch (error) {
     console.error("Error in triggerBehaviorAnalysis:", error);
-    toast.error("Error al analizar comportamientos", { 
-      id: "analyze-call",
-      description: error instanceof Error ? error.message : "Error desconocido"
-    });
     throw error;
   }
 }
@@ -138,7 +142,7 @@ export async function loadActiveBehaviorsAnalysis(
   }
 }
 
-// Helper function to validate behaviors analysis
+// Helper function to validate behaviors analysis - Enhanced to better handle JSON
 export function validateBehaviorsAnalysis(data: any): BehaviorAnalysis[] {
   // If it's not an array, try to parse it if it's a string, or convert to an empty array
   if (!Array.isArray(data)) {
