@@ -1,5 +1,5 @@
 
-import React, { useMemo } from "react";
+import React from "react";
 import Layout from "@/components/layout/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOptimizedQuery } from "@/hooks/useOptimizedQuery";
@@ -7,25 +7,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAccount } from "@/context/AccountContext";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, TrendingUp, Users, Clock, Target, Phone, Award, BarChart3, Calendar, Activity, Zap, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { RefreshCw, TrendingUp, Users, Clock, Target, Phone, Award, BarChart3, Calendar, Activity, Zap } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
-import AnalyticsFilters, { AnalyticsFilters as AnalyticsFiltersType } from "@/components/analytics/AnalyticsFilters";
-import { useState } from "react";
-import { subWeeks, format, startOfWeek, endOfWeek } from "date-fns";
-import { es } from "date-fns/locale";
 
 export default function Analytics() {
   const { selectedAccountId } = useAccount();
   const { user } = useAuth();
-  const [filters, setFilters] = useState<AnalyticsFiltersType>({
-    search: "",
-    status: "all",
-    result: "all",
-    agentId: "all",
-    dateRange: undefined,
-    sentiment: "all",
-    durationRange: "all"
-  });
 
   const { 
     data: calls, 
@@ -33,13 +20,9 @@ export default function Analytics() {
     error,
     refetch 
   } = useOptimizedQuery({
-    queryKey: ['analytics-calls', selectedAccountId, filters.search, filters.status, filters.result, filters.agentId, filters.sentiment, filters.durationRange, filters.dateRange?.from?.toISOString(), filters.dateRange?.to?.toISOString()],
+    queryKey: ['analytics-calls', selectedAccountId],
     queryFn: async () => {
-      console.log("Analytics query - selectedAccountId:", selectedAccountId, "user role:", user?.role, "filters:", filters);
-      
-      if (!selectedAccountId || selectedAccountId === '') {
-        return [];
-      }
+      console.log("Analytics query - selectedAccountId:", selectedAccountId, "user role:", user?.role);
       
       let query = supabase
         .from('calls')
@@ -53,9 +36,6 @@ export default function Analytics() {
           duration,
           account_id,
           created_at,
-          title,
-          product,
-          reason,
           feedback (
             score,
             sentiment,
@@ -66,334 +46,35 @@ export default function Analytics() {
         `)
         .order('date', { ascending: false });
 
-      // Apply account filter
-      if (selectedAccountId !== 'all') {
+      if (selectedAccountId && selectedAccountId !== 'all') {
         console.log("Filtering by specific account:", selectedAccountId);
         query = query.eq('account_id', selectedAccountId);
-      } else if (user?.role !== 'superAdmin') {
-        console.log("Non-super admin trying to view all accounts - returning empty");
+      } else if (selectedAccountId === 'all' && user?.role === 'superAdmin') {
+        console.log("SuperAdmin viewing all calls - no account filter applied");
+      } else if (!selectedAccountId) {
+        console.log("No account selected, returning empty array");
         return [];
-      }
-
-      // Apply filters - validate each filter before applying
-      if (filters.status && filters.status !== 'all' && filters.status.trim() !== '') {
-        console.log("Applying status filter:", filters.status);
-        query = query.eq('status', filters.status);
-      }
-
-      if (filters.result && filters.result !== 'all' && filters.result.trim() !== '') {
-        console.log("Applying result filter:", filters.result);
-        if (filters.result === 'sin_resultado') {
-          query = query.or('result.is.null,result.eq.');
-        } else {
-          query = query.eq('result', filters.result);
-        }
-      }
-
-      if (filters.sentiment && filters.sentiment !== 'all' && filters.sentiment.trim() !== '') {
-        console.log("Applying sentiment filter:", filters.sentiment);
-        query = query.eq('sentiment', filters.sentiment);
-      }
-
-      if (filters.agentId && filters.agentId !== 'all' && filters.agentId.trim() !== '') {
-        console.log("Applying agent filter:", filters.agentId);
-        query = query.eq('agent_name', filters.agentId);
-      }
-
-      if (filters.dateRange?.from) {
-        console.log("Applying date range filter:", filters.dateRange);
-        const fromDate = filters.dateRange.from.toISOString();
-        query = query.gte('date', fromDate);
-        
-        if (filters.dateRange.to) {
-          const toDate = new Date(filters.dateRange.to);
-          toDate.setHours(23, 59, 59, 999);
-          query = query.lte('date', toDate.toISOString());
-        }
-      }
-
-      if (filters.search && filters.search.trim() !== '') {
-        console.log("Applying search filter:", filters.search);
-        const searchTerm = filters.search.trim();
-        query = query.or(`title.ilike.%${searchTerm}%,agent_name.ilike.%${searchTerm}%`);
       }
 
       const { data, error } = await query;
 
       if (error) {
         console.error("Analytics query error:", error);
-        throw new Error(`Error al cargar datos: ${error.message}`);
+        throw error;
       }
       
-      let filteredData = data || [];
-
-      // Apply duration filter (client-side since it requires calculation)
-      if (filters.durationRange && filters.durationRange !== 'all') {
-        console.log("Applying duration filter:", filters.durationRange);
-        filteredData = filteredData.filter(call => {
-          const durationMinutes = (call.duration || 0) / 60;
-          switch (filters.durationRange) {
-            case 'short':
-              return durationMinutes < 2;
-            case 'medium':
-              return durationMinutes >= 2 && durationMinutes <= 10;
-            case 'long':
-              return durationMinutes > 10;
-            default:
-              return true;
-          }
-        });
-      }
-      
-      console.log("Analytics data loaded:", filteredData?.length || 0, "calls after filtering");
-      return filteredData;
+      console.log("Analytics data loaded:", data?.length || 0, "calls");
+      return data || [];
     },
-    enabled: !!user?.id && !!selectedAccountId,
+    enabled: !!user?.id,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     refetchInterval: false,
-    staleTime: 300000, // 5 minutes
-  });
-
-  // Query for weekly comparison data
-  const { data: weeklyComparison } = useOptimizedQuery({
-    queryKey: ['weekly-comparison', selectedAccountId],
-    queryFn: async () => {
-      if (!selectedAccountId || selectedAccountId === '') return null;
-      
-      const now = new Date();
-      const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 });
-      const lastWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
-      const lastWeekEnd = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
-
-      let baseQuery = supabase.from('calls').select(`
-        date,
-        result,
-        sentiment,
-        duration,
-        feedback (score)
-      `);
-
-      if (selectedAccountId !== 'all') {
-        baseQuery = baseQuery.eq('account_id', selectedAccountId);
-      }
-
-      try {
-        const [thisWeekData, lastWeekData] = await Promise.all([
-          baseQuery.gte('date', thisWeekStart.toISOString()),
-          baseQuery
-            .gte('date', lastWeekStart.toISOString())
-            .lte('date', lastWeekEnd.toISOString())
-        ]);
-
-        const calculateWeekStats = (data: any[]) => {
-          const totalCalls = data.length;
-          const sales = data.filter(call => call.result === 'venta').length;
-          const conversionRate = totalCalls > 0 ? (sales / totalCalls) * 100 : 0;
-          const avgScore = data.reduce((sum, call) => {
-            const score = call.feedback?.[0]?.score || 0;
-            return sum + score;
-          }, 0) / Math.max(totalCalls, 1);
-          const avgDuration = data.reduce((sum, call) => sum + (call.duration || 0), 0) / Math.max(totalCalls, 1);
-
-          return {
-            totalCalls,
-            sales,
-            conversionRate,
-            avgScore,
-            avgDuration: avgDuration / 60 // Convert to minutes
-          };
-        };
-
-        const thisWeek = calculateWeekStats(thisWeekData.data || []);
-        const lastWeek = calculateWeekStats(lastWeekData.data || []);
-
-        return {
-          thisWeek,
-          lastWeek,
-          changes: {
-            calls: thisWeek.totalCalls - lastWeek.totalCalls,
-            sales: thisWeek.sales - lastWeek.sales,
-            conversionRate: thisWeek.conversionRate - lastWeek.conversionRate,
-            avgScore: thisWeek.avgScore - lastWeek.avgScore,
-            avgDuration: thisWeek.avgDuration - lastWeek.avgDuration
-          }
-        };
-      } catch (error) {
-        console.error("Error loading weekly comparison:", error);
-        return null;
-      }
-    },
-    enabled: !!user?.id && !!selectedAccountId,
-    refetchOnWindowFocus: false,
-    staleTime: 300000,
+    staleTime: Infinity,
   });
 
   const handleManualRefresh = () => {
     refetch();
-  };
-
-  const handleFilterChange = (newFilters: AnalyticsFiltersType) => {
-    console.log("Filter change received:", newFilters);
-    setFilters(newFilters);
-  };
-
-  // Enhanced calculations with memoization
-  const analytics = useMemo(() => {
-    if (!calls || calls.length === 0) return null;
-
-    const totalCalls = calls.length;
-    const completedCalls = calls.filter(call => call.status === 'complete').length;
-    const pendingCalls = calls.filter(call => call.status === 'pending').length;
-    const salesCalls = calls.filter(call => call.result === 'venta').length;
-    const noSaleCalls = calls.filter(call => call.result === 'no venta').length;
-    const conversionRate = totalCalls > 0 ? (salesCalls / totalCalls) * 100 : 0;
-    
-    const averageScore = calls.reduce((sum, call) => {
-      const score = call.feedback?.[0]?.score || 0;
-      return sum + score;
-    }, 0) / Math.max(completedCalls, 1) || 0;
-
-    // Fix duration calculation - ensure it's properly converted
-    const totalDurationSeconds = calls.reduce((sum, call) => sum + (call.duration || 0), 0);
-    const averageDuration = totalDurationSeconds / Math.max(totalCalls, 1) || 0;
-
-    // Sentiment analysis
-    const positiveCalls = calls.filter(call => call.sentiment === 'positive').length;
-    const neutralCalls = calls.filter(call => call.sentiment === 'neutral').length;
-    const negativeCalls = calls.filter(call => call.sentiment === 'negative').length;
-    const sentimentScore = totalCalls > 0 ? ((positiveCalls * 100 + neutralCalls * 50) / totalCalls) : 0;
-
-    // Time-based analysis (last 30 days)
-    const last30Days = Array.from({ length: 30 }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - (29 - i));
-      return date.toISOString().split('T')[0];
-    });
-
-    const callsPerDay = last30Days.map(date => {
-      const daysCalls = calls.filter(call => call.date?.split('T')[0] === date);
-      const salesCount = daysCalls.filter(call => call.result === 'venta').length;
-      const avgScore = daysCalls.length > 0 
-        ? daysCalls.reduce((sum, call) => sum + (call.feedback?.[0]?.score || 0), 0) / daysCalls.length 
-        : 0;
-      
-      return {
-        date: new Date(date).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }),
-        calls: daysCalls.length,
-        sales: salesCount,
-        avgScore: Number(avgScore.toFixed(1)),
-        conversionRate: daysCalls.length > 0 ? Number(((salesCount / daysCalls.length) * 100).toFixed(1)) : 0
-      };
-    });
-
-    // Agent performance with enhanced metrics
-    const agentPerformance = calls.reduce((acc, call) => {
-      if (!call.agent_name) return acc;
-      
-      if (!acc[call.agent_name]) {
-        acc[call.agent_name] = { 
-          name: call.agent_name, 
-          calls: 0, 
-          sales: 0, 
-          totalScore: 0, 
-          scoreCount: 0,
-          totalDuration: 0,
-          positiveCount: 0,
-          negativeCount: 0
-        };
-      }
-      
-      acc[call.agent_name].calls++;
-      if (call.result === 'venta') acc[call.agent_name].sales++;
-      
-      const score = call.feedback?.[0]?.score || 0;
-      if (score > 0) {
-        acc[call.agent_name].totalScore += score;
-        acc[call.agent_name].scoreCount++;
-      }
-      
-      acc[call.agent_name].totalDuration += (call.duration || 0);
-      if (call.sentiment === 'positive') acc[call.agent_name].positiveCount++;
-      if (call.sentiment === 'negative') acc[call.agent_name].negativeCount++;
-      
-      return acc;
-    }, {} as Record<string, any>);
-
-    const agentData = Object.values(agentPerformance).map((agent: any) => ({
-      ...agent,
-      conversionRate: agent.calls > 0 ? Number(((agent.sales / agent.calls) * 100).toFixed(1)) : 0,
-      avgScore: agent.scoreCount > 0 ? Number((agent.totalScore / agent.scoreCount).toFixed(1)) : 0,
-      avgDuration: agent.calls > 0 ? Math.round(agent.totalDuration / agent.calls) : 0,
-      sentimentRatio: agent.calls > 0 ? Number(((agent.positiveCount / agent.calls) * 100).toFixed(1)) : 0
-    })).slice(0, 10);
-
-    // Enhanced chart data
-    const sentimentData = [
-      { name: 'Positivo', value: positiveCalls, color: '#22c55e', percentage: totalCalls > 0 ? Number(((positiveCalls / totalCalls) * 100).toFixed(1)) : 0 },
-      { name: 'Neutral', value: neutralCalls, color: '#6b7280', percentage: totalCalls > 0 ? Number(((neutralCalls / totalCalls) * 100).toFixed(1)) : 0 },
-      { name: 'Negativo', value: negativeCalls, color: '#ef4444', percentage: totalCalls > 0 ? Number(((negativeCalls / totalCalls) * 100).toFixed(1)) : 0 }
-    ];
-
-    const resultData = [
-      { name: 'Ventas', value: salesCalls, color: '#22c55e' },
-      { name: 'No Ventas', value: noSaleCalls, color: '#ef4444' },
-      { name: 'Sin Resultado', value: calls.filter(call => !call.result || call.result === '').length, color: '#6b7280' }
-    ];
-
-    // Performance radar data
-    const performanceRadar = [
-      { metric: 'Conversión', value: conversionRate, fullMark: 100 },
-      { metric: 'Calidad', value: averageScore * 10, fullMark: 100 },
-      { metric: 'Sentimiento', value: sentimentScore, fullMark: 100 },
-      { metric: 'Eficiencia', value: completedCalls > 0 ? (completedCalls / totalCalls) * 100 : 0, fullMark: 100 },
-      { metric: 'Volumen', value: totalCalls > 0 ? Math.min((totalCalls / 100) * 100, 100) : 0, fullMark: 100 }
-    ];
-
-    return {
-      totalCalls,
-      completedCalls,
-      pendingCalls,
-      salesCalls,
-      noSaleCalls,
-      conversionRate,
-      averageScore,
-      averageDuration, // This is now in seconds
-      totalDurationSeconds, // Total duration in seconds
-      positiveCalls,
-      neutralCalls,
-      negativeCalls,
-      sentimentScore,
-      callsPerDay,
-      agentData,
-      sentimentData,
-      resultData,
-      performanceRadar
-    };
-  }, [calls]);
-
-  // Helper function to render change indicators
-  const ChangeIndicator = ({ value, suffix = "", prefix = "" }: { value: number; suffix?: string; prefix?: string }) => {
-    if (value === 0) return <Minus className="h-4 w-4 text-gray-400" />;
-    const isPositive = value > 0;
-    const Icon = isPositive ? ArrowUpRight : ArrowDownRight;
-    const colorClass = isPositive ? "text-green-600" : "text-red-600";
-    
-    return (
-      <div className={`flex items-center gap-1 ${colorClass}`}>
-        <Icon className="h-4 w-4" />
-        <span className="text-sm font-medium">
-          {prefix}{Math.abs(value).toFixed(1)}{suffix}
-        </span>
-      </div>
-    );
-  };
-
-  // Helper function to format duration
-  const formatDuration = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}m ${remainingSeconds}s`;
   };
 
   if (!selectedAccountId) {
@@ -401,7 +82,7 @@ export default function Analytics() {
       <Layout>
         <div className="container mx-auto py-6">
           <div className="text-center">
-            <h1 className="text-2xl font-bold mb-4">Análisis Avanzado</h1>
+            <h1 className="text-2xl font-bold mb-4">Análisis</h1>
             <p className="text-muted-foreground">
               Selecciona una cuenta para ver el análisis.
             </p>
@@ -416,7 +97,7 @@ export default function Analytics() {
       <Layout>
         <div className="container mx-auto py-6 space-y-6">
           <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold tracking-tight">Análisis Avanzado</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Análisis</h1>
           </div>
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
@@ -432,7 +113,7 @@ export default function Analytics() {
       <Layout>
         <div className="container mx-auto py-6 space-y-6">
           <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold tracking-tight">Análisis Avanzado</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Análisis</h1>
           </div>
           <Card>
             <CardContent className="pt-6">
@@ -446,20 +127,132 @@ export default function Analytics() {
     );
   }
 
-  if (!analytics) {
-    return (
-      <Layout>
-        <div className="container mx-auto py-6">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold mb-4">Análisis Avanzado</h1>
-            <p className="text-muted-foreground">
-              No hay datos disponibles para mostrar.
-            </p>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
+  // Enhanced calculations
+  const totalCalls = calls?.length || 0;
+  const completedCalls = calls?.filter(call => call.status === 'complete')?.length || 0;
+  const pendingCalls = calls?.filter(call => call.status === 'pending')?.length || 0;
+  const salesCalls = calls?.filter(call => call.result === 'venta')?.length || 0;
+  const noSaleCalls = calls?.filter(call => call.result === 'no venta')?.length || 0;
+  const conversionRate = totalCalls > 0 ? (salesCalls / totalCalls) * 100 : 0;
+  
+  const averageScore = calls?.reduce((sum, call) => {
+    const score = call.feedback?.[0]?.score || 0;
+    return sum + score;
+  }, 0) / Math.max(completedCalls, 1) || 0;
+
+  const averageDuration = calls?.reduce((sum, call) => sum + (call.duration || 0), 0) / Math.max(totalCalls, 1) || 0;
+
+  // Sentiment analysis
+  const positiveCalls = calls?.filter(call => call.sentiment === 'positive')?.length || 0;
+  const neutralCalls = calls?.filter(call => call.sentiment === 'neutral')?.length || 0;
+  const negativeCalls = calls?.filter(call => call.sentiment === 'negative')?.length || 0;
+  const sentimentScore = totalCalls > 0 ? ((positiveCalls * 100 + neutralCalls * 50) / totalCalls) : 0;
+
+  // Time-based analysis (last 30 days)
+  const last30Days = Array.from({ length: 30 }, (_, i) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (29 - i));
+    return date.toISOString().split('T')[0];
+  });
+
+  const callsPerDay = last30Days.map(date => {
+    const daysCalls = calls?.filter(call => call.date?.split('T')[0] === date) || [];
+    const salesCount = daysCalls.filter(call => call.result === 'venta').length;
+    const avgScore = daysCalls.length > 0 
+      ? daysCalls.reduce((sum, call) => sum + (call.feedback?.[0]?.score || 0), 0) / daysCalls.length 
+      : 0;
+    
+    return {
+      date: new Date(date).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }),
+      calls: daysCalls.length,
+      sales: salesCount,
+      avgScore: Number(avgScore.toFixed(1)),
+      conversionRate: daysCalls.length > 0 ? Number(((salesCount / daysCalls.length) * 100).toFixed(1)) : 0
+    };
+  });
+
+  // Weekly analysis
+  const weeklyData = Array.from({ length: 4 }, (_, i) => {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - (i + 1) * 7);
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() - i * 7);
+    
+    const weekCalls = calls?.filter(call => {
+      const callDate = new Date(call.date);
+      return callDate >= startDate && callDate < endDate;
+    }) || [];
+    
+    return {
+      week: `Sem ${4 - i}`,
+      calls: weekCalls.length,
+      sales: weekCalls.filter(call => call.result === 'venta').length,
+      avgDuration: weekCalls.length > 0 ? Math.round(weekCalls.reduce((sum, call) => sum + (call.duration || 0), 0) / weekCalls.length) : 0
+    };
+  });
+
+  // Agent performance with enhanced metrics
+  const agentPerformance = calls?.reduce((acc, call) => {
+    if (!call.agent_name) return acc;
+    
+    if (!acc[call.agent_name]) {
+      acc[call.agent_name] = { 
+        name: call.agent_name, 
+        calls: 0, 
+        sales: 0, 
+        totalScore: 0, 
+        scoreCount: 0,
+        totalDuration: 0,
+        positiveCount: 0,
+        negativeCount: 0
+      };
+    }
+    
+    acc[call.agent_name].calls++;
+    if (call.result === 'venta') acc[call.agent_name].sales++;
+    
+    const score = call.feedback?.[0]?.score || 0;
+    if (score > 0) {
+      acc[call.agent_name].totalScore += score;
+      acc[call.agent_name].scoreCount++;
+    }
+    
+    acc[call.agent_name].totalDuration += (call.duration || 0);
+    if (call.sentiment === 'positive') acc[call.agent_name].positiveCount++;
+    if (call.sentiment === 'negative') acc[call.agent_name].negativeCount++;
+    
+    return acc;
+  }, {} as Record<string, any>) || {};
+
+  const agentData = Object.values(agentPerformance).map((agent: any) => ({
+    ...agent,
+    conversionRate: agent.calls > 0 ? Number(((agent.sales / agent.calls) * 100).toFixed(1)) : 0,
+    avgScore: agent.scoreCount > 0 ? Number((agent.totalScore / agent.scoreCount).toFixed(1)) : 0,
+    avgDuration: agent.calls > 0 ? Math.round(agent.totalDuration / agent.calls) : 0,
+    sentimentRatio: agent.calls > 0 ? Number(((agent.positiveCount / agent.calls) * 100).toFixed(1)) : 0
+  })).slice(0, 10);
+
+  // Enhanced chart data
+  const sentimentData = [
+    { name: 'Positivo', value: positiveCalls, color: '#22c55e', percentage: totalCalls > 0 ? Number(((positiveCalls / totalCalls) * 100).toFixed(1)) : 0 },
+    { name: 'Neutral', value: neutralCalls, color: '#6b7280', percentage: totalCalls > 0 ? Number(((neutralCalls / totalCalls) * 100).toFixed(1)) : 0 },
+    { name: 'Negativo', value: negativeCalls, color: '#ef4444', percentage: totalCalls > 0 ? Number(((negativeCalls / totalCalls) * 100).toFixed(1)) : 0 }
+  ];
+
+  const resultData = [
+    { name: 'Ventas', value: salesCalls, color: '#22c55e' },
+    { name: 'No Ventas', value: noSaleCalls, color: '#ef4444' },
+    { name: 'Sin Resultado', value: calls?.filter(call => !call.result || call.result === '').length || 0, color: '#6b7280' }
+  ];
+
+  // Performance radar data
+  const performanceRadar = [
+    { metric: 'Conversión', value: conversionRate, fullMark: 100 },
+    { metric: 'Calidad', value: averageScore * 10, fullMark: 100 },
+    { metric: 'Sentimiento', value: sentimentScore, fullMark: 100 },
+    { metric: 'Eficiencia', value: completedCalls > 0 ? (completedCalls / totalCalls) * 100 : 0, fullMark: 100 },
+    { metric: 'Volumen', value: totalCalls > 0 ? Math.min((totalCalls / 100) * 100, 100) : 0, fullMark: 100 }
+  ];
 
   const accountName = selectedAccountId === 'all' ? 'Todas las cuentas' : 'Cuenta seleccionada';
 
@@ -494,7 +287,7 @@ export default function Analytics() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Dashboard Analítico Avanzado</h1>
             <p className="text-muted-foreground">
-              Análisis completo de {accountName} - {analytics.totalCalls} llamadas encontradas
+              Análisis completo de {accountName} - {totalCalls} llamadas procesadas
             </p>
           </div>
           <Button onClick={handleManualRefresh} variant="outline" size="sm">
@@ -502,53 +295,6 @@ export default function Analytics() {
             Actualizar
           </Button>
         </div>
-
-        {/* Filtros */}
-        <AnalyticsFilters onFilterChange={handleFilterChange} />
-
-        {/* Weekly Comparison */}
-        {weeklyComparison && (
-          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                Comparativa Semanal
-              </CardTitle>
-              <CardDescription>
-                Evolución vs semana anterior ({format(startOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 }), 'dd MMM', { locale: es })} - {format(endOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 }), 'dd MMM', { locale: es })})
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">Llamadas</p>
-                  <p className="text-2xl font-bold">{weeklyComparison.thisWeek.totalCalls}</p>
-                  <ChangeIndicator value={weeklyComparison.changes.calls} />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">Ventas</p>
-                  <p className="text-2xl font-bold">{weeklyComparison.thisWeek.sales}</p>
-                  <ChangeIndicator value={weeklyComparison.changes.sales} />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">Conversión</p>
-                  <p className="text-2xl font-bold">{weeklyComparison.thisWeek.conversionRate.toFixed(1)}%</p>
-                  <ChangeIndicator value={weeklyComparison.changes.conversionRate} suffix="%" prefix={weeklyComparison.changes.conversionRate >= 0 ? "+" : ""} />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">Score Promedio</p>
-                  <p className="text-2xl font-bold">{weeklyComparison.thisWeek.avgScore.toFixed(1)}</p>
-                  <ChangeIndicator value={weeklyComparison.changes.avgScore} prefix={weeklyComparison.changes.avgScore >= 0 ? "+" : ""} />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">Duración Media</p>
-                  <p className="text-2xl font-bold">{weeklyComparison.thisWeek.avgDuration.toFixed(1)}m</p>
-                  <ChangeIndicator value={weeklyComparison.changes.avgDuration} suffix="m" prefix={weeklyComparison.changes.avgDuration >= 0 ? "+" : ""} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Enhanced KPIs */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
@@ -558,9 +304,9 @@ export default function Analytics() {
               <Phone className="h-5 w-5 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{analytics.totalCalls}</div>
+              <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{totalCalls}</div>
               <p className="text-xs text-blue-600 dark:text-blue-400">
-                {analytics.completedCalls} completadas ({analytics.totalCalls > 0 ? ((analytics.completedCalls/analytics.totalCalls)*100).toFixed(1) : 0}%)
+                {completedCalls} completadas ({totalCalls > 0 ? ((completedCalls/totalCalls)*100).toFixed(1) : 0}%)
               </p>
             </CardContent>
           </Card>
@@ -572,10 +318,10 @@ export default function Analytics() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-700 dark:text-green-300">
-                {analytics.conversionRate.toFixed(1)}%
+                {conversionRate.toFixed(1)}%
               </div>
               <p className="text-xs text-green-600 dark:text-green-400">
-                {analytics.salesCalls} ventas realizadas
+                {salesCalls} ventas realizadas
               </p>
             </CardContent>
           </Card>
@@ -587,10 +333,10 @@ export default function Analytics() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
-                {analytics.averageScore.toFixed(1)}
+                {averageScore.toFixed(1)}
               </div>
               <p className="text-xs text-purple-600 dark:text-purple-400">
-                De {analytics.completedCalls} evaluaciones
+                De {completedCalls} evaluaciones
               </p>
             </CardContent>
           </Card>
@@ -602,10 +348,10 @@ export default function Analytics() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-                {formatDuration(analytics.averageDuration)}
+                {Math.round(averageDuration / 60)}m
               </div>
               <p className="text-xs text-orange-600 dark:text-orange-400">
-                Duración total: {formatDuration(analytics.totalDurationSeconds)}
+                {Math.round(averageDuration)} segundos exactos
               </p>
             </CardContent>
           </Card>
@@ -617,17 +363,18 @@ export default function Analytics() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300">
-                {analytics.sentimentScore.toFixed(0)}%
+                {sentimentScore.toFixed(0)}%
               </div>
               <p className="text-xs text-indigo-600 dark:text-indigo-400">
-                {analytics.positiveCalls} positivas de {analytics.totalCalls}
+                {positiveCalls} positivas de {totalCalls}
               </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Charts Section */}
+        {/* Advanced Analytics Grid */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {/* Monthly Trend */}
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -640,7 +387,7 @@ export default function Analytics() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={350}>
-                <AreaChart data={analytics.callsPerDay}>
+                <AreaChart data={callsPerDay}>
                   <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                   <XAxis dataKey="date" fontSize={12} />
                   <YAxis yAxisId="left" fontSize={12} />
@@ -655,6 +402,7 @@ export default function Analytics() {
             </CardContent>
           </Card>
 
+          {/* Performance Radar */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -667,7 +415,7 @@ export default function Analytics() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={350}>
-                <RadarChart data={analytics.performanceRadar}>
+                <RadarChart data={performanceRadar}>
                   <PolarGrid />
                   <PolarAngleAxis dataKey="metric" fontSize={12} />
                   <PolarRadiusAxis angle={90} domain={[0, 100]} fontSize={10} />
@@ -679,44 +427,7 @@ export default function Analytics() {
           </Card>
         </div>
 
-        {/* Agent Performance */}
-        {analytics.agentData.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Rendimiento por Agente
-              </CardTitle>
-              <CardDescription>
-                Análisis comparativo de métricas individuales
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={analytics.agentData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="name" 
-                    angle={-45}
-                    textAnchor="end"
-                    height={100}
-                    interval={0}
-                    fontSize={12}
-                  />
-                  <YAxis yAxisId="left" />
-                  <YAxis yAxisId="right" orientation="right" />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
-                  <Bar yAxisId="left" dataKey="calls" fill="#3b82f6" name="Llamadas" />
-                  <Bar yAxisId="right" dataKey="conversionRate" fill="#10b981" name="Conversión %" />
-                  <Bar yAxisId="right" dataKey="avgScore" fill="#f59e0b" name="Score Promedio" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Sentiment and Results */}
+        {/* Sentiment and Results Analysis */}
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader>
@@ -732,7 +443,7 @@ export default function Analytics() {
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
-                    data={analytics.sentimentData}
+                    data={sentimentData}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
@@ -741,7 +452,7 @@ export default function Analytics() {
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {analytics.sentimentData.map((entry, index) => (
+                    {sentimentData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -760,18 +471,195 @@ export default function Analytics() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={analytics.resultData}>
+                <BarChart data={resultData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
                   <YAxis />
                   <Tooltip />
                   <Bar dataKey="value" fill="#8884d8" radius={[4, 4, 0, 0]}>
-                    {analytics.resultData.map((entry, index) => (
+                    {resultData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Weekly Analysis */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Análisis Semanal
+            </CardTitle>
+            <CardDescription>
+              Tendencias semanales de actividad y resultados
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={weeklyData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="week" />
+                <YAxis yAxisId="left" />
+                <YAxis yAxisId="right" orientation="right" />
+                <Tooltip />
+                <Legend />
+                <Bar yAxisId="left" dataKey="calls" fill="#3b82f6" name="Total Llamadas" />
+                <Bar yAxisId="left" dataKey="sales" fill="#10b981" name="Ventas" />
+                <Line yAxisId="right" dataKey="avgDuration" stroke="#f59e0b" name="Duración Promedio (s)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Agent Performance */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Rendimiento Detallado por Agente
+            </CardTitle>
+            <CardDescription>
+              Análisis comparativo de métricas individuales
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={agentData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="name" 
+                  angle={-45}
+                  textAnchor="end"
+                  height={100}
+                  interval={0}
+                  fontSize={12}
+                />
+                <YAxis yAxisId="left" />
+                <YAxis yAxisId="right" orientation="right" />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend />
+                <Bar yAxisId="left" dataKey="calls" fill="#3b82f6" name="Llamadas" />
+                <Bar yAxisId="right" dataKey="conversionRate" fill="#10b981" name="Conversión %" />
+                <Bar yAxisId="right" dataKey="avgScore" fill="#f59e0b" name="Score Promedio" />
+                <Bar yAxisId="right" dataKey="sentimentRatio" fill="#8b5cf6" name="Sentimiento Positivo %" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Additional Metrics Cards */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Estado de Llamadas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                  <span className="font-medium">Completadas</span>
+                  <span className="text-lg font-bold text-blue-600">{completedCalls}</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-yellow-50 rounded-lg">
+                  <span className="font-medium">Pendientes</span>
+                  <span className="text-lg font-bold text-yellow-600">{pendingCalls}</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                  <span className="font-medium">Tasa Finalización</span>
+                  <span className="text-lg font-bold text-green-600">
+                    {totalCalls > 0 ? ((completedCalls / totalCalls) * 100).toFixed(1) : 0}%
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Métricas de Calidad</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
+                  <span className="font-medium">Score Máximo</span>
+                  <span className="text-lg font-bold text-purple-600">
+                    {Math.max(...(calls?.map(call => call.feedback?.[0]?.score || 0) || [0]))}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
+                  <span className="font-medium">Evaluaciones</span>
+                  <span className="text-lg font-bold text-indigo-600">
+                    {calls?.filter(call => call.feedback?.[0]?.score > 0).length || 0}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-pink-50 rounded-lg">
+                  <span className="font-medium">Calidad Promedio</span>
+                  <span className="text-lg font-bold text-pink-600">
+                    {averageScore > 7 ? 'Alta' : averageScore > 5 ? 'Media' : 'Baja'}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Análisis Temporal</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+                  <span className="font-medium">Tiempo Total</span>
+                  <span className="text-lg font-bold text-orange-600">
+                    {Math.round((calls?.reduce((sum, call) => sum + (call.duration || 0), 0) || 0) / 3600)}h
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-cyan-50 rounded-lg">
+                  <span className="font-medium">Llamada Más Larga</span>
+                  <span className="text-lg font-bold text-cyan-600">
+                    {Math.round((Math.max(...(calls?.map(call => call.duration || 0) || [0])) || 0) / 60)}m
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-teal-50 rounded-lg">
+                  <span className="font-medium">Eficiencia</span>
+                  <span className="text-lg font-bold text-teal-600">
+                    {averageDuration > 0 ? (salesCalls / (averageDuration / 60)).toFixed(1) : '0'} ventas/min
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Recursos Humanos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
+                  <span className="font-medium">Agentes Únicos</span>
+                  <span className="text-lg font-bold text-emerald-600">
+                    {Object.keys(agentPerformance).length}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-lime-50 rounded-lg">
+                  <span className="font-medium">Promedio por Agente</span>
+                  <span className="text-lg font-bold text-lime-600">
+                    {Object.keys(agentPerformance).length > 0 ? 
+                      Math.round(totalCalls / Object.keys(agentPerformance).length) : 0}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-amber-50 rounded-lg">
+                  <span className="font-medium">Top Performer</span>
+                  <span className="text-lg font-bold text-amber-600">
+                    {agentData.length > 0 ? 
+                      agentData.sort((a, b) => b.conversionRate - a.conversionRate)[0].name.split(' ')[0] : 'N/A'}
+                  </span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
