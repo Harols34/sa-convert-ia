@@ -7,7 +7,6 @@ export async function loadChatHistory(callId: string): Promise<ChatMessage[]> {
   if (!callId) return [];
 
   try {
-    // Use 'any' type for the initial response to avoid complex type inference
     const response: any = await supabase
       .from('chat_messages')
       .select('*')
@@ -20,12 +19,11 @@ export async function loadChatHistory(callId: string): Promise<ChatMessage[]> {
     }
 
     if (response.data && response.data.length > 0) {
-      // Explicitly map the response to the ChatMessage type
       return response.data.map((msg: any) => ({
         id: msg.id,
         role: (msg.role === 'user' || msg.role === 'assistant') 
           ? msg.role as "user" | "assistant" 
-          : "assistant", // Fallback to assistant if invalid role
+          : "assistant",
         content: msg.content,
         timestamp: msg.timestamp,
         call_id: callId,
@@ -44,7 +42,6 @@ export async function saveChatMessage(message: ChatMessage): Promise<boolean> {
   if (!message.call_id) return false;
 
   try {
-    // Use 'any' type for the initial response to avoid complex type inference
     const response: any = await supabase
       .from('chat_messages')
       .insert({
@@ -67,13 +64,13 @@ export async function saveChatMessage(message: ChatMessage): Promise<boolean> {
   }
 }
 
-export async function sendMessageToAI(
+export async function sendMessageToCallAI(
   input: string, 
   messages: ChatMessage[], 
   call: Call
 ): Promise<string | null> {
   try {
-    // Get call transcript
+    // Preparar transcripción completa
     let transcriptText = "";
     if (call.transcription) {
       try {
@@ -99,18 +96,47 @@ export async function sendMessageToAI(
       }
     }
 
-    // Use 'any' type for the initial response to avoid complex type inference
+    // Preparar información del feedback si existe
+    let feedbackInfo = "";
+    if (call.feedback) {
+      feedbackInfo = `
+FEEDBACK DE LA LLAMADA:
+- Puntuación: ${call.feedback.score}/100
+- Aspectos positivos: ${call.feedback.positive?.join(', ') || 'No especificados'}
+- Aspectos negativos: ${call.feedback.negative?.join(', ') || 'No especificados'}
+- Oportunidades de mejora: ${call.feedback.opportunities?.join(', ') || 'No especificadas'}
+- Sentimiento general: ${call.feedback.sentiment || 'No analizado'}
+- Temas identificados: ${call.feedback.topics?.join(', ') || 'No especificados'}
+- Entidades mencionadas: ${call.feedback.entities?.join(', ') || 'No especificadas'}
+
+ANÁLISIS DE COMPORTAMIENTOS:
+${call.feedback.behaviors_analysis?.map(behavior => 
+  `- ${behavior.name}: ${behavior.evaluation.toUpperCase()} - ${behavior.comments}`
+).join('\n') || 'No hay análisis de comportamientos disponible'}
+`;
+    }
+
+    // Preparar información del resumen
+    let summaryInfo = call.summary ? `\nRESUMEN DE LA LLAMADA:\n${call.summary}` : "";
+
     const response: any = await supabase.functions.invoke('ai-chat', {
       body: {
         message: input,
         history: messages.map(m => ({ role: m.role, content: m.content })),
         context: {
           callId: call.id,
-          transcription: transcriptText,
-          callDate: call.date,
+          callTitle: call.title,
           agentName: call.agentName,
+          duration: call.duration,
+          date: call.date,
           result: call.result,
-          summary: call.summary
+          product: call.product,
+          reason: call.reason,
+          statusSummary: call.statusSummary,
+          transcription: transcriptText,
+          summary: summaryInfo,
+          feedback: feedbackInfo,
+          isCallSpecific: true // Indicador para el edge function
         }
       }
     });
@@ -121,7 +147,7 @@ export async function sendMessageToAI(
 
     return response.data?.response || null;
   } catch (error) {
-    console.error("Error in chat:", error);
+    console.error("Error in call chat:", error);
     toast.error("Error al procesar tu pregunta", {
       description: error instanceof Error ? error.message : "Inténtalo de nuevo más tarde"
     });

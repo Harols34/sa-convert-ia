@@ -5,7 +5,7 @@ import { ChatMessage, Call } from "@/lib/types";
 import { ChatMessageList } from "./ChatMessageList";
 import { MessageInput } from "@/components/ui/message-input";
 import { useUser } from "@/hooks/useUser";
-import { loadChatHistory, saveChatMessage, sendMessageToAI } from "./chatService";
+import { loadChatHistory, saveChatMessage, sendMessageToCallAI } from "./chatService";
 import { toast } from "sonner";
 
 interface CallChatDialogProps {
@@ -34,12 +34,30 @@ export default function CallChatDialog({ open, onOpenChange, call }: CallChatDia
       const history = await loadChatHistory(call.id);
       setMessages(history);
       
-      // If no welcome message and no history, add a welcome message
+      // Si no hay historial, agregar mensaje de bienvenida específico para la llamada
       if (history.length === 0) {
         const initialMessage: ChatMessage = {
           id: "welcome",
           role: "assistant",
-          content: `👋 Hola, soy tu asistente para analizar la llamada "${call.title}". ¿En qué puedo ayudarte? Puedes preguntarme sobre el contenido de la llamada, el desempeño del asesor, o solicitar un análisis específico.`,
+          content: `👋 Hola, soy tu asistente especializado para analizar la llamada "${call.title}".
+
+Tengo acceso completo a:
+• 📞 Transcripción completa de la llamada
+• 👤 Información del agente: ${call.agentName}
+• ⏱️ Duración: ${call.duration} segundos
+• 📅 Fecha: ${new Date(call.date).toLocaleDateString()}
+• 🎯 Resultado: ${call.result || 'No especificado'}
+• 📝 Resumen de la llamada
+• 📊 Feedback y análisis de comportamientos
+• 🏷️ Tipificaciones y productos mencionados
+
+¿Qué te gustaría saber específicamente sobre esta llamada? Puedo ayudarte con:
+- Análisis detallado de la conversación
+- Evaluación del desempeño del agente
+- Identificación de oportunidades de mejora
+- Resumen de puntos clave
+- Análisis de sentimientos y emociones
+- Cumplimiento de procesos y protocolos`,
           timestamp: new Date().toISOString(),
           call_id: call.id
         };
@@ -56,12 +74,11 @@ export default function CallChatDialog({ open, onOpenChange, call }: CallChatDia
   const handleSendMessage = async (message: string) => {
     if (!message.trim() || isLoading || !call.id) return;
     
-    // Clear input right away for better UX
     setInputValue("");
     setIsLoading(true);
     
     try {
-      // Add user message to UI immediately
+      // Agregar mensaje del usuario inmediatamente
       const userMessage: ChatMessage = {
         id: `temp-${Date.now()}`,
         role: "user",
@@ -74,14 +91,13 @@ export default function CallChatDialog({ open, onOpenChange, call }: CallChatDia
       const updatedMessages = [...messages, userMessage];
       setMessages(updatedMessages);
       
-      // Save user message to database
+      // Guardar mensaje del usuario
       await saveChatMessage(userMessage);
       
-      // Get AI response
-      const aiResponse = await sendMessageToAI(message, updatedMessages, call);
+      // Obtener respuesta del AI específica para la llamada
+      const aiResponse = await sendMessageToCallAI(message, updatedMessages, call);
       
       if (aiResponse) {
-        // Create AI message
         const aiMessage: ChatMessage = {
           id: `ai-${Date.now()}`,
           role: "assistant",
@@ -90,10 +106,7 @@ export default function CallChatDialog({ open, onOpenChange, call }: CallChatDia
           call_id: call.id
         };
         
-        // Update UI with AI response
         setMessages([...updatedMessages, aiMessage]);
-        
-        // Save AI message to database
         await saveChatMessage(aiMessage);
       } else {
         toast.error("No se pudo obtener respuesta del asistente");
@@ -108,9 +121,14 @@ export default function CallChatDialog({ open, onOpenChange, call }: CallChatDia
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px] h-[80vh] flex flex-col">
+      <DialogContent className="sm:max-w-[900px] h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Chat de consulta sobre la llamada</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <span>💬 Chat especializado - {call.title}</span>
+            <span className="text-sm text-muted-foreground font-normal">
+              ({call.agentName})
+            </span>
+          </DialogTitle>
         </DialogHeader>
         
         <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -120,7 +138,7 @@ export default function CallChatDialog({ open, onOpenChange, call }: CallChatDia
             value={inputValue}
             onChange={setInputValue}
             onSend={handleSendMessage}
-            placeholder="Escribe tu consulta sobre la llamada..."
+            placeholder="Pregunta sobre esta llamada específica..."
             disabled={isLoading}
           />
         </div>
