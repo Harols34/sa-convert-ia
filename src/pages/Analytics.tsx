@@ -1,3 +1,4 @@
+
 import React, { useMemo } from "react";
 import Layout from "@/components/layout/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,10 +7,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAccount } from "@/context/AccountContext";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, TrendingUp, Users, Clock, Target, Phone, Award, BarChart3, Calendar, Activity, Zap } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
+import { RefreshCw, TrendingUp, Users, Clock, Target, Phone, Award, BarChart3, Calendar, Activity, Zap, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart } from 'recharts';
 import AnalyticsFilters, { AnalyticsFilters as AnalyticsFiltersType } from "@/components/analytics/AnalyticsFilters";
 import { useState } from "react";
+import { subWeeks, format, startOfWeek, endOfWeek } from "date-fns";
+import { es } from "date-fns/locale";
 
 export default function Analytics() {
   const { selectedAccountId } = useAccount();
@@ -140,11 +143,79 @@ export default function Analytics() {
     staleTime: 300000, // 5 minutes
   });
 
+  // Query for weekly comparison data
+  const { data: weeklyComparison } = useOptimizedQuery({
+    queryKey: ['weekly-comparison', selectedAccountId],
+    queryFn: async () => {
+      const now = new Date();
+      const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+      const lastWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
+      const lastWeekEnd = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
+
+      let baseQuery = supabase.from('calls').select(`
+        date,
+        result,
+        sentiment,
+        duration,
+        feedback (score)
+      `);
+
+      if (selectedAccountId && selectedAccountId !== 'all') {
+        baseQuery = baseQuery.eq('account_id', selectedAccountId);
+      }
+
+      const [thisWeekData, lastWeekData] = await Promise.all([
+        baseQuery.gte('date', thisWeekStart.toISOString()),
+        baseQuery
+          .gte('date', lastWeekStart.toISOString())
+          .lte('date', lastWeekEnd.toISOString())
+      ]);
+
+      const calculateWeekStats = (data: any[]) => {
+        const totalCalls = data.length;
+        const sales = data.filter(call => call.result === 'venta').length;
+        const conversionRate = totalCalls > 0 ? (sales / totalCalls) * 100 : 0;
+        const avgScore = data.reduce((sum, call) => {
+          const score = call.feedback?.[0]?.score || 0;
+          return sum + score;
+        }, 0) / Math.max(totalCalls, 1);
+        const avgDuration = data.reduce((sum, call) => sum + (call.duration || 0), 0) / Math.max(totalCalls, 1);
+
+        return {
+          totalCalls,
+          sales,
+          conversionRate,
+          avgScore,
+          avgDuration: avgDuration / 60 // Convert to minutes
+        };
+      };
+
+      const thisWeek = calculateWeekStats(thisWeekData.data || []);
+      const lastWeek = calculateWeekStats(lastWeekData.data || []);
+
+      return {
+        thisWeek,
+        lastWeek,
+        changes: {
+          calls: thisWeek.totalCalls - lastWeek.totalCalls,
+          sales: thisWeek.sales - lastWeek.sales,
+          conversionRate: thisWeek.conversionRate - lastWeek.conversionRate,
+          avgScore: thisWeek.avgScore - lastWeek.avgScore,
+          avgDuration: thisWeek.avgDuration - lastWeek.avgDuration
+        }
+      };
+    },
+    enabled: !!user?.id && !!selectedAccountId,
+    refetchOnWindowFocus: false,
+    staleTime: 300000,
+  });
+
   const handleManualRefresh = () => {
     refetch();
   };
 
   const handleFilterChange = (newFilters: AnalyticsFiltersType) => {
+    console.log("Filter change received:", newFilters);
     setFilters(newFilters);
   };
 
@@ -279,6 +350,23 @@ export default function Analytics() {
     };
   }, [calls]);
 
+  // Helper function to render change indicators
+  const ChangeIndicator = ({ value, suffix = "", prefix = "" }: { value: number; suffix?: string; prefix?: string }) => {
+    if (value === 0) return <Minus className="h-4 w-4 text-gray-400" />;
+    const isPositive = value > 0;
+    const Icon = isPositive ? ArrowUpRight : ArrowDownRight;
+    const colorClass = isPositive ? "text-green-600" : "text-red-600";
+    
+    return (
+      <div className={`flex items-center gap-1 ${colorClass}`}>
+        <Icon className="h-4 w-4" />
+        <span className="text-sm font-medium">
+          {prefix}{Math.abs(value).toFixed(1)}{suffix}
+        </span>
+      </div>
+    );
+  };
+
   if (!selectedAccountId) {
     return (
       <Layout>
@@ -388,6 +476,50 @@ export default function Analytics() {
 
         {/* Filtros */}
         <AnalyticsFilters onFilterChange={handleFilterChange} />
+
+        {/* Weekly Comparison */}
+        {weeklyComparison && (
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Comparativa Semanal
+              </CardTitle>
+              <CardDescription>
+                Evolución vs semana anterior ({format(startOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 }), 'dd MMM', { locale: es })} - {format(endOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 }), 'dd MMM', { locale: es })})
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Llamadas</p>
+                  <p className="text-2xl font-bold">{weeklyComparison.thisWeek.totalCalls}</p>
+                  <ChangeIndicator value={weeklyComparison.changes.calls} />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Ventas</p>
+                  <p className="text-2xl font-bold">{weeklyComparison.thisWeek.sales}</p>
+                  <ChangeIndicator value={weeklyComparison.changes.sales} />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Conversión</p>
+                  <p className="text-2xl font-bold">{weeklyComparison.thisWeek.conversionRate.toFixed(1)}%</p>
+                  <ChangeIndicator value={weeklyComparison.changes.conversionRate} suffix="%" prefix={weeklyComparison.changes.conversionRate >= 0 ? "+" : ""} />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Score Promedio</p>
+                  <p className="text-2xl font-bold">{weeklyComparison.thisWeek.avgScore.toFixed(1)}</p>
+                  <ChangeIndicator value={weeklyComparison.changes.avgScore} prefix={weeklyComparison.changes.avgScore >= 0 ? "+" : ""} />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Duración Media</p>
+                  <p className="text-2xl font-bold">{weeklyComparison.thisWeek.avgDuration.toFixed(1)}m</p>
+                  <ChangeIndicator value={weeklyComparison.changes.avgDuration} suffix="m" prefix={weeklyComparison.changes.avgDuration >= 0 ? "+" : ""} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Enhanced KPIs */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">

@@ -103,10 +103,14 @@ export default function AnalyticsFilters({ onFilterChange }: AnalyticsFiltersPro
     setActiveFilterCount(count);
   }, [filters]);
   
-  // Apply filters whenever they change
+  // Apply filters whenever they change (fixed debounce)
   useEffect(() => {
     console.log("Aplicando filtros de analytics:", filters);
-    onFilterChange(filters);
+    const timeoutId = setTimeout(() => {
+      onFilterChange(filters);
+    }, 100); // Small delay to prevent excessive API calls
+    
+    return () => clearTimeout(timeoutId);
   }, [filters, onFilterChange]);
   
   // Optimized search with debounce
@@ -136,7 +140,12 @@ export default function AnalyticsFilters({ onFilterChange }: AnalyticsFiltersPro
   };
   
   const updateFilter = (key: keyof AnalyticsFilters, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    console.log(`Actualizando filtro ${key}:`, value);
+    setFilters(prev => {
+      const newFilters = { ...prev, [key]: value };
+      console.log("Nuevos filtros:", newFilters);
+      return newFilters;
+    });
   };
   
   const clearFilters = () => {
