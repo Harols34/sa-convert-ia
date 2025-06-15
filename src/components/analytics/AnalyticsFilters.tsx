@@ -220,7 +220,7 @@ export default function AnalyticsFilters({ onFilterChange }: AnalyticsFiltersPro
                       <SelectItem value="all">Todos los resultados</SelectItem>
                       <SelectItem value="venta">Venta</SelectItem>
                       <SelectItem value="no venta">No Venta</SelectItem>
-                      <SelectItem value="">Sin Resultado</SelectItem>
+                      <SelectItem value="sin_resultado">Sin Resultado</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -360,7 +360,7 @@ export default function AnalyticsFilters({ onFilterChange }: AnalyticsFiltersPro
           
           {filters.result && filters.result !== "all" && (
             <Badge variant="secondary" className="flex items-center gap-1">
-              Resultado: {filters.result || 'Sin resultado'}
+              Resultado: {filters.result === 'sin_resultado' ? 'Sin resultado' : filters.result}
               <X 
                 className="h-3 w-3 ml-1 cursor-pointer" 
                 onClick={() => updateFilter('result', 'all')} 

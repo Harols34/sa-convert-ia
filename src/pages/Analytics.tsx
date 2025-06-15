@@ -74,7 +74,7 @@ export default function Analytics() {
       }
 
       if (filters.result && filters.result !== 'all') {
-        if (filters.result === '') {
+        if (filters.result === 'sin_resultado') {
           query = query.or('result.is.null,result.eq.');
         } else {
           query = query.eq('result', filters.result);
