@@ -33,7 +33,7 @@ export default function Analytics() {
     error,
     refetch 
   } = useOptimizedQuery({
-    queryKey: ['analytics-calls', selectedAccountId, filters.search, filters.status, filters.result, filters.agentId, filters.sentiment, filters.durationRange, filters.dateRange?.from, filters.dateRange?.to],
+    queryKey: ['analytics-calls', selectedAccountId, filters.search, filters.status, filters.result, filters.agentId, filters.sentiment, filters.durationRange, filters.dateRange?.from?.toISOString(), filters.dateRange?.to?.toISOString()],
     queryFn: async () => {
       console.log("Analytics query - selectedAccountId:", selectedAccountId, "user role:", user?.role, "filters:", filters);
       
@@ -77,10 +77,12 @@ export default function Analytics() {
 
       // Apply filters - validate each filter before applying
       if (filters.status && filters.status !== 'all' && filters.status.trim() !== '') {
+        console.log("Applying status filter:", filters.status);
         query = query.eq('status', filters.status);
       }
 
       if (filters.result && filters.result !== 'all' && filters.result.trim() !== '') {
+        console.log("Applying result filter:", filters.result);
         if (filters.result === 'sin_resultado') {
           query = query.or('result.is.null,result.eq.');
         } else {
@@ -89,14 +91,17 @@ export default function Analytics() {
       }
 
       if (filters.sentiment && filters.sentiment !== 'all' && filters.sentiment.trim() !== '') {
+        console.log("Applying sentiment filter:", filters.sentiment);
         query = query.eq('sentiment', filters.sentiment);
       }
 
       if (filters.agentId && filters.agentId !== 'all' && filters.agentId.trim() !== '') {
+        console.log("Applying agent filter:", filters.agentId);
         query = query.eq('agent_name', filters.agentId);
       }
 
       if (filters.dateRange?.from) {
+        console.log("Applying date range filter:", filters.dateRange);
         const fromDate = filters.dateRange.from.toISOString();
         query = query.gte('date', fromDate);
         
@@ -108,6 +113,7 @@ export default function Analytics() {
       }
 
       if (filters.search && filters.search.trim() !== '') {
+        console.log("Applying search filter:", filters.search);
         const searchTerm = filters.search.trim();
         query = query.or(`title.ilike.%${searchTerm}%,agent_name.ilike.%${searchTerm}%`);
       }
@@ -123,6 +129,7 @@ export default function Analytics() {
 
       // Apply duration filter (client-side since it requires calculation)
       if (filters.durationRange && filters.durationRange !== 'all') {
+        console.log("Applying duration filter:", filters.durationRange);
         filteredData = filteredData.filter(call => {
           const durationMinutes = (call.duration || 0) / 60;
           switch (filters.durationRange) {
