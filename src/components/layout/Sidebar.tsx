@@ -1,5 +1,6 @@
+
 import { useState } from "react";
-import { useRouter } from 'next/router';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -7,10 +8,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Cog6Tooth, LogOut, Menu } from "lucide-react";
-import { User as AuthUser } from "@supabase/supabase-js";
+import { Settings, LogOut, Menu } from "lucide-react";
 import { User } from "@/lib/types";
-import { BarChart3, Settings, Users, Calendar, MessageSquare, FileText, Target, UserCheck, Shield, Wrench, Gauge } from "lucide-react";
+import { BarChart3, Users, Calendar, MessageSquare, FileText, Target, UserCheck, Shield, Wrench, Gauge } from "lucide-react";
 
 interface MenuItem {
   name: string;
@@ -19,18 +19,15 @@ interface MenuItem {
   role: User["role"][];
 }
 
-interface SidebarProps {
-  user: User | null;
-}
-
-export function Sidebar({ user }: SidebarProps) {
-  const router = useRouter();
-  const { signOut } = useAuth();
+export function Sidebar() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user, signOut } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
-    router.push('/login');
+    navigate('/login');
   };
 
   const menuItems: MenuItem[] = [
@@ -151,9 +148,9 @@ export function Sidebar({ user }: SidebarProps) {
               variant="ghost"
               className={cn(
                 "justify-start font-normal",
-                router.pathname === item.href ? "bg-gray-200 hover:bg-gray-200" : "hover:bg-gray-100"
+                location.pathname === item.href ? "bg-gray-200 hover:bg-gray-200" : "hover:bg-gray-100"
               )}
-              onClick={() => router.push(item.href)}
+              onClick={() => navigate(item.href)}
             >
               {item.icon}
               <span>{item.name}</span>
@@ -165,8 +162,8 @@ export function Sidebar({ user }: SidebarProps) {
       <Separator className="my-4" />
 
       <div className="px-4">
-        <Button variant="outline" className="w-full justify-start" onClick={() => router.push('/settings')}>
-          <Cog6Tooth className="h-4 w-4 mr-2" />
+        <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/settings')}>
+          <Settings className="h-4 w-4 mr-2" />
           Configuración
         </Button>
         <Button variant="destructive" className="w-full justify-start mt-2" onClick={handleSignOut}>
@@ -194,10 +191,10 @@ export function Sidebar({ user }: SidebarProps) {
                   variant="ghost"
                   className={cn(
                     "justify-start font-normal",
-                    router.pathname === item.href ? "bg-gray-200 hover:bg-gray-200" : "hover:bg-gray-100"
+                    location.pathname === item.href ? "bg-gray-200 hover:bg-gray-200" : "hover:bg-gray-100"
                   )}
                   onClick={() => {
-                    router.push(item.href);
+                    navigate(item.href);
                     setIsMenuOpen(false); // Close the menu after navigation
                   }}
                 >
@@ -209,10 +206,10 @@ export function Sidebar({ user }: SidebarProps) {
           </ScrollArea>
           <Separator className="my-4" />
           <Button variant="outline" className="w-full justify-start" onClick={() => {
-            router.push('/settings');
+            navigate('/settings');
             setIsMenuOpen(false);
           }}>
-            <Cog6Tooth className="h-4 w-4 mr-2" />
+            <Settings className="h-4 w-4 mr-2" />
             Configuración
           </Button>
           <Button variant="destructive" className="w-full justify-start mt-2" onClick={handleSignOut}>

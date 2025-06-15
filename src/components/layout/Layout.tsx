@@ -1,15 +1,12 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import Sidebar from "./Sidebar";
+import { Sidebar } from "./Sidebar";
 import GlobalSearch from "./GlobalSearch";
 import { Button } from "@/components/ui/button";
 import { Menu, Search } from "lucide-react";
+import { Outlet } from "react-router-dom";
 
-interface LayoutProps {
-  children: React.ReactNode;
-}
-
-const Layout: React.FC<LayoutProps> = ({ children }) => {
+const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -127,7 +124,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {/* Page content - optimized for performance */}
         <main className="flex-1 w-full h-full overflow-auto">
           <div className="w-full h-full px-[7px]">
-            {children}
+            <Outlet />
           </div>
         </main>
       </div>
@@ -140,4 +137,4 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   );
 };
 
-export default React.memo(Layout);
+export default Layout;
