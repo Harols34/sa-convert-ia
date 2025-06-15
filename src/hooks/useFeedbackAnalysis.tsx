@@ -20,8 +20,33 @@ export const useFeedbackAnalysis = ({
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("summary");
-  const [feedbackAlreadyExists, setFeedbackAlreadyExists] = useState(false);
+  const [behaviorAnalysisExists, setBehaviorAnalysisExists] = useState(false);
   const [hasActiveBehaviors, setHasActiveBehaviors] = useState(false);
+  
+  // Función para validar y convertir behaviors_analysis
+  const validateBehaviorsAnalysis = useCallback((data: any): BehaviorAnalysis[] => {
+    if (!Array.isArray(data)) {
+      console.error("Expected an array for behaviors_analysis, got:", typeof data);
+      return [];
+    }
+    
+    return data.filter(item => {
+      const isValid = item && 
+        typeof item === 'object' && 
+        typeof item.name === 'string' && 
+        (item.evaluation === 'cumple' || item.evaluation === 'no cumple') &&
+        typeof item.comments === 'string';
+        
+      if (!isValid) {
+        console.error("Invalid behavior item:", item);
+      }
+      return isValid;
+    }).map(item => ({
+      name: item.name,
+      evaluation: item.evaluation as "cumple" | "no cumple",
+      comments: item.comments
+    }));
+  }, []);
   
   // Check if there are active behaviors on mount
   useEffect(() => {
@@ -74,8 +99,9 @@ export const useFeedbackAnalysis = ({
       // Check if feedback already exists in the provided feedback prop
       if (feedback && feedback.behaviors_analysis && Array.isArray(feedback.behaviors_analysis) && feedback.behaviors_analysis.length > 0) {
         console.log("Using existing behaviors_analysis from provided feedback");
-        setBehaviors(feedback.behaviors_analysis);
-        setFeedbackAlreadyExists(true);
+        const validatedBehaviors = validateBehaviorsAnalysis(feedback.behaviors_analysis);
+        setBehaviors(validatedBehaviors);
+        setBehaviorAnalysisExists(true);
         return true;
       }
       
@@ -93,8 +119,9 @@ export const useFeedbackAnalysis = ({
       
       if (existingFeedback && existingFeedback.behaviors_analysis && Array.isArray(existingFeedback.behaviors_analysis) && existingFeedback.behaviors_analysis.length > 0) {
         console.log("Found behaviors_analysis in database");
-        setBehaviors(existingFeedback.behaviors_analysis);
-        setFeedbackAlreadyExists(true);
+        const validatedBehaviors = validateBehaviorsAnalysis(existingFeedback.behaviors_analysis);
+        setBehaviors(validatedBehaviors);
+        setBehaviorAnalysisExists(true);
         
         if (setLocalFeedback) {
           const typedFeedback: Feedback = {
@@ -104,7 +131,7 @@ export const useFeedbackAnalysis = ({
             positive: existingFeedback.positive || [],
             negative: existingFeedback.negative || [],
             opportunities: existingFeedback.opportunities || [],
-            behaviors_analysis: existingFeedback.behaviors_analysis,
+            behaviors_analysis: validatedBehaviors,
             created_at: existingFeedback.created_at,
             updated_at: existingFeedback.updated_at,
             sentiment: existingFeedback.sentiment,
@@ -118,6 +145,7 @@ export const useFeedbackAnalysis = ({
       }
       
       console.log("No existing behaviors analysis found");
+      setBehaviorAnalysisExists(false);
       return false;
     } catch (error) {
       console.error("Error loading behaviors analysis:", error);
@@ -126,7 +154,7 @@ export const useFeedbackAnalysis = ({
     } finally {
       setIsLoadingBehaviors(false);
     }
-  }, [call.id, feedback, setLocalFeedback]);
+  }, [call.id, feedback, setLocalFeedback, validateBehaviorsAnalysis]);
   
   // Initial check on component mount
   useEffect(() => {
@@ -146,13 +174,6 @@ export const useFeedbackAnalysis = ({
       toast.error(errorMsg);
       setAnalysisError("No hay comportamientos activos definidos en el sistema. Agregue al menos un comportamiento activo para poder realizar el análisis.");
       return [];
-    }
-    
-    // Check if analysis already exists
-    if (feedbackAlreadyExists && behaviors && behaviors.length > 0) {
-      console.log("Analysis already exists, using existing data");
-      toast.info("El análisis de comportamientos ya existe para esta llamada");
-      return behaviors;
     }
     
     setIsGeneratingFeedback(true);
@@ -175,13 +196,14 @@ export const useFeedbackAnalysis = ({
       
       if (data?.behaviors_analysis && Array.isArray(data.behaviors_analysis) && data.behaviors_analysis.length > 0) {
         console.log("Successfully received behaviors analysis");
-        setBehaviors(data.behaviors_analysis);
-        setFeedbackAlreadyExists(true);
+        const validatedBehaviors = validateBehaviorsAnalysis(data.behaviors_analysis);
+        setBehaviors(validatedBehaviors);
+        setBehaviorAnalysisExists(true);
         
         // Update local feedback if setter is provided
         if (setLocalFeedback) {
           const typedFeedback: Feedback = {
-            behaviors_analysis: data.behaviors_analysis,
+            behaviors_analysis: validatedBehaviors,
             score: data.score || 0,
             positive: data.positive || [],
             negative: data.negative || [],
@@ -201,7 +223,7 @@ export const useFeedbackAnalysis = ({
         toast.success("Análisis de comportamientos generado correctamente", { id: "generate-feedback" });
         setActiveTab("behaviors");
         
-        return data.behaviors_analysis;
+        return validatedBehaviors;
       } else {
         console.error("No behaviors_analysis in response or empty array");
         throw new Error("No se generaron resultados de análisis de comportamientos");
@@ -218,7 +240,7 @@ export const useFeedbackAnalysis = ({
     } finally {
       setIsGeneratingFeedback(false);
     }
-  }, [call.id, setLocalFeedback, hasActiveBehaviors, feedbackAlreadyExists, behaviors]);
+  }, [call.id, setLocalFeedback, hasActiveBehaviors, validateBehaviorsAnalysis]);
   
   return {
     behaviors,
@@ -229,7 +251,7 @@ export const useFeedbackAnalysis = ({
     analysisError,
     activeTab,
     setActiveTab,
-    feedbackAlreadyExists,
+    feedbackAlreadyExists: behaviorAnalysisExists,
     hasActiveBehaviors
   };
 };

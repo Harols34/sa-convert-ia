@@ -26,9 +26,9 @@ export default function FeedbackLoading({
           <div className="bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 p-4 rounded-md mb-4 flex items-start">
             <CheckCircle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
             <div>
-              <p className="font-medium">Feedback ya existente</p>
+              <p className="font-medium">Análisis de comportamientos existente</p>
               <p className="text-sm mt-1">
-                El feedback para esta llamada ya fue generado anteriormente.
+                El análisis de comportamientos para esta llamada ya fue generado anteriormente.
               </p>
             </div>
           </div>
@@ -56,7 +56,7 @@ export default function FeedbackLoading({
           <div className="flex flex-col items-center justify-center py-12 transition-all duration-500">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-6"></div>
             <p className="text-center text-gray-700 dark:text-gray-300 font-medium text-lg mb-2">
-              Generando análisis de la llamada...
+              Generando análisis de comportamientos...
             </p>
             <p className="text-center text-gray-500 dark:text-gray-400 text-sm max-w-md">
               Estamos analizando la transcripción y evaluando los comportamientos clave.
@@ -67,7 +67,7 @@ export default function FeedbackLoading({
           <div className="flex flex-col items-center justify-center py-8 transition-all duration-500">
             <p className="text-center text-gray-500 mb-4">
               {feedbackExists 
-                ? "El feedback ya está generado" 
+                ? "El análisis de comportamientos ya está generado" 
                 : "Genere el análisis de comportamientos para esta llamada"}
             </p>
             <Button 

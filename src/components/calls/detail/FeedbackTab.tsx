@@ -19,7 +19,6 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
   useEffect(() => {
     if (feedback) {
       setLocalFeedback(feedback);
-      setShowLoadingScreen(false);
     }
   }, [feedback]);
 
@@ -42,26 +41,34 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
     hasActiveBehaviors
   } = feedbackAnalysisManager;
 
+  // Determine if we should show loading screen
   useEffect(() => {
-    // Check if feedback exists and show content immediately if it does
-    if (localFeedback || feedbackAlreadyExists) {
-      setShowLoadingScreen(false);
-    }
-  }, [localFeedback, feedbackAlreadyExists]);
-
-  // Handle manual generation of feedback
-  const handleManualGeneration = async () => {
-    if (feedbackAlreadyExists || localFeedback) {
-      toast.info("El feedback de esta llamada ya existe y es permanente");
-      return;
-    }
+    // Show loading screen only when:
+    // 1. No behaviors analysis exists AND
+    // 2. We have feedback (so we know processing is complete) BUT no behaviors analysis OR
+    // 3. We're currently generating feedback
+    const hasBehaviorsAnalysis = behaviors.length > 0 || (localFeedback?.behaviors_analysis && localFeedback.behaviors_analysis.length > 0);
     
+    if (hasBehaviorsAnalysis || isGeneratingFeedback) {
+      setShowLoadingScreen(false);
+    } else if (localFeedback && !hasBehaviorsAnalysis) {
+      // We have feedback but no behaviors analysis - show the generate button
+      setShowLoadingScreen(true);
+    } else if (!localFeedback) {
+      // No feedback at all - show loading screen
+      setShowLoadingScreen(true);
+    }
+  }, [behaviors, localFeedback, isGeneratingFeedback]);
+
+  // Handle manual generation of behavior analysis
+  const handleManualGeneration = async () => {
     if (!hasActiveBehaviors) {
       toast.error("No hay comportamientos activos para analizar");
       return;
     }
     
     try {
+      console.log("Manual generation triggered");
       setShowLoadingScreen(true);
       await triggerAnalysisFunction();
     } catch (error) {
@@ -71,8 +78,8 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
     }
   };
 
-  // Show proper loading screen when appropriate
-  if (showLoadingScreen && (!localFeedback && !feedbackAlreadyExists)) {
+  // Show loading screen when appropriate
+  if (showLoadingScreen && behaviors.length === 0) {
     return (
       <FeedbackLoading 
         isLoading={isGeneratingFeedback}
