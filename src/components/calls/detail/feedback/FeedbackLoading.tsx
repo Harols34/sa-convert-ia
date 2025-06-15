@@ -10,6 +10,8 @@ interface FeedbackLoadingProps {
   error?: string | null;
   feedbackExists?: boolean;
   autoGenerating?: boolean;
+  title?: string;
+  description?: string;
 }
 
 export default function FeedbackLoading({
@@ -17,7 +19,9 @@ export default function FeedbackLoading({
   onGenerateClick,
   error,
   feedbackExists,
-  autoGenerating = false
+  autoGenerating = false,
+  title = "Análisis de comportamientos",
+  description = "Genere el análisis para esta llamada"
 }: FeedbackLoadingProps) {
   return (
     <Card className="animate-in fade-in duration-700">
@@ -26,9 +30,9 @@ export default function FeedbackLoading({
           <div className="bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 p-4 rounded-md mb-4 flex items-start">
             <CheckCircle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
             <div>
-              <p className="font-medium">Análisis de comportamientos existente</p>
+              <p className="font-medium">Análisis existente</p>
               <p className="text-sm mt-1">
-                El análisis de comportamientos para esta llamada ya fue generado anteriormente.
+                El análisis para esta llamada ya fue generado anteriormente.
               </p>
             </div>
           </div>
@@ -56,10 +60,10 @@ export default function FeedbackLoading({
           <div className="flex flex-col items-center justify-center py-12 transition-all duration-500">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-6"></div>
             <p className="text-center text-gray-700 dark:text-gray-300 font-medium text-lg mb-2">
-              Generando análisis de comportamientos...
+              Generando {title.toLowerCase()}...
             </p>
             <p className="text-center text-gray-500 dark:text-gray-400 text-sm max-w-md">
-              Estamos analizando la transcripción y evaluando los comportamientos clave.
+              Estamos procesando la información de la llamada.
               Este proceso puede tardar hasta un minuto.
             </p>
           </div>
@@ -67,8 +71,8 @@ export default function FeedbackLoading({
           <div className="flex flex-col items-center justify-center py-8 transition-all duration-500">
             <p className="text-center text-gray-500 mb-4">
               {feedbackExists 
-                ? "El análisis de comportamientos ya está generado" 
-                : "Genere el análisis de comportamientos para esta llamada"}
+                ? "El análisis ya está generado" 
+                : description}
             </p>
             <Button 
               onClick={onGenerateClick} 
@@ -77,7 +81,7 @@ export default function FeedbackLoading({
               size="lg"
             >
               <RefreshCw className="mr-2 h-4 w-4" />
-              Generar análisis de comportamientos
+              Generar {title.toLowerCase()}
             </Button>
             
             {error ? (
@@ -90,7 +94,7 @@ export default function FeedbackLoading({
               </p>
             ) : (
               <p className="text-center text-gray-500 text-xs mt-2">
-                Haga clic en el botón para generar el análisis. Una vez generado, será permanente.
+                Haga clic en el botón para generar el análisis.
               </p>
             )}
           </div>

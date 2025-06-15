@@ -4,6 +4,7 @@ import { Call } from "@/lib/types";
 import FeedbackLoading from "./feedback/FeedbackLoading";
 import FeedbackContent from "./feedback/FeedbackContent";
 import { useFeedbackAnalysis } from "@/hooks/useFeedbackAnalysis";
+import { useGeneralFeedback } from "@/hooks/useGeneralFeedback";
 import { toast } from "sonner";
 
 interface FeedbackTabProps {
@@ -13,7 +14,7 @@ interface FeedbackTabProps {
 export default function FeedbackTab({ call }: FeedbackTabProps) {
   const feedback = call.feedback;
   const [localFeedback, setLocalFeedback] = useState(feedback);
-  const [showLoadingScreen, setShowLoadingScreen] = useState(true);
+  const [showBehaviorLoadingScreen, setShowBehaviorLoadingScreen] = useState(true);
   
   // Update local feedback state when call feedback changes
   useEffect(() => {
@@ -22,8 +23,14 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
     }
   }, [feedback]);
 
-  // Use our hook to manage feedback analysis
-  const feedbackAnalysisManager = useFeedbackAnalysis({
+  // Use hooks for behavior analysis and general feedback separately
+  const behaviorAnalysisManager = useFeedbackAnalysis({
+    call,
+    feedback: localFeedback,
+    setLocalFeedback
+  });
+
+  const generalFeedbackManager = useGeneralFeedback({
     call,
     feedback: localFeedback,
     setLocalFeedback
@@ -32,61 +39,73 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
   const {
     behaviors,
     isLoadingBehaviors,
-    isGeneratingFeedback,
-    triggerAnalysisFunction,
+    isGeneratingFeedback: isGeneratingBehaviors,
+    triggerAnalysisFunction: triggerBehaviorAnalysis,
     analysisError,
     activeTab, 
     setActiveTab,
-    feedbackAlreadyExists,
+    feedbackAlreadyExists: behaviorAnalysisExists,
     hasActiveBehaviors
-  } = feedbackAnalysisManager;
+  } = behaviorAnalysisManager;
 
-  // Determine if we should show loading screen
+  const {
+    isGeneratingFeedback: isGeneratingGeneralFeedback,
+    feedbackError,
+    triggerGeneralFeedback
+  } = generalFeedbackManager;
+
+  // Determine if we should show behavior loading screen
   useEffect(() => {
-    // Show loading screen only when:
-    // 1. No behaviors analysis exists AND
-    // 2. We have feedback (so we know processing is complete) BUT no behaviors analysis OR
-    // 3. We're currently generating feedback
     const hasBehaviorsAnalysis = behaviors.length > 0 || (localFeedback?.behaviors_analysis && localFeedback.behaviors_analysis.length > 0);
     
-    if (hasBehaviorsAnalysis || isGeneratingFeedback) {
-      setShowLoadingScreen(false);
+    if (hasBehaviorsAnalysis || isGeneratingBehaviors) {
+      setShowBehaviorLoadingScreen(false);
     } else if (localFeedback && !hasBehaviorsAnalysis) {
-      // We have feedback but no behaviors analysis - show the generate button
-      setShowLoadingScreen(true);
+      setShowBehaviorLoadingScreen(true);
     } else if (!localFeedback) {
-      // No feedback at all - show loading screen
-      setShowLoadingScreen(true);
+      setShowBehaviorLoadingScreen(true);
     }
-  }, [behaviors, localFeedback, isGeneratingFeedback]);
+  }, [behaviors, localFeedback, isGeneratingBehaviors]);
 
-  // Handle manual generation of behavior analysis
-  const handleManualGeneration = async () => {
+  // Handle manual generation of behavior analysis - INDEPENDENT
+  const handleManualBehaviorGeneration = async () => {
     if (!hasActiveBehaviors) {
       toast.error("No hay comportamientos activos para analizar");
       return;
     }
     
     try {
-      console.log("Manual generation triggered");
-      setShowLoadingScreen(true);
-      await triggerAnalysisFunction();
+      console.log("Manual behavior generation triggered");
+      setShowBehaviorLoadingScreen(true);
+      await triggerBehaviorAnalysis();
     } catch (error) {
-      console.error("Error in manual generation:", error);
+      console.error("Error in manual behavior generation:", error);
     } finally {
-      setShowLoadingScreen(false);
+      setShowBehaviorLoadingScreen(false);
     }
   };
 
-  // Show loading screen when appropriate
-  if (showLoadingScreen && behaviors.length === 0) {
+  // Handle manual generation of general feedback - INDEPENDENT
+  const handleManualFeedbackGeneration = async () => {
+    try {
+      console.log("Manual feedback generation triggered");
+      await triggerGeneralFeedback();
+    } catch (error) {
+      console.error("Error in manual feedback generation:", error);
+    }
+  };
+
+  // Show behavior loading screen when appropriate
+  if (showBehaviorLoadingScreen && behaviors.length === 0) {
     return (
       <FeedbackLoading 
-        isLoading={isGeneratingFeedback}
-        onGenerateClick={handleManualGeneration}
+        isLoading={isGeneratingBehaviors}
+        onGenerateClick={handleManualBehaviorGeneration}
         error={analysisError}
-        feedbackExists={feedbackAlreadyExists}
-        autoGenerating={isGeneratingFeedback}
+        feedbackExists={behaviorAnalysisExists}
+        autoGenerating={isGeneratingBehaviors}
+        title="Análisis de Comportamientos"
+        description="Genere el análisis de comportamientos para evaluar el cumplimiento de los criterios específicos"
       />
     );
   }
@@ -104,9 +123,12 @@ export default function FeedbackTab({ call }: FeedbackTabProps) {
       behaviorsToDisplay={displayBehaviors}
       isLoadingBehaviors={isLoadingBehaviors}
       analysisError={analysisError}
-      onRefreshAnalysis={feedbackAlreadyExists ? null : handleManualGeneration}
+      onRefreshAnalysis={behaviorAnalysisExists ? null : handleManualBehaviorGeneration}
+      onRefreshFeedback={handleManualFeedbackGeneration}
       activeTab={activeTab}
       setActiveTab={setActiveTab}
+      isGeneratingGeneralFeedback={isGeneratingGeneralFeedback}
+      feedbackError={feedbackError}
     />
   );
 }

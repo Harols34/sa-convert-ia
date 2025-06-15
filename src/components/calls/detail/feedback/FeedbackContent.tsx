@@ -8,6 +8,8 @@ import FeedbackPointsCard from "./FeedbackPointsCard";
 import BehaviorsAnalysis from "./BehaviorsAnalysis";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 
 interface FeedbackContentProps {
   call: Call;
@@ -15,9 +17,12 @@ interface FeedbackContentProps {
   behaviorsToDisplay: BehaviorAnalysis[];
   isLoadingBehaviors: boolean;
   analysisError: string | null;
-  onRefreshAnalysis: () => void;
+  onRefreshAnalysis?: (() => void) | null;
+  onRefreshFeedback?: () => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  isGeneratingGeneralFeedback?: boolean;
+  feedbackError?: string | null;
 }
 
 export default function FeedbackContent({
@@ -27,11 +32,14 @@ export default function FeedbackContent({
   isLoadingBehaviors,
   analysisError,
   onRefreshAnalysis,
+  onRefreshFeedback,
   activeTab,
-  setActiveTab
+  setActiveTab,
+  isGeneratingGeneralFeedback = false,
+  feedbackError
 }: FeedbackContentProps) {
-  // Mostrar un esqueleto de carga cuando no hay feedback pero está cargando
-  const showSkeleton = isLoadingBehaviors && (!localFeedback && behaviorsToDisplay.length === 0);
+  // Show skeleton for general feedback when loading
+  const showFeedbackSkeleton = isGeneratingGeneralFeedback && (!localFeedback?.positive && !localFeedback?.score);
 
   // Calculate compliance percentage
   const totalBehaviors = behaviorsToDisplay.length;
@@ -49,8 +57,10 @@ export default function FeedbackContent({
       </TabsList>
 
       <TabsContent value="summary" className="space-y-4 mt-4">
+        {feedbackError && <FeedbackErrorDisplay errorMessage={feedbackError} />}
+        
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {showSkeleton ? (
+          {showFeedbackSkeleton ? (
             <>
               <Skeleton className="h-[150px] w-full" />
               <Skeleton className="h-[150px] w-full" />
@@ -64,6 +74,28 @@ export default function FeedbackContent({
             </>
           )}
         </div>
+
+        {/* General Feedback Generation Button */}
+        {!localFeedback?.positive && !isGeneratingGeneralFeedback && onRefreshFeedback && (
+          <Card>
+            <CardContent className="py-6">
+              <div className="flex flex-col items-center justify-center">
+                <p className="text-center text-gray-500 mb-4">
+                  Genere el feedback general para esta llamada
+                </p>
+                <Button 
+                  onClick={onRefreshFeedback}
+                  className="px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  disabled={isGeneratingGeneralFeedback}
+                  size="lg"
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Generar Feedback General
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         
         <Card className="mt-4">
           <CardHeader>
@@ -73,7 +105,7 @@ export default function FeedbackContent({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {showSkeleton ? (
+            {isLoadingBehaviors ? (
               <>
                 <Skeleton className="h-4 w-full mb-2" />
                 <Skeleton className="h-2.5 w-full mb-4" />
@@ -115,7 +147,7 @@ export default function FeedbackContent({
 
       <TabsContent value="details" className="space-y-4 mt-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {showSkeleton ? (
+          {showFeedbackSkeleton ? (
             <>
               <Skeleton className="h-[150px] w-full" />
               <Skeleton className="h-[150px] w-full" />
