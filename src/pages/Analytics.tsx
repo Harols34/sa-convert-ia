@@ -8,7 +8,7 @@ import { useAccount } from "@/context/AccountContext";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, TrendingUp, Users, Clock, Target, Phone, Award, BarChart3, Calendar, Activity, Zap, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import AnalyticsFilters, { AnalyticsFilters as AnalyticsFiltersType } from "@/components/analytics/AnalyticsFilters";
 import { useState } from "react";
 import { subWeeks, format, startOfWeek, endOfWeek } from "date-fns";
@@ -33,9 +33,13 @@ export default function Analytics() {
     error,
     refetch 
   } = useOptimizedQuery({
-    queryKey: ['analytics-calls', selectedAccountId, JSON.stringify(filters)],
+    queryKey: ['analytics-calls', selectedAccountId, filters.search, filters.status, filters.result, filters.agentId, filters.sentiment, filters.durationRange, filters.dateRange?.from, filters.dateRange?.to],
     queryFn: async () => {
       console.log("Analytics query - selectedAccountId:", selectedAccountId, "user role:", user?.role, "filters:", filters);
+      
+      if (!selectedAccountId || selectedAccountId === '') {
+        return [];
+      }
       
       let query = supabase
         .from('calls')
@@ -50,6 +54,8 @@ export default function Analytics() {
           account_id,
           created_at,
           title,
+          product,
+          reason,
           feedback (
             score,
             sentiment,
@@ -61,22 +67,20 @@ export default function Analytics() {
         .order('date', { ascending: false });
 
       // Apply account filter
-      if (selectedAccountId && selectedAccountId !== 'all') {
+      if (selectedAccountId !== 'all') {
         console.log("Filtering by specific account:", selectedAccountId);
         query = query.eq('account_id', selectedAccountId);
-      } else if (selectedAccountId === 'all' && user?.role === 'superAdmin') {
-        console.log("SuperAdmin viewing all calls - no account filter applied");
-      } else if (!selectedAccountId) {
-        console.log("No account selected, returning empty array");
+      } else if (user?.role !== 'superAdmin') {
+        console.log("Non-super admin trying to view all accounts - returning empty");
         return [];
       }
 
-      // Apply additional filters
-      if (filters.status && filters.status !== 'all') {
+      // Apply filters - validate each filter before applying
+      if (filters.status && filters.status !== 'all' && filters.status.trim() !== '') {
         query = query.eq('status', filters.status);
       }
 
-      if (filters.result && filters.result !== 'all') {
+      if (filters.result && filters.result !== 'all' && filters.result.trim() !== '') {
         if (filters.result === 'sin_resultado') {
           query = query.or('result.is.null,result.eq.');
         } else {
@@ -84,11 +88,11 @@ export default function Analytics() {
         }
       }
 
-      if (filters.sentiment && filters.sentiment !== 'all') {
+      if (filters.sentiment && filters.sentiment !== 'all' && filters.sentiment.trim() !== '') {
         query = query.eq('sentiment', filters.sentiment);
       }
 
-      if (filters.agentId && filters.agentId !== 'all') {
+      if (filters.agentId && filters.agentId !== 'all' && filters.agentId.trim() !== '') {
         query = query.eq('agent_name', filters.agentId);
       }
 
@@ -103,15 +107,16 @@ export default function Analytics() {
         }
       }
 
-      if (filters.search) {
-        query = query.or(`title.ilike.%${filters.search}%,agent_name.ilike.%${filters.search}%`);
+      if (filters.search && filters.search.trim() !== '') {
+        const searchTerm = filters.search.trim();
+        query = query.or(`title.ilike.%${searchTerm}%,agent_name.ilike.%${searchTerm}%`);
       }
 
       const { data, error } = await query;
 
       if (error) {
         console.error("Analytics query error:", error);
-        throw error;
+        throw new Error(`Error al cargar datos: ${error.message}`);
       }
       
       let filteredData = data || [];
@@ -136,7 +141,7 @@ export default function Analytics() {
       console.log("Analytics data loaded:", filteredData?.length || 0, "calls after filtering");
       return filteredData;
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!selectedAccountId,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     refetchInterval: false,
@@ -147,6 +152,8 @@ export default function Analytics() {
   const { data: weeklyComparison } = useOptimizedQuery({
     queryKey: ['weekly-comparison', selectedAccountId],
     queryFn: async () => {
+      if (!selectedAccountId || selectedAccountId === '') return null;
+      
       const now = new Date();
       const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 });
       const lastWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
@@ -160,50 +167,55 @@ export default function Analytics() {
         feedback (score)
       `);
 
-      if (selectedAccountId && selectedAccountId !== 'all') {
+      if (selectedAccountId !== 'all') {
         baseQuery = baseQuery.eq('account_id', selectedAccountId);
       }
 
-      const [thisWeekData, lastWeekData] = await Promise.all([
-        baseQuery.gte('date', thisWeekStart.toISOString()),
-        baseQuery
-          .gte('date', lastWeekStart.toISOString())
-          .lte('date', lastWeekEnd.toISOString())
-      ]);
+      try {
+        const [thisWeekData, lastWeekData] = await Promise.all([
+          baseQuery.gte('date', thisWeekStart.toISOString()),
+          baseQuery
+            .gte('date', lastWeekStart.toISOString())
+            .lte('date', lastWeekEnd.toISOString())
+        ]);
 
-      const calculateWeekStats = (data: any[]) => {
-        const totalCalls = data.length;
-        const sales = data.filter(call => call.result === 'venta').length;
-        const conversionRate = totalCalls > 0 ? (sales / totalCalls) * 100 : 0;
-        const avgScore = data.reduce((sum, call) => {
-          const score = call.feedback?.[0]?.score || 0;
-          return sum + score;
-        }, 0) / Math.max(totalCalls, 1);
-        const avgDuration = data.reduce((sum, call) => sum + (call.duration || 0), 0) / Math.max(totalCalls, 1);
+        const calculateWeekStats = (data: any[]) => {
+          const totalCalls = data.length;
+          const sales = data.filter(call => call.result === 'venta').length;
+          const conversionRate = totalCalls > 0 ? (sales / totalCalls) * 100 : 0;
+          const avgScore = data.reduce((sum, call) => {
+            const score = call.feedback?.[0]?.score || 0;
+            return sum + score;
+          }, 0) / Math.max(totalCalls, 1);
+          const avgDuration = data.reduce((sum, call) => sum + (call.duration || 0), 0) / Math.max(totalCalls, 1);
+
+          return {
+            totalCalls,
+            sales,
+            conversionRate,
+            avgScore,
+            avgDuration: avgDuration / 60 // Convert to minutes
+          };
+        };
+
+        const thisWeek = calculateWeekStats(thisWeekData.data || []);
+        const lastWeek = calculateWeekStats(lastWeekData.data || []);
 
         return {
-          totalCalls,
-          sales,
-          conversionRate,
-          avgScore,
-          avgDuration: avgDuration / 60 // Convert to minutes
+          thisWeek,
+          lastWeek,
+          changes: {
+            calls: thisWeek.totalCalls - lastWeek.totalCalls,
+            sales: thisWeek.sales - lastWeek.sales,
+            conversionRate: thisWeek.conversionRate - lastWeek.conversionRate,
+            avgScore: thisWeek.avgScore - lastWeek.avgScore,
+            avgDuration: thisWeek.avgDuration - lastWeek.avgDuration
+          }
         };
-      };
-
-      const thisWeek = calculateWeekStats(thisWeekData.data || []);
-      const lastWeek = calculateWeekStats(lastWeekData.data || []);
-
-      return {
-        thisWeek,
-        lastWeek,
-        changes: {
-          calls: thisWeek.totalCalls - lastWeek.totalCalls,
-          sales: thisWeek.sales - lastWeek.sales,
-          conversionRate: thisWeek.conversionRate - lastWeek.conversionRate,
-          avgScore: thisWeek.avgScore - lastWeek.avgScore,
-          avgDuration: thisWeek.avgDuration - lastWeek.avgDuration
-        }
-      };
+      } catch (error) {
+        console.error("Error loading weekly comparison:", error);
+        return null;
+      }
     },
     enabled: !!user?.id && !!selectedAccountId,
     refetchOnWindowFocus: false,
@@ -221,7 +233,7 @@ export default function Analytics() {
 
   // Enhanced calculations with memoization
   const analytics = useMemo(() => {
-    if (!calls) return null;
+    if (!calls || calls.length === 0) return null;
 
     const totalCalls = calls.length;
     const completedCalls = calls.filter(call => call.status === 'complete').length;
@@ -235,7 +247,9 @@ export default function Analytics() {
       return sum + score;
     }, 0) / Math.max(completedCalls, 1) || 0;
 
-    const averageDuration = calls.reduce((sum, call) => sum + (call.duration || 0), 0) / Math.max(totalCalls, 1) || 0;
+    // Fix duration calculation - ensure it's properly converted
+    const totalDurationSeconds = calls.reduce((sum, call) => sum + (call.duration || 0), 0);
+    const averageDuration = totalDurationSeconds / Math.max(totalCalls, 1) || 0;
 
     // Sentiment analysis
     const positiveCalls = calls.filter(call => call.sentiment === 'positive').length;
@@ -337,7 +351,8 @@ export default function Analytics() {
       noSaleCalls,
       conversionRate,
       averageScore,
-      averageDuration,
+      averageDuration, // This is now in seconds
+      totalDurationSeconds, // Total duration in seconds
       positiveCalls,
       neutralCalls,
       negativeCalls,
@@ -365,6 +380,13 @@ export default function Analytics() {
         </span>
       </div>
     );
+  };
+
+  // Helper function to format duration
+  const formatDuration = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}m ${remainingSeconds}s`;
   };
 
   if (!selectedAccountId) {
@@ -573,10 +595,10 @@ export default function Analytics() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-                {Math.round(analytics.averageDuration / 60)}m {Math.round(analytics.averageDuration % 60)}s
+                {formatDuration(analytics.averageDuration)}
               </div>
               <p className="text-xs text-orange-600 dark:text-orange-400">
-                Duración total: {Math.round((calls?.reduce((sum, call) => sum + (call.duration || 0), 0) || 0) / 3600)}h
+                Duración total: {formatDuration(analytics.totalDurationSeconds)}
               </p>
             </CardContent>
           </Card>

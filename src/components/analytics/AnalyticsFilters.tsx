@@ -58,12 +58,14 @@ export default function AnalyticsFilters({ onFilterChange }: AnalyticsFiltersPro
   useEffect(() => {
     const loadAgents = async () => {
       try {
+        if (!selectedAccountId) return;
+        
         let query = supabase
           .from('calls')
           .select('agent_name, agent_id')
           .not('agent_name', 'is', null);
           
-        if (selectedAccountId && selectedAccountId !== 'all') {
+        if (selectedAccountId !== 'all') {
           query = query.eq('account_id', selectedAccountId);
         }
         
@@ -84,6 +86,7 @@ export default function AnalyticsFilters({ onFilterChange }: AnalyticsFiltersPro
         }
       } catch (error) {
         console.error("Error loading agents:", error);
+        setAgents([]);
       }
     };
     
@@ -103,12 +106,12 @@ export default function AnalyticsFilters({ onFilterChange }: AnalyticsFiltersPro
     setActiveFilterCount(count);
   }, [filters]);
   
-  // Apply filters whenever they change (fixed debounce)
+  // Apply filters with proper debouncing
   useEffect(() => {
-    console.log("Aplicando filtros de analytics:", filters);
     const timeoutId = setTimeout(() => {
+      console.log("Aplicando filtros de analytics:", filters);
       onFilterChange(filters);
-    }, 100); // Small delay to prevent excessive API calls
+    }, 200);
     
     return () => clearTimeout(timeoutId);
   }, [filters, onFilterChange]);
@@ -123,7 +126,6 @@ export default function AnalyticsFilters({ onFilterChange }: AnalyticsFiltersPro
     }
     
     const newTimeout = setTimeout(() => {
-      console.log("Aplicando búsqueda de analytics:", newValue);
       setFilters(prev => ({ ...prev, search: newValue }));
     }, 300);
     
@@ -140,10 +142,8 @@ export default function AnalyticsFilters({ onFilterChange }: AnalyticsFiltersPro
   };
   
   const updateFilter = (key: keyof AnalyticsFilters, value: any) => {
-    console.log(`Actualizando filtro ${key}:`, value);
     setFilters(prev => {
       const newFilters = { ...prev, [key]: value };
-      console.log("Nuevos filtros:", newFilters);
       return newFilters;
     });
   };
