@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,10 +31,10 @@ export default function ChatInterface() {
     scrollToBottom();
   }, [messages]);
 
-  // Cargar historial de chat al montar el componente
+  // Cargar historial de chat al montar el componente y cuando cambie la cuenta
   useEffect(() => {
     loadChatHistory();
-  }, [user]);
+  }, [user, selectedAccountId]);
 
   const loadChatHistory = async () => {
     if (!user) {
@@ -43,8 +42,13 @@ export default function ChatInterface() {
       return;
     }
 
+    if (!selectedAccountId) {
+      console.log("No account selected, skipping chat history load");
+      return;
+    }
+
     try {
-      console.log("Loading chat history for user:", user.id);
+      console.log("Loading chat history for user:", user.id, "account:", selectedAccountId);
       
       // Calcular fecha de hace 15 días
       const fifteenDaysAgo = new Date();
@@ -54,6 +58,7 @@ export default function ChatInterface() {
         .from('chat_messages')
         .select('*')
         .eq('user_id', user.id)
+        .eq('account_id', selectedAccountId)
         .gte('timestamp', fifteenDaysAgo.toISOString())
         .order('timestamp', { ascending: true });
 
@@ -62,7 +67,7 @@ export default function ChatInterface() {
         return;
       }
 
-      console.log("Chat history loaded:", data?.length, "messages");
+      console.log("Chat history loaded:", data?.length, "messages for account:", selectedAccountId);
 
       if (data && data.length > 0) {
         const chatMessages: Message[] = data.map(msg => ({
@@ -72,6 +77,8 @@ export default function ChatInterface() {
           timestamp: new Date(msg.timestamp)
         }));
         setMessages(chatMessages);
+      } else {
+        setMessages([]);
       }
     } catch (error) {
       console.error("Error loading chat history:", error);
