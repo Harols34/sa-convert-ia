@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -577,7 +578,7 @@ export default function AnalyticsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Mejorable</CardTitle>
-                <CardDescription>Puntuación < 6</CardDescription>
+                <CardDescription>Puntuación &lt; 6</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-red-600">8%</div>
