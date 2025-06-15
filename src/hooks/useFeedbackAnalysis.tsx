@@ -10,6 +10,31 @@ interface UseFeedbackAnalysisProps {
   setLocalFeedback?: React.Dispatch<React.SetStateAction<Feedback | undefined>>;
 }
 
+// Helper function to validate and convert Json to BehaviorAnalysis
+const validateBehaviorsAnalysis = (data: any): BehaviorAnalysis[] => {
+  if (!Array.isArray(data)) {
+    console.error("Expected an array for behaviors_analysis, got:", typeof data);
+    return [];
+  }
+  
+  return data.filter(item => {
+    const isValid = item && 
+      typeof item === 'object' && 
+      typeof item.name === 'string' && 
+      (item.evaluation === 'cumple' || item.evaluation === 'no cumple') &&
+      typeof item.comments === 'string';
+      
+    if (!isValid) {
+      console.error("Invalid behavior item:", item);
+    }
+    return isValid;
+  }).map(item => ({
+    name: item.name,
+    evaluation: item.evaluation as "cumple" | "no cumple",
+    comments: item.comments
+  }));
+};
+
 export const useFeedbackAnalysis = ({
   call,
   feedback,
@@ -73,9 +98,10 @@ export const useFeedbackAnalysis = ({
       // Check if feedback exists and has behaviors_analysis
       if (feedback?.behaviors_analysis && Array.isArray(feedback.behaviors_analysis) && feedback.behaviors_analysis.length > 0) {
         console.log("Found behaviors_analysis in provided feedback");
-        setBehaviors(feedback.behaviors_analysis);
-        setBehaviorAnalysisExists(true);
-        return true;
+        const validatedBehaviors = validateBehaviorsAnalysis(feedback.behaviors_analysis);
+        setBehaviors(validatedBehaviors);
+        setBehaviorAnalysisExists(validatedBehaviors.length > 0);
+        return validatedBehaviors.length > 0;
       }
       
       // Check database for existing behavior analysis
@@ -92,9 +118,10 @@ export const useFeedbackAnalysis = ({
       
       if (existingFeedback?.behaviors_analysis && Array.isArray(existingFeedback.behaviors_analysis) && existingFeedback.behaviors_analysis.length > 0) {
         console.log("Found behaviors_analysis in database");
-        setBehaviors(existingFeedback.behaviors_analysis);
-        setBehaviorAnalysisExists(true);
-        return true;
+        const validatedBehaviors = validateBehaviorsAnalysis(existingFeedback.behaviors_analysis);
+        setBehaviors(validatedBehaviors);
+        setBehaviorAnalysisExists(validatedBehaviors.length > 0);
+        return validatedBehaviors.length > 0;
       }
       
       console.log("No existing behaviors analysis found");
@@ -152,21 +179,22 @@ export const useFeedbackAnalysis = ({
       
       if (data?.behaviors_analysis && Array.isArray(data.behaviors_analysis) && data.behaviors_analysis.length > 0) {
         console.log("Successfully received behaviors analysis");
-        setBehaviors(data.behaviors_analysis);
+        const validatedBehaviors = validateBehaviorsAnalysis(data.behaviors_analysis);
+        setBehaviors(validatedBehaviors);
         setBehaviorAnalysisExists(true);
         
         // Update local feedback ONLY with behavior analysis
         if (setLocalFeedback && feedback) {
           setLocalFeedback({
             ...feedback,
-            behaviors_analysis: data.behaviors_analysis
+            behaviors_analysis: validatedBehaviors
           });
         }
         
         toast.success("Análisis de comportamientos generado correctamente", { id: "generate-behaviors" });
         setActiveTab("behaviors");
         
-        return data.behaviors_analysis;
+        return validatedBehaviors;
       } else {
         console.error("No behaviors_analysis in response or empty array");
         throw new Error("No se generaron resultados de análisis de comportamientos");
