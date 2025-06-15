@@ -274,9 +274,9 @@ export default function AnalyticsFilters({ onFilterChange }: AnalyticsFiltersPro
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todas</SelectItem>
-                      <SelectItem value="short">Corta (< 2 min)</SelectItem>
+                      <SelectItem value="short">Corta (&lt; 2 min)</SelectItem>
                       <SelectItem value="medium">Media (2-10 min)</SelectItem>
-                      <SelectItem value="long">Larga (> 10 min)</SelectItem>
+                      <SelectItem value="long">Larga (&gt; 10 min)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
