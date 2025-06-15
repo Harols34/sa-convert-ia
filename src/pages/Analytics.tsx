@@ -1,4 +1,3 @@
-
 import React, { useMemo } from "react";
 import Layout from "@/components/layout/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,7 +30,7 @@ export default function Analytics() {
     error,
     refetch 
   } = useOptimizedQuery({
-    queryKey: ['analytics-calls', selectedAccountId, filters],
+    queryKey: ['analytics-calls', selectedAccountId, JSON.stringify(filters)],
     queryFn: async () => {
       console.log("Analytics query - selectedAccountId:", selectedAccountId, "user role:", user?.role, "filters:", filters);
       
