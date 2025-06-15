@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { Session, User } from '@supabase/supabase-js';
 import { useNavigate } from "react-router-dom";
@@ -254,7 +253,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("Error refreshing session:", error);
         // If refresh fails, clean up and redirect to login
         cleanupAuthState();
-        navigate('/login');
+        window.location.href = '/login';
         return;
       }
       
@@ -265,9 +264,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error("Unexpected error refreshing session:", error);
       cleanupAuthState();
-      navigate('/login');
+      window.location.href = '/login';
     }
-  }, [navigate]);
+  }, []);
 
   // Update user data function
   const updateUser = useCallback(async (userData: Partial<AppUser>) => {

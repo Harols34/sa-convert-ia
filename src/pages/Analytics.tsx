@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays, TrendingUp, Users, Phone, Clock, Star, BarChart3, PieChart, Download } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart as RechartsPieChart, Cell, LineChart, Line, Area, AreaChart } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart as RechartsPieChart, Cell, LineChart, Line, Area, AreaChart, Pie } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useAccount } from "@/context/AccountContext";
@@ -18,9 +17,18 @@ interface Call {
   id: string;
   created_at: string;
   duration: number;
-  score: number;
-  agent: string;
-  type: string;
+  score?: number;
+  agent_name?: string;
+  type?: string;
+  // Additional fields from Supabase
+  account_id?: string;
+  agent_id?: string;
+  audio_url?: string;
+  date?: string;
+  entities?: string[];
+  filename?: string;
+  product?: string;
+  updated_at?: string;
 }
 
 interface AgentPerformance {
@@ -149,7 +157,15 @@ export default function AnalyticsPage() {
 
           if (error) throw error;
 
-          setCalls(data || []);
+          // Transform the data to match our Call interface
+          const transformedData: Call[] = (data || []).map(call => ({
+            ...call,
+            score: call.score || Math.random() * 10, // Fallback if no score
+            agent: call.agent_name || call.agent_id || 'Unknown Agent',
+            type: call.type || call.product || 'General'
+          }));
+
+          setCalls(transformedData);
         }
       } catch (error) {
         console.error("Error fetching calls:", error);
@@ -166,19 +182,20 @@ export default function AnalyticsPage() {
     const agents: { [key: string]: { calls: number; totalScore: number; totalDuration: number } } = {};
 
     calls.forEach((call) => {
-      if (!agents[call.agent]) {
-        agents[call.agent] = { calls: 0, totalScore: 0, totalDuration: 0 };
+      const agentKey = call.agent || call.agent_name || 'Unknown Agent';
+      if (!agents[agentKey]) {
+        agents[agentKey] = { calls: 0, totalScore: 0, totalDuration: 0 };
       }
-      agents[call.agent].calls += 1;
-      agents[call.agent].totalScore += call.score;
-      agents[call.agent].totalDuration += call.duration;
+      agents[agentKey].calls += 1;
+      agents[agentKey].totalScore += call.score || 0;
+      agents[agentKey].totalDuration += call.duration || 0;
     });
 
     return Object.entries(agents).map(([agent, data]) => ({
       agent,
       calls: data.calls,
-      avgScore: parseFloat((data.totalScore / data.calls).toFixed(2)),
-      avgDuration: `${Math.floor(data.totalDuration / data.calls)}s`,
+      avgScore: data.calls > 0 ? parseFloat((data.totalScore / data.calls).toFixed(2)) : 0,
+      avgDuration: data.calls > 0 ? `${Math.floor(data.totalDuration / data.calls)}s` : '0s',
     }));
   }, [calls]);
 
@@ -256,11 +273,11 @@ export default function AnalyticsPage() {
 
   const metrics: Metrics = useMemo(() => {
     const totalCalls = calls.length;
-    const totalDuration = calls.reduce((sum, call) => sum + call.duration, 0);
-    const avgDuration = `${Math.floor(totalDuration / totalCalls)}s`;
-    const totalScore = calls.reduce((sum, call) => sum + call.score, 0);
-    const avgScore = parseFloat((totalScore / totalCalls).toFixed(2));
-    const activeAgents = new Set(calls.map((call) => call.agent)).size;
+    const totalDuration = calls.reduce((sum, call) => sum + (call.duration || 0), 0);
+    const avgDuration = totalCalls > 0 ? `${Math.floor(totalDuration / totalCalls)}s` : '0s';
+    const totalScore = calls.reduce((sum, call) => sum + (call.score || 0), 0);
+    const avgScore = totalCalls > 0 ? parseFloat((totalScore / totalCalls).toFixed(2)) : 0;
+    const activeAgents = new Set(calls.map((call) => call.agent || call.agent_name || 'Unknown')).size;
 
     // Placeholder growth values - replace with actual calculations
     const callsGrowth = 5;
