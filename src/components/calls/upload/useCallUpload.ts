@@ -15,6 +15,26 @@ export interface FileItem {
   info?: string;
 }
 
+// Function to get audio duration
+const getAudioDuration = (file: File): Promise<number> => {
+  return new Promise((resolve, reject) => {
+    const audio = new Audio();
+    const url = URL.createObjectURL(file);
+    
+    audio.addEventListener('loadedmetadata', () => {
+      URL.revokeObjectURL(url);
+      resolve(Math.round(audio.duration) || 0);
+    });
+    
+    audio.addEventListener('error', () => {
+      URL.revokeObjectURL(url);
+      resolve(0); // Return 0 if duration can't be determined
+    });
+    
+    audio.src = url;
+  });
+};
+
 // Function to sanitize file names for storage
 const sanitizeFileName = (fileName: string): string => {
   const lastDotIndex = fileName.lastIndexOf('.');
@@ -164,6 +184,10 @@ export function useCallUpload() {
               
               console.log('Uploading file:', sanitizedName);
               
+              // Get audio duration
+              const duration = await getAudioDuration(fileItem.file);
+              console.log(`Audio duration for ${sanitizedName}: ${duration} seconds`);
+              
               // Upload with retry logic
               let uploadAttempts = 0;
               let uploadData, uploadError;
@@ -202,7 +226,7 @@ export function useCallUpload() {
 
               console.log('Creating call record...');
 
-              // Create call record
+              // Create call record with duration
               const { data: callData, error: callError } = await supabase
                 .from('calls')
                 .insert({
@@ -212,8 +236,9 @@ export function useCallUpload() {
                   agent_id: user.id,
                   account_id: selectedAccountId,
                   audio_url: publicUrl,
-                  status: 'pending', // Will be updated by background processing
-                  progress: 0
+                  status: 'pending',
+                  progress: 0,
+                  duration: duration // Save the calculated duration
                 })
                 .select()
                 .single();
@@ -237,7 +262,7 @@ export function useCallUpload() {
               });
 
               uploadedCount++;
-              console.log(`File ${uploadedCount}/${totalFiles} uploaded successfully`);
+              console.log(`File ${uploadedCount}/${totalFiles} uploaded successfully with duration ${duration}s`);
 
             } catch (error) {
               console.error(`Error uploading file ${fileItem.file.name}:`, error);
