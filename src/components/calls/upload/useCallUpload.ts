@@ -16,6 +16,9 @@ export interface UploadFile {
   duration?: number;
 }
 
+// Export FileItem for compatibility with existing components
+export type FileItem = UploadFile;
+
 export function useCallUpload() {
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -34,7 +37,7 @@ export function useCallUpload() {
       audio.addEventListener('loadedmetadata', () => {
         const duration = audio.duration;
         URL.revokeObjectURL(objectUrl);
-        resolve(isNaN(duration) ? 0 : duration);
+        resolve(isNaN(duration) ? 0 : Math.round(duration));
       });
       
       audio.addEventListener('error', () => {

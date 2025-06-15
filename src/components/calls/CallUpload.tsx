@@ -31,7 +31,7 @@ export default function CallUpload() {
     selectedBehaviorIds?: string[];
   }) => {
     setShowPromptModal(false);
-    uploadFiles(config);
+    uploadFiles();
   };
 
   return (

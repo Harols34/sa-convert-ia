@@ -26,7 +26,7 @@ import {
 import { formatDate, formatDuration } from "@/lib/utils";
 import { useCallList } from "@/hooks/useCallList";
 import { useUser } from "@/hooks/useUser";
-import CallListFilters from "./CallListFilters";
+import CallListFilters, { CallFilters } from "./CallListFilters";
 import CallListExport from "./CallListExport";
 
 export default function CallList() {
@@ -52,27 +52,29 @@ export default function CallList() {
   const [showExport, setShowExport] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [callToDelete, setCallToDelete] = useState<string | null>(null);
-  const [filters, setFilters] = useState({
-    status: "",
-    agent: "",
+  const [filters, setFilters] = useState<CallFilters>({
+    search: "",
+    status: "all",
     result: "",
-    dateRange: { from: undefined as Date | undefined, to: undefined as Date | undefined }
+    tipificacionId: "",
+    agentId: "",
+    dateRange: undefined
   });
 
   // Filter calls based on search term and filters
   const filteredCalls = useMemo(() => {
     let filtered = calls.filter(call => {
-      const matchesSearch = searchTerm === "" || 
-        call.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        call.agentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        call.filename.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = filters.search === "" || 
+        call.title.toLowerCase().includes(filters.search.toLowerCase()) ||
+        call.agentName.toLowerCase().includes(filters.search.toLowerCase()) ||
+        call.filename.toLowerCase().includes(filters.search.toLowerCase());
 
-      const matchesStatus = filters.status === "" || call.status === filters.status;
-      const matchesAgent = filters.agent === "" || call.agentName === filters.agent;
+      const matchesStatus = filters.status === "all" || filters.status === "" || call.status === filters.status;
+      const matchesAgent = filters.agentId === "all_agents" || filters.agentId === "" || call.agent_id === filters.agentId;
       const matchesResult = filters.result === "" || call.result === filters.result;
       
       let matchesDateRange = true;
-      if (filters.dateRange.from || filters.dateRange.to) {
+      if (filters.dateRange?.from || filters.dateRange?.to) {
         const callDate = new Date(call.date);
         if (filters.dateRange.from) {
           matchesDateRange = matchesDateRange && callDate >= filters.dateRange.from;
@@ -88,7 +90,7 @@ export default function CallList() {
     });
 
     return filtered;
-  }, [calls, searchTerm, filters]);
+  }, [calls, filters]);
 
   const isAdmin = user && (user.role === "admin" || user.role === "superAdmin" || user.role === "supervisor");
 
@@ -157,15 +159,10 @@ export default function CallList() {
             {isRefreshing ? 'Actualizando...' : 'Actualizar'}
           </Button>
           
-          <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
-            <Filter className="mr-2 h-4 w-4" />
-            Filtros
-          </Button>
-          
-          <Button variant="outline" onClick={() => setShowExport(true)}>
-            <Download className="mr-2 h-4 w-4" />
-            Exportar
-          </Button>
+          <CallListExport 
+            filteredCalls={filteredCalls}
+            selectedCalls={selectedCalls.length > 0 ? filteredCalls.filter(call => selectedCalls.includes(call.id)) : undefined}
+          />
           
           <Button onClick={() => navigate('/calls/upload')}>
             <Plus className="mr-2 h-4 w-4" />
@@ -175,48 +172,30 @@ export default function CallList() {
       </div>
 
       {/* Filters */}
-      {showFilters && (
-        <CallListFilters 
-          filters={filters}
-          onFiltersChange={setFilters}
-          calls={calls}
-        />
-      )}
+      <CallListFilters onFilterChange={setFilters} />
 
-      {/* Search and Multi-select controls */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-          <Input
-            placeholder="Buscar por título, agente o archivo..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        
-        {isAdmin && (
-          <div className="flex gap-2">
+      {/* Multi-select controls */}
+      {isAdmin && (
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setMultiSelectMode(!multiSelectMode)}
+          >
+            {multiSelectMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+            <span className="ml-2">Selección múltiple</span>
+          </Button>
+          
+          {multiSelectMode && selectedCalls.length > 0 && (
             <Button
-              variant="outline"
-              onClick={() => setMultiSelectMode(!multiSelectMode)}
+              variant="destructive"
+              onClick={deleteMultipleCalls}
             >
-              {multiSelectMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-              <span className="ml-2">Selección múltiple</span>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Eliminar ({selectedCalls.length})
             </Button>
-            
-            {multiSelectMode && selectedCalls.length > 0 && (
-              <Button
-                variant="destructive"
-                onClick={deleteMultipleCalls}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Eliminar ({selectedCalls.length})
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Multi-select all checkbox */}
       {multiSelectMode && filteredCalls.length > 0 && (
@@ -313,7 +292,7 @@ export default function CallList() {
                           <span className="font-medium">Fecha:</span> {formatDate(call.date)}
                         </div>
                         <div>
-                          <span className="font-medium">Duración:</span> {formatDuration(call.duration)}
+                          <span className="font-medium">Duración:</span> {formatDuration(call.duration || 0)}
                         </div>
                         <div>
                           <span className="font-medium">Archivo:</span> {call.filename}
@@ -376,13 +355,6 @@ export default function CallList() {
           ))
         )}
       </div>
-
-      {/* Export Dialog */}
-      <CallListExport 
-        open={showExport}
-        onOpenChange={setShowExport}
-        calls={filteredCalls}
-      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
