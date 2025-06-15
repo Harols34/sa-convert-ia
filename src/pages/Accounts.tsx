@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import Layout from "@/components/layout/Layout";
 import AccountList from "@/components/accounts/AccountList";
 import AccountForm from "@/components/accounts/AccountForm";
 import UserAccountAssignment from "@/components/accounts/UserAccountAssignment";
@@ -71,115 +70,113 @@ export default function AccountsPage() {
   }
 
   return (
-    <Layout>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <div className="space-y-6">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-3xl font-bold tracking-tight">Gestión de Cuentas</h2>
-                  <p className="text-muted-foreground">
-                    Administrar cuentas y asignaciones de usuarios
-                  </p>
-                </div>
-                <div className="flex gap-2 mt-4 md:mt-0">
-                  <Button onClick={() => navigate("/accounts/assign")} variant="outline">
-                    <Users className="mr-2 h-4 w-4" /> Asignar Usuarios
-                  </Button>
-                  <Button onClick={() => navigate("/accounts/new")}>
-                    <Building2 className="mr-2 h-4 w-4" /> Nueva Cuenta
-                  </Button>
-                </div>
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-3xl font-bold tracking-tight">Gestión de Cuentas</h2>
+                <p className="text-muted-foreground">
+                  Administrar cuentas y asignaciones de usuarios
+                </p>
               </div>
-
-              <Tabs defaultValue="list" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="list" className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4" />
-                    Cuentas
-                  </TabsTrigger>
-                  <TabsTrigger value="bulk-accounts" className="flex items-center gap-2">
-                    <Upload className="h-4 w-4" />
-                    Carga Masiva
-                  </TabsTrigger>
-                  <TabsTrigger value="assignments" className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Asignaciones
-                  </TabsTrigger>
-                  <TabsTrigger value="bulk-assign" className="flex items-center gap-2">
-                    <UserCheck className="h-4 w-4" />
-                    Asign. Múltiple
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="list" className="space-y-6">
-                  <AccountList />
-                </TabsContent>
-
-                <TabsContent value="bulk-accounts" className="space-y-6">
-                  <BulkAccountUpload />
-                </TabsContent>
-
-                <TabsContent value="assignments" className="space-y-6">
-                  <UserAccountAssignment />
-                </TabsContent>
-
-                <TabsContent value="bulk-assign" className="space-y-6">
-                  <BulkUserAssignment />
-                </TabsContent>
-              </Tabs>
-            </div>
-          }
-        />
-        <Route
-          path="/new"
-          element={
-            <div className="space-y-6">
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate("/accounts")}
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" /> Volver
+              <div className="flex gap-2 mt-4 md:mt-0">
+                <Button onClick={() => navigate("/accounts/assign")} variant="outline">
+                  <Users className="mr-2 h-4 w-4" /> Asignar Usuarios
                 </Button>
-                <div>
-                  <h2 className="text-3xl font-bold tracking-tight">Crear Nueva Cuenta</h2>
-                  <p className="text-muted-foreground">
-                    Agregar una nueva cuenta al sistema
-                  </p>
-                </div>
-              </div>
-              <AccountForm />
-            </div>
-          }
-        />
-        <Route
-          path="/assign"
-          element={
-            <div className="space-y-6">
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate("/accounts")}
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" /> Volver
+                <Button onClick={() => navigate("/accounts/new")}>
+                  <Building2 className="mr-2 h-4 w-4" /> Nueva Cuenta
                 </Button>
-                <div>
-                  <h2 className="text-3xl font-bold tracking-tight">Asignar Usuarios a Cuentas</h2>
-                  <p className="text-muted-foreground">
-                    Gestionar las asignaciones de usuarios a cuentas
-                  </p>
-                </div>
               </div>
-              <UserAccountAssignment />
             </div>
-          }
-        />
-      </Routes>
-    </Layout>
+
+            <Tabs defaultValue="list" className="space-y-6">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="list" className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  Cuentas
+                </TabsTrigger>
+                <TabsTrigger value="bulk-accounts" className="flex items-center gap-2">
+                  <Upload className="h-4 w-4" />
+                  Carga Masiva
+                </TabsTrigger>
+                <TabsTrigger value="assignments" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Asignaciones
+                </TabsTrigger>
+                <TabsTrigger value="bulk-assign" className="flex items-center gap-2">
+                  <UserCheck className="h-4 w-4" />
+                  Asign. Múltiple
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="list" className="space-y-6">
+                <AccountList />
+              </TabsContent>
+
+              <TabsContent value="bulk-accounts" className="space-y-6">
+                <BulkAccountUpload />
+              </TabsContent>
+
+              <TabsContent value="assignments" className="space-y-6">
+                <UserAccountAssignment />
+              </TabsContent>
+
+              <TabsContent value="bulk-assign" className="space-y-6">
+                <BulkUserAssignment />
+              </TabsContent>
+            </Tabs>
+          </div>
+        }
+      />
+      <Route
+        path="/new"
+        element={
+          <div className="space-y-6">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/accounts")}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" /> Volver
+              </Button>
+              <div>
+                <h2 className="text-3xl font-bold tracking-tight">Crear Nueva Cuenta</h2>
+                <p className="text-muted-foreground">
+                  Agregar una nueva cuenta al sistema
+                </p>
+              </div>
+            </div>
+            <AccountForm />
+          </div>
+        }
+      />
+      <Route
+        path="/assign"
+        element={
+          <div className="space-y-6">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/accounts")}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" /> Volver
+              </Button>
+              <div>
+                <h2 className="text-3xl font-bold tracking-tight">Asignar Usuarios a Cuentas</h2>
+                <p className="text-muted-foreground">
+                  Gestionar las asignaciones de usuarios a cuentas
+                </p>
+              </div>
+            </div>
+            <UserAccountAssignment />
+          </div>
+        }
+      />
+    </Routes>
   );
 }

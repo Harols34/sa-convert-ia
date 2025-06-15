@@ -308,12 +308,12 @@ export default function TipificacionesPage() {
                 </label>
               </div>
             </div>
-            <div className="flex justify-end mt-4 space-x-2">
-              <Button variant="outline" onClick={handleResetFilter}>
-                Restablecer
+            <div className="flex gap-2 mt-4">
+              <Button variant="outline" onClick={handleApplyFilter}>
+                Aplicar Filtros
               </Button>
-              <Button onClick={handleApplyFilter}>
-                Aplicar filtros
+              <Button variant="ghost" onClick={handleResetFilter}>
+                Restablecer
               </Button>
             </div>
           </CardContent>
