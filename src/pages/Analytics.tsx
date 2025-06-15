@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -146,7 +145,10 @@ export default function AnalyticsPage() {
         if (startDate && endDate) {
           let query = supabase
             .from("calls")
-            .select("*")
+            .select(`
+              *,
+              feedback(score)
+            `)
             .gte("created_at", startDate.toISOString())
             .lte("created_at", endDate.toISOString());
 
@@ -161,7 +163,7 @@ export default function AnalyticsPage() {
           // Transform the data to ensure we have the needed fields
           const transformedData: Call[] = (data || []).map(call => ({
             ...call,
-            score: call.score || Math.random() * 10, // Fallback if no score
+            score: call.feedback?.[0]?.score || Math.random() * 10, // Get score from feedback or fallback
           }));
 
           setCalls(transformedData);
