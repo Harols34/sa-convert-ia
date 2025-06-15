@@ -1,6 +1,5 @@
 
 import OpenAI from "https://esm.sh/openai@4.28.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.5.0";
 
 /**
  * Analiza el comportamiento del agente en una llamada.
@@ -23,6 +22,10 @@ export async function analyzeBehaviors(call: any, behaviors: any[]) {
         : call.transcription;
     } else if (Array.isArray(call.transcription)) {
       transcriptionText = call.transcription.map(segment => segment.text || "").join(' ');
+    } else {
+      transcriptionText = typeof call.transcription === 'string' 
+        ? call.transcription 
+        : "No se pudo procesar la transcripción";
     }
   } catch (e) {
     transcriptionText = typeof call.transcription === 'string' 
@@ -39,6 +42,7 @@ export async function analyzeBehaviors(call: any, behaviors: any[]) {
   const openAIApiKey = Deno.env.get('API_DE_OPENAI') || Deno.env.get('OPENAI_API_KEY');
   
   if (!openAIApiKey) {
+    console.error("OpenAI API key not found in environment variables");
     throw new Error("API key de OpenAI no encontrada en las variables de entorno");
   }
   
@@ -49,10 +53,14 @@ export async function analyzeBehaviors(call: any, behaviors: any[]) {
   
   console.log("OpenAI client initialized successfully");
   
-  // Analizar cada comportamiento en paralelo
-  const behaviorsPromises = behaviors.map(async (behavior, index) => {
+  // Analizar cada comportamiento secuencialmente para evitar rate limits
+  const behaviorsAnalysis = [];
+  
+  for (let i = 0; i < behaviors.length; i++) {
+    const behavior = behaviors[i];
+    
     try {
-      console.log(`Analyzing behavior ${index + 1}/${behaviors.length}: "${behavior.name}"`);
+      console.log(`Analyzing behavior ${i + 1}/${behaviors.length}: "${behavior.name}"`);
       
       // Adaptar el mensaje del sistema para cada comportamiento
       const systemMessage = `Eres un experto en análisis de calidad de llamadas de servicio al cliente y ventas.
@@ -99,7 +107,7 @@ Responde ÚNICAMENTE en formato JSON válido:
         max_tokens: 500
       });
 
-      console.log(`Behavior ${index + 1} analysis completed`);
+      console.log(`Behavior ${i + 1} analysis completed`);
 
       // Parse the response
       const content = response.choices[0].message.content;
@@ -134,19 +142,22 @@ Responde ÚNICAMENTE en formato JSON válido:
 
       console.log(`Behavior "${behavior.name}" result: ${result.evaluation}`);
       
-      return behaviorResult;
+      behaviorsAnalysis.push(behaviorResult);
+      
+      // Add a small delay between requests to avoid rate limits
+      if (i < behaviors.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
     } catch (error) {
       console.error(`Error analyzing behavior "${behavior.name}":`, error);
-      return {
+      behaviorsAnalysis.push({
         name: behavior.name,
         evaluation: "no cumple" as const,
         comments: `Error al analizar este comportamiento: ${error.message || "Error desconocido"}`
-      };
+      });
     }
-  });
-
-  // Wait for all analyses to complete
-  const behaviorsAnalysis = await Promise.all(behaviorsPromises);
+  }
   
   console.log(`Behavior analysis completed for ${behaviorsAnalysis.length} behaviors`);
   console.log("Results summary:", behaviorsAnalysis.map(b => `${b.name}: ${b.evaluation}`));

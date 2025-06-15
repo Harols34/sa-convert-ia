@@ -27,7 +27,7 @@ export async function triggerBehaviorAnalysis(callId: string): Promise<BehaviorA
     if (existingFeedback && existingFeedback.behaviors_analysis && 
         Array.isArray(existingFeedback.behaviors_analysis) && 
         existingFeedback.behaviors_analysis.length > 0) {
-      console.log("Using existing behaviors_analysis from database:", existingFeedback.behaviors_analysis);
+      console.log("Using existing behaviors_analysis from database");
       toast.info("El análisis de comportamientos ya existe para esta llamada");
       return validateBehaviorsAnalysis(existingFeedback.behaviors_analysis);
     }
@@ -49,7 +49,7 @@ export async function triggerBehaviorAnalysis(callId: string): Promise<BehaviorA
       throw new Error("No hay comportamientos activos para analizar");
     }
     
-    console.log(`Found ${activeBehaviors.length} active behaviors:`, activeBehaviors.map(b => b.name));
+    console.log(`Found ${activeBehaviors.length} active behaviors`);
     
     // Call the analyze-call Supabase edge function
     toast.loading("Analizando comportamientos...", { id: "analyze-call" });
@@ -71,7 +71,7 @@ export async function triggerBehaviorAnalysis(callId: string): Promise<BehaviorA
     
     // Check if we got behaviors_analysis in the response
     if (functionData?.behaviors_analysis && Array.isArray(functionData.behaviors_analysis) && functionData.behaviors_analysis.length > 0) {
-      console.log("Received behaviors_analysis:", functionData.behaviors_analysis);
+      console.log("Received behaviors_analysis successfully");
       toast.success("Análisis de comportamientos generado", { id: "analyze-call" });
       
       return validateBehaviorsAnalysis(functionData.behaviors_analysis);
@@ -92,49 +92,6 @@ export async function triggerBehaviorAnalysis(callId: string): Promise<BehaviorA
       description: error instanceof Error ? error.message : "Error desconocido"
     });
     throw error;
-  }
-}
-
-// This function only checks for existing feedback, doesn't auto-generate
-export async function loadActiveBehaviorsAnalysis(
-  callId: string, 
-  existingBehaviorsAnalysis?: BehaviorAnalysis[]
-): Promise<BehaviorAnalysis[]> {
-  if (!callId) return [];
-  
-  // If there's existing feedback with behaviors_analysis, use that
-  if (existingBehaviorsAnalysis && existingBehaviorsAnalysis.length > 0) {
-    console.log("Using provided existing behaviors_analysis:", existingBehaviorsAnalysis);
-    return existingBehaviorsAnalysis;
-  }
-  
-  try {
-    // Check if there's already feedback with behaviors analysis in the database
-    const { data: feedbackRecord, error: feedbackError } = await supabase
-      .from('feedback')
-      .select('behaviors_analysis')
-      .eq('call_id', callId)
-      .maybeSingle();
-      
-    if (feedbackError && feedbackError.code !== 'PGRST116') {
-      console.error("Error checking feedback record:", feedbackError);
-    }
-    
-    // If there's existing feedback with behaviors_analysis, use that
-    if (feedbackRecord && feedbackRecord.behaviors_analysis && 
-        Array.isArray(feedbackRecord.behaviors_analysis) && 
-        feedbackRecord.behaviors_analysis.length > 0) {
-      console.log("Found behaviors_analysis in database feedback record:", feedbackRecord.behaviors_analysis);
-      return validateBehaviorsAnalysis(feedbackRecord.behaviors_analysis);
-    }
-    
-    // If no feedback exists, just return empty array (don't generate)
-    console.log("No existing feedback found, returning empty array (manual generation required)");
-    return [];
-    
-  } catch (error) {
-    console.error("Error in loadActiveBehaviorsAnalysis:", error);
-    return [];
   }
 }
 

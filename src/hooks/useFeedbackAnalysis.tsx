@@ -3,9 +3,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Call, BehaviorAnalysis, Feedback } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { 
-  validateBehaviorsAnalysis 
-} from "@/components/calls/detail/feedback/feedbackUtils";
 
 interface UseFeedbackAnalysisProps {
   call: Call;
@@ -42,10 +39,14 @@ export const useFeedbackAnalysis = ({
 
         const { data, error } = await query.limit(1);
         
-        if (error) throw error;
+        if (error) {
+          console.error("Error checking active behaviors:", error);
+          throw error;
+        }
+        
         const hasBehaviors = data && data.length > 0;
         setHasActiveBehaviors(hasBehaviors);
-        console.log("Active behaviors check:", hasBehaviors ? "Found" : "None found");
+        console.log("Active behaviors check result:", hasBehaviors);
         
         if (!hasBehaviors) {
           setAnalysisError("No hay comportamientos activos para analizar. Agregue al menos un comportamiento activo.");
@@ -68,15 +69,13 @@ export const useFeedbackAnalysis = ({
     setAnalysisError(null);
     
     try {
-      console.log("Checking for existing feedback analysis for call:", call.id);
+      console.log("Loading existing behaviors analysis for call:", call.id);
       
       // Check if feedback already exists in the provided feedback prop
-      if (feedback && feedback.behaviors_analysis && feedback.behaviors_analysis.length > 0) {
-        console.log("Using existing behaviors_analysis from provided feedback:", feedback.behaviors_analysis);
-        const validatedAnalysis = validateBehaviorsAnalysis(feedback.behaviors_analysis);
-        setBehaviors(validatedAnalysis);
+      if (feedback && feedback.behaviors_analysis && Array.isArray(feedback.behaviors_analysis) && feedback.behaviors_analysis.length > 0) {
+        console.log("Using existing behaviors_analysis from provided feedback");
+        setBehaviors(feedback.behaviors_analysis);
         setFeedbackAlreadyExists(true);
-        setIsLoadingBehaviors(false);
         return true;
       }
       
@@ -89,13 +88,12 @@ export const useFeedbackAnalysis = ({
         
       if (feedbackError && feedbackError.code !== 'PGRST116') {
         console.error("Error checking existing feedback:", feedbackError);
+        throw feedbackError;
       }
       
-      if (existingFeedback && existingFeedback.behaviors_analysis) {
-        console.log("Found behaviors_analysis in database:", existingFeedback.behaviors_analysis);
-        
-        const validatedAnalysis = validateBehaviorsAnalysis(existingFeedback.behaviors_analysis);
-        setBehaviors(validatedAnalysis);
+      if (existingFeedback && existingFeedback.behaviors_analysis && Array.isArray(existingFeedback.behaviors_analysis) && existingFeedback.behaviors_analysis.length > 0) {
+        console.log("Found behaviors_analysis in database");
+        setBehaviors(existingFeedback.behaviors_analysis);
         setFeedbackAlreadyExists(true);
         
         if (setLocalFeedback) {
@@ -106,7 +104,7 @@ export const useFeedbackAnalysis = ({
             positive: existingFeedback.positive || [],
             negative: existingFeedback.negative || [],
             opportunities: existingFeedback.opportunities || [],
-            behaviors_analysis: validatedAnalysis,
+            behaviors_analysis: existingFeedback.behaviors_analysis,
             created_at: existingFeedback.created_at,
             updated_at: existingFeedback.updated_at,
             sentiment: existingFeedback.sentiment,
@@ -116,11 +114,10 @@ export const useFeedbackAnalysis = ({
           setLocalFeedback(typedFeedback);
         }
         
-        setIsLoadingBehaviors(false);
         return true;
       }
       
-      setIsLoadingBehaviors(false);
+      console.log("No existing behaviors analysis found");
       return false;
     } catch (error) {
       console.error("Error loading behaviors analysis:", error);
@@ -138,16 +135,21 @@ export const useFeedbackAnalysis = ({
   
   // Function to generate feedback for the call
   const triggerAnalysisFunction = useCallback(async () => {
-    if (!call.id) return [];
+    if (!call.id) {
+      console.error("No call ID provided");
+      return [];
+    }
     
     if (!hasActiveBehaviors) {
-      toast.error("No hay comportamientos activos para analizar");
+      const errorMsg = "No hay comportamientos activos para analizar";
+      console.error(errorMsg);
+      toast.error(errorMsg);
       setAnalysisError("No hay comportamientos activos definidos en el sistema. Agregue al menos un comportamiento activo para poder realizar el análisis.");
       return [];
     }
     
     // Check if analysis already exists
-    if (feedbackAlreadyExists || (behaviors && behaviors.length > 0)) {
+    if (feedbackAlreadyExists && behaviors && behaviors.length > 0) {
       console.log("Analysis already exists, using existing data");
       toast.info("El análisis de comportamientos ya existe para esta llamada");
       return behaviors;
@@ -157,9 +159,9 @@ export const useFeedbackAnalysis = ({
     setAnalysisError(null);
     
     try {
+      console.log("Starting behavior analysis generation for call:", call.id);
       toast.loading("Analizando comportamientos...", { id: "generate-feedback" });
       
-      console.log("Triggering behavior analysis for call:", call.id);
       const { data, error } = await supabase.functions.invoke("analyze-call", {
         body: { callId: call.id }
       });
@@ -169,45 +171,48 @@ export const useFeedbackAnalysis = ({
         throw new Error(error.message || "Error al analizar la llamada");
       }
       
-      console.log("Analysis result:", data);
+      console.log("Analysis function result:", data);
       
-      if (data?.behaviors_analysis && Array.isArray(data.behaviors_analysis)) {
-        const newBehaviors = validateBehaviorsAnalysis(data.behaviors_analysis);
-        setBehaviors(newBehaviors);
+      if (data?.behaviors_analysis && Array.isArray(data.behaviors_analysis) && data.behaviors_analysis.length > 0) {
+        console.log("Successfully received behaviors analysis");
+        setBehaviors(data.behaviors_analysis);
         setFeedbackAlreadyExists(true);
         
-        if (setLocalFeedback && data.feedback) {
+        // Update local feedback if setter is provided
+        if (setLocalFeedback) {
           const typedFeedback: Feedback = {
-            behaviors_analysis: newBehaviors,
-            score: data.feedback.score || 0,
-            positive: data.feedback.positive || [],
-            negative: data.feedback.negative || [],
-            opportunities: data.feedback.opportunities || [],
+            behaviors_analysis: data.behaviors_analysis,
+            score: data.score || 0,
+            positive: data.positive || [],
+            negative: data.negative || [],
+            opportunities: data.opportunities || [],
             call_id: call.id,
-            id: data.feedback.id,
-            created_at: data.feedback.created_at,
-            updated_at: data.feedback.updated_at,
-            sentiment: data.feedback.sentiment,
-            topics: data.feedback.topics || [],
-            entities: data.feedback.entities || []
+            id: data.feedback?.id || '',
+            created_at: data.feedback?.created_at || new Date().toISOString(),
+            updated_at: data.feedback?.updated_at || new Date().toISOString(),
+            sentiment: data.feedback?.sentiment || null,
+            topics: data.feedback?.topics || [],
+            entities: data.feedback?.entities || []
           };
           
           setLocalFeedback(typedFeedback);
         }
         
-        toast.success("Análisis de comportamientos generado", { id: "generate-feedback" });
+        toast.success("Análisis de comportamientos generado correctamente", { id: "generate-feedback" });
         setActiveTab("behaviors");
         
-        return newBehaviors;
+        return data.behaviors_analysis;
       } else {
+        console.error("No behaviors_analysis in response or empty array");
         throw new Error("No se generaron resultados de análisis de comportamientos");
       }
     } catch (error) {
       console.error("Error generating behavior analysis:", error);
-      setAnalysisError(error instanceof Error ? error.message : "Error desconocido");
+      const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+      setAnalysisError(errorMessage);
       toast.error("Error generando análisis de comportamientos", { 
         id: "generate-feedback", 
-        description: error instanceof Error ? error.message : "Error desconocido" 
+        description: errorMessage
       });
       return [];
     } finally {

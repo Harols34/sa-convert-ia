@@ -68,28 +68,29 @@ export default function FeedbackLoading({
             <p className="text-center text-gray-500 mb-4">
               {feedbackExists 
                 ? "El feedback ya está generado" 
-                : "Genere el análisis de comportamientos para esta llamada manualmente"}
+                : "Genere el análisis de comportamientos para esta llamada"}
             </p>
             <Button 
               onClick={onGenerateClick} 
-              className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 transition-colors" 
+              className="px-6 py-3 bg-primary text-white rounded hover:bg-primary/90 transition-colors" 
               disabled={isLoading || !!error || feedbackExists}
+              size="lg"
             >
               <RefreshCw className="mr-2 h-4 w-4" />
-              Generar feedback
+              Generar análisis de comportamientos
             </Button>
             
             {error ? (
               <p className="text-center text-red-500 text-xs mt-2">
-                No se puede generar feedback debido a errores. Resuelva los problemas indicados arriba.
+                No se puede generar el análisis debido a errores. Resuelva los problemas indicados arriba.
               </p>
             ) : feedbackExists ? (
               <p className="text-center text-green-500 text-xs mt-2">
-                Este feedback ya existe y no se puede regenerar.
+                Este análisis ya existe y no se puede regenerar.
               </p>
             ) : (
               <p className="text-center text-gray-500 text-xs mt-2">
-                Haga clic en el botón para generar el feedback. Una vez generado, será permanente.
+                Haga clic en el botón para generar el análisis. Una vez generado, será permanente.
               </p>
             )}
           </div>

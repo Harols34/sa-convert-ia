@@ -62,7 +62,10 @@ serve(async (req) => {
         feedback: existingFeedback,
         behaviors_analysis: existingFeedback.behaviors_analysis,
         score: existingFeedback.score,
-        scoreText: mapScoreToText(existingFeedback.score)
+        scoreText: mapScoreToText(existingFeedback.score),
+        positive: existingFeedback.positive || [],
+        negative: existingFeedback.negative || [],
+        opportunities: existingFeedback.opportunities || []
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -125,7 +128,7 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Found ${behaviors.length} active behaviors for analysis:`, behaviors.map(b => b.name));
+    console.log(`Found ${behaviors.length} active behaviors for analysis`);
 
     // Analyze behaviors
     console.log("Starting behavior analysis...");
