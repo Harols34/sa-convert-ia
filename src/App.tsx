@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import {
   BrowserRouter as Router,
   Routes,
@@ -51,7 +51,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  return children;
+  return <>{children}</>;
 }
 
 function App() {
