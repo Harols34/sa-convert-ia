@@ -1,669 +1,609 @@
-
-import React from "react";
-import Layout from "@/components/layout/Layout";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useOptimizedQuery } from "@/hooks/useOptimizedQuery";
-import { supabase } from "@/integrations/supabase/client";
-import { useAccount } from "@/context/AccountContext";
-import { useAuth } from "@/context/AuthContext";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, TrendingUp, Users, Clock, Target, Phone, Award, BarChart3, Calendar, Activity, Zap } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { CalendarDays, TrendingUp, Users, Phone, Clock, Star, BarChart3, PieChart, Download } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart as RechartsPieChart, Cell, LineChart, Line, Area, AreaChart } from "recharts";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
+import { useAccount } from "@/context/AccountContext";
+import { toast } from "sonner";
+import { format, subDays, startOfDay, endOfDay } from "date-fns";
+import { es } from "date-fns/locale";
 
-export default function Analytics() {
-  const { selectedAccountId } = useAccount();
-  const { user } = useAuth();
+interface Call {
+  id: string;
+  created_at: string;
+  duration: number;
+  score: number;
+  agent: string;
+  type: string;
+}
 
-  const { 
-    data: calls, 
-    isLoading, 
-    error,
-    refetch 
-  } = useOptimizedQuery({
-    queryKey: ['analytics-calls', selectedAccountId],
-    queryFn: async () => {
-      console.log("Analytics query - selectedAccountId:", selectedAccountId, "user role:", user?.role);
-      
-      let query = supabase
-        .from('calls')
-        .select(`
-          id,
-          date,
-          result,
-          sentiment,
-          status,
-          agent_name,
-          duration,
-          account_id,
-          created_at,
-          feedback (
-            score,
-            sentiment,
-            positive,
-            negative,
-            opportunities
-          )
-        `)
-        .order('date', { ascending: false });
+interface AgentPerformance {
+  agent: string;
+  calls: number;
+  avgScore: number;
+  avgDuration: string;
+}
 
-      if (selectedAccountId && selectedAccountId !== 'all') {
-        console.log("Filtering by specific account:", selectedAccountId);
-        query = query.eq('account_id', selectedAccountId);
-      } else if (selectedAccountId === 'all' && user?.role === 'superAdmin') {
-        console.log("SuperAdmin viewing all calls - no account filter applied");
-      } else if (!selectedAccountId) {
-        console.log("No account selected, returning empty array");
-        return [];
-      }
+interface CallsPerDay {
+  date: string;
+  calls: number;
+}
 
-      const { data, error } = await query;
+interface CallsByType {
+  name: string;
+  value: number;
+}
 
-      if (error) {
-        console.error("Analytics query error:", error);
-        throw error;
-      }
-      
-      console.log("Analytics data loaded:", data?.length || 0, "calls");
-      return data || [];
-    },
-    enabled: !!user?.id,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchInterval: false,
-    staleTime: Infinity,
-  });
+interface ScoresTrend {
+  date: string;
+  avgScore: number;
+}
 
-  const handleManualRefresh = () => {
-    refetch();
-  };
+interface CallsVsQuality {
+  date: string;
+  calls: number;
+  quality: number;
+}
 
-  if (!selectedAccountId) {
-    return (
-      <Layout>
-        <div className="container mx-auto py-6">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold mb-4">Análisis</h1>
-            <p className="text-muted-foreground">
-              Selecciona una cuenta para ver el análisis.
-            </p>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
+interface ScoreDistribution {
+  score: number;
+  count: number;
+}
 
-  if (isLoading) {
-    return (
-      <Layout>
-        <div className="container mx-auto py-6 space-y-6">
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold tracking-tight">Análisis</h1>
-          </div>
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-2 text-muted-foreground">Cargando datos...</p>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
+interface Metrics {
+  totalCalls: number;
+  avgDuration: string;
+  avgScore: number;
+  activeAgents: number;
+  callsGrowth: number;
+  durationGrowth: number;
+  scoreGrowth: number;
+  agentsGrowth: number;
+}
 
-  if (error) {
-    return (
-      <Layout>
-        <div className="container mx-auto py-6 space-y-6">
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold tracking-tight">Análisis</h1>
-          </div>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center text-red-600">
-                Error al cargar los datos: {error.message}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </Layout>
-    );
-  }
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
-  // Enhanced calculations
-  const totalCalls = calls?.length || 0;
-  const completedCalls = calls?.filter(call => call.status === 'complete')?.length || 0;
-  const pendingCalls = calls?.filter(call => call.status === 'pending')?.length || 0;
-  const salesCalls = calls?.filter(call => call.result === 'venta')?.length || 0;
-  const noSaleCalls = calls?.filter(call => call.result === 'no venta')?.length || 0;
-  const conversionRate = totalCalls > 0 ? (salesCalls / totalCalls) * 100 : 0;
-  
-  const averageScore = calls?.reduce((sum, call) => {
-    const score = call.feedback?.[0]?.score || 0;
-    return sum + score;
-  }, 0) / Math.max(completedCalls, 1) || 0;
-
-  const averageDuration = calls?.reduce((sum, call) => sum + (call.duration || 0), 0) / Math.max(totalCalls, 1) || 0;
-
-  // Sentiment analysis
-  const positiveCalls = calls?.filter(call => call.sentiment === 'positive')?.length || 0;
-  const neutralCalls = calls?.filter(call => call.sentiment === 'neutral')?.length || 0;
-  const negativeCalls = calls?.filter(call => call.sentiment === 'negative')?.length || 0;
-  const sentimentScore = totalCalls > 0 ? ((positiveCalls * 100 + neutralCalls * 50) / totalCalls) : 0;
-
-  // Time-based analysis (last 30 days)
-  const last30Days = Array.from({ length: 30 }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (29 - i));
-    return date.toISOString().split('T')[0];
-  });
-
-  const callsPerDay = last30Days.map(date => {
-    const daysCalls = calls?.filter(call => call.date?.split('T')[0] === date) || [];
-    const salesCount = daysCalls.filter(call => call.result === 'venta').length;
-    const avgScore = daysCalls.length > 0 
-      ? daysCalls.reduce((sum, call) => sum + (call.feedback?.[0]?.score || 0), 0) / daysCalls.length 
-      : 0;
-    
-    return {
-      date: new Date(date).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }),
-      calls: daysCalls.length,
-      sales: salesCount,
-      avgScore: Number(avgScore.toFixed(1)),
-      conversionRate: daysCalls.length > 0 ? Number(((salesCount / daysCalls.length) * 100).toFixed(1)) : 0
-    };
-  });
-
-  // Weekly analysis
-  const weeklyData = Array.from({ length: 4 }, (_, i) => {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - (i + 1) * 7);
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() - i * 7);
-    
-    const weekCalls = calls?.filter(call => {
-      const callDate = new Date(call.date);
-      return callDate >= startDate && callDate < endDate;
-    }) || [];
-    
-    return {
-      week: `Sem ${4 - i}`,
-      calls: weekCalls.length,
-      sales: weekCalls.filter(call => call.result === 'venta').length,
-      avgDuration: weekCalls.length > 0 ? Math.round(weekCalls.reduce((sum, call) => sum + (call.duration || 0), 0) / weekCalls.length) : 0
-    };
-  });
-
-  // Agent performance with enhanced metrics
-  const agentPerformance = calls?.reduce((acc, call) => {
-    if (!call.agent_name) return acc;
-    
-    if (!acc[call.agent_name]) {
-      acc[call.agent_name] = { 
-        name: call.agent_name, 
-        calls: 0, 
-        sales: 0, 
-        totalScore: 0, 
-        scoreCount: 0,
-        totalDuration: 0,
-        positiveCount: 0,
-        negativeCount: 0
-      };
-    }
-    
-    acc[call.agent_name].calls++;
-    if (call.result === 'venta') acc[call.agent_name].sales++;
-    
-    const score = call.feedback?.[0]?.score || 0;
-    if (score > 0) {
-      acc[call.agent_name].totalScore += score;
-      acc[call.agent_name].scoreCount++;
-    }
-    
-    acc[call.agent_name].totalDuration += (call.duration || 0);
-    if (call.sentiment === 'positive') acc[call.agent_name].positiveCount++;
-    if (call.sentiment === 'negative') acc[call.agent_name].negativeCount++;
-    
-    return acc;
-  }, {} as Record<string, any>) || {};
-
-  const agentData = Object.values(agentPerformance).map((agent: any) => ({
-    ...agent,
-    conversionRate: agent.calls > 0 ? Number(((agent.sales / agent.calls) * 100).toFixed(1)) : 0,
-    avgScore: agent.scoreCount > 0 ? Number((agent.totalScore / agent.scoreCount).toFixed(1)) : 0,
-    avgDuration: agent.calls > 0 ? Math.round(agent.totalDuration / agent.calls) : 0,
-    sentimentRatio: agent.calls > 0 ? Number(((agent.positiveCount / agent.calls) * 100).toFixed(1)) : 0
-  })).slice(0, 10);
-
-  // Enhanced chart data
-  const sentimentData = [
-    { name: 'Positivo', value: positiveCalls, color: '#22c55e', percentage: totalCalls > 0 ? Number(((positiveCalls / totalCalls) * 100).toFixed(1)) : 0 },
-    { name: 'Neutral', value: neutralCalls, color: '#6b7280', percentage: totalCalls > 0 ? Number(((neutralCalls / totalCalls) * 100).toFixed(1)) : 0 },
-    { name: 'Negativo', value: negativeCalls, color: '#ef4444', percentage: totalCalls > 0 ? Number(((negativeCalls / totalCalls) * 100).toFixed(1)) : 0 }
-  ];
-
-  const resultData = [
-    { name: 'Ventas', value: salesCalls, color: '#22c55e' },
-    { name: 'No Ventas', value: noSaleCalls, color: '#ef4444' },
-    { name: 'Sin Resultado', value: calls?.filter(call => !call.result || call.result === '').length || 0, color: '#6b7280' }
-  ];
-
-  // Performance radar data
-  const performanceRadar = [
-    { metric: 'Conversión', value: conversionRate, fullMark: 100 },
-    { metric: 'Calidad', value: averageScore * 10, fullMark: 100 },
-    { metric: 'Sentimiento', value: sentimentScore, fullMark: 100 },
-    { metric: 'Eficiencia', value: completedCalls > 0 ? (completedCalls / totalCalls) * 100 : 0, fullMark: 100 },
-    { metric: 'Volumen', value: totalCalls > 0 ? Math.min((totalCalls / 100) * 100, 100) : 0, fullMark: 100 }
-  ];
-
-  const accountName = selectedAccountId === 'all' ? 'Todas las cuentas' : 'Cuenta seleccionada';
-
-  // Custom tooltip for charts with type safety
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white p-3 border rounded-lg shadow-lg">
-          <p className="font-semibold">{label}</p>
-          {payload.map((entry: any, index: number) => {
-            const value = entry.value;
-            const numericValue = typeof value === 'number' ? value : parseFloat(value) || 0;
-            return (
-              <p key={index} style={{ color: entry.color }}>
-                {entry.name}: {entry.name?.includes('Rate') || entry.name?.includes('Score') 
-                  ? numericValue.toFixed(1) 
-                  : Math.round(numericValue)}
-                {entry.name?.includes('Rate') ? '%' : ''}
-              </p>
-            );
-          })}
-        </div>
-      );
-    }
-    return null;
-  };
+const Pie = (props: any) => {
+  const RADIAN = Math.PI / 180;
+  const { cx, cy, midAngle, innerRadius, outerRadius, startAngle, endAngle,
+    fill, payload, percent, value } = props;
+  const sin = Math.sin(-RADIAN * midAngle);
+  const cos = Math.cos(-RADIAN * midAngle);
+  const sx = cx + (outerRadius + 10) * cos;
+  const sy = cy + (outerRadius + 10) * sin;
+  const mx = cx + (outerRadius + 30) * cos;
+  const my = cy + (outerRadius + 30) * sin;
+  const ex = mx + (cos >= 0 ? 1 : -1) * 22;
+  const ey = my;
+  const textAnchor = cos >= 0 ? 'start' : 'end';
 
   return (
-    <Layout>
-      <div className="container mx-auto py-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard Analítico Avanzado</h1>
-            <p className="text-muted-foreground">
-              Análisis completo de {accountName} - {totalCalls} llamadas procesadas
-            </p>
-          </div>
-          <Button onClick={handleManualRefresh} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Actualizar
+    <g>
+      <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" />
+      <circle cx={ex} cy={ey} r={2} fill={fill} stroke="none" />
+      <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} textAnchor={textAnchor} fill="#333">{payload.name}</text>
+      <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} dy={18} textAnchor={textAnchor} fill="#999">
+        {`${(percent * 100).toFixed(2)}%`}
+      </text>
+    </g>
+  );
+};
+
+export default function AnalyticsPage() {
+  const [calls, setCalls] = useState<Call[]>([]);
+  const [dateRange, setDateRange] = useState<string>("last7days");
+  const [isLoading, setIsLoading] = useState(true);
+  const { isAuthenticated, user, loading } = useAuth();
+  const { selectedAccountId } = useAccount();
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (!isAuthenticated && !loading) {
+        toast.error("Sesión expirada", {
+          description: "Por favor inicia sesión para continuar"
+        });
+      }
+    };
+    if (!loading) {
+      checkAuth();
+    }
+  }, [isAuthenticated, loading]);
+
+  useEffect(() => {
+    const fetchCalls = async () => {
+      setIsLoading(true);
+      try {
+        let startDate: Date | null = null;
+        let endDate: Date | null = null;
+
+        const today = new Date();
+        const todayStart = startOfDay(today);
+        const todayEnd = endOfDay(today);
+
+        switch (dateRange) {
+          case "today":
+            startDate = todayStart;
+            endDate = todayEnd;
+            break;
+          case "yesterday":
+            const yesterday = subDays(today, 1);
+            startDate = startOfDay(yesterday);
+            endDate = endOfDay(yesterday);
+            break;
+          case "last7days":
+            startDate = subDays(today, 7);
+            endDate = todayEnd;
+            break;
+          case "last30days":
+            startDate = subDays(today, 30);
+            endDate = todayEnd;
+            break;
+          case "thisMonth": {
+            startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            endDate = todayEnd;
+            break;
+          }
+          case "lastMonth": {
+            const lastMonth = today.getMonth() - 1;
+            startDate = new Date(today.getFullYear(), lastMonth, 1);
+            endDate = new Date(today.getFullYear(), lastMonth + 1, 0);
+            break;
+          }
+          default:
+            startDate = subDays(today, 7);
+            endDate = todayEnd;
+        }
+
+        if (startDate && endDate) {
+          let query = supabase
+            .from("calls")
+            .select("*")
+            .gte("created_at", startDate.toISOString())
+            .lte("created_at", endDate.toISOString());
+
+          if (selectedAccountId && selectedAccountId !== "all") {
+            query = query.eq("account_id", selectedAccountId);
+          }
+
+          const { data, error } = await query;
+
+          if (error) throw error;
+
+          setCalls(data || []);
+        }
+      } catch (error) {
+        console.error("Error fetching calls:", error);
+        toast.error("Error al cargar las llamadas");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCalls();
+  }, [dateRange, selectedAccountId]);
+
+  const agentPerformance: AgentPerformance[] = useMemo(() => {
+    const agents: { [key: string]: { calls: number; totalScore: number; totalDuration: number } } = {};
+
+    calls.forEach((call) => {
+      if (!agents[call.agent]) {
+        agents[call.agent] = { calls: 0, totalScore: 0, totalDuration: 0 };
+      }
+      agents[call.agent].calls += 1;
+      agents[call.agent].totalScore += call.score;
+      agents[call.agent].totalDuration += call.duration;
+    });
+
+    return Object.entries(agents).map(([agent, data]) => ({
+      agent,
+      calls: data.calls,
+      avgScore: parseFloat((data.totalScore / data.calls).toFixed(2)),
+      avgDuration: `${Math.floor(data.totalDuration / data.calls)}s`,
+    }));
+  }, [calls]);
+
+  const callsPerDay: CallsPerDay[] = useMemo(() => {
+    const dailyCalls: { [key: string]: number } = {};
+
+    calls.forEach((call) => {
+      const date = format(new Date(call.created_at), "dd/MM/yyyy", { locale: es });
+      dailyCalls[date] = (dailyCalls[date] || 0) + 1;
+    });
+
+    return Object.entries(dailyCalls).map(([date, calls]) => ({ date, calls }));
+  }, [calls]);
+
+  const callsByType: CallsByType[] = useMemo(() => {
+    const typeCounts: { [key: string]: number } = {};
+
+    calls.forEach((call) => {
+      typeCounts[call.type] = (typeCounts[call.type] || 0) + 1;
+    });
+
+    return Object.entries(typeCounts).map(([name, value]) => ({ name, value }));
+  }, [calls]);
+
+  const scoresTrend: ScoresTrend[] = useMemo(() => {
+    const dailyScores: { [key: string]: { totalScore: number; count: number } } = {};
+
+    calls.forEach((call) => {
+      const date = format(new Date(call.created_at), "dd/MM/yyyy", { locale: es });
+      if (!dailyScores[date]) {
+        dailyScores[date] = { totalScore: 0, count: 0 };
+      }
+      dailyScores[date].totalScore += call.score;
+      dailyScores[date].count += 1;
+    });
+
+    return Object.entries(dailyScores).map(([date, data]) => ({
+      date,
+      avgScore: parseFloat((data.totalScore / data.count).toFixed(2)),
+    }));
+  }, [calls]);
+
+  const callsVsQuality: CallsVsQuality[] = useMemo(() => {
+    const dailyData: { [key: string]: { calls: number; totalQuality: number } } = {};
+
+    calls.forEach((call) => {
+      const date = format(new Date(call.created_at), "dd/MM/yyyy", { locale: es });
+      if (!dailyData[date]) {
+        dailyData[date] = { calls: 0, totalQuality: 0 };
+      }
+      dailyData[date].calls += 1;
+      dailyData[date].totalQuality += call.score >= 6 ? 1 : 0;
+    });
+
+    return Object.entries(dailyData).map(([date, data]) => ({
+      date,
+      calls: data.calls,
+      quality: parseFloat(((data.totalQuality / data.calls) * 100).toFixed(2)),
+    }));
+  }, [calls]);
+
+  const scoreDistribution: ScoreDistribution[] = useMemo(() => {
+    const distribution: { [key: number]: number } = {};
+
+    calls.forEach((call) => {
+      const score = Math.floor(call.score);
+      distribution[score] = (distribution[score] || 0) + 1;
+    });
+
+    return Object.entries(distribution).map(([score, count]) => ({
+      score: parseInt(score),
+      count,
+    }));
+  }, [calls]);
+
+  const metrics: Metrics = useMemo(() => {
+    const totalCalls = calls.length;
+    const totalDuration = calls.reduce((sum, call) => sum + call.duration, 0);
+    const avgDuration = `${Math.floor(totalDuration / totalCalls)}s`;
+    const totalScore = calls.reduce((sum, call) => sum + call.score, 0);
+    const avgScore = parseFloat((totalScore / totalCalls).toFixed(2));
+    const activeAgents = new Set(calls.map((call) => call.agent)).size;
+
+    // Placeholder growth values - replace with actual calculations
+    const callsGrowth = 5;
+    const durationGrowth = 2;
+    const scoreGrowth = 3;
+    const agentsGrowth = 1;
+
+    return {
+      totalCalls,
+      avgDuration,
+      avgScore,
+      activeAgents,
+      callsGrowth,
+      durationGrowth,
+      scoreGrowth,
+      agentsGrowth,
+    };
+  }, [calls]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Analytics</h2>
+          <p className="text-muted-foreground">
+            Análisis detallado del rendimiento y métricas de llamadas
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-4 mt-4 md:mt-0">
+          <Select value={dateRange} onValueChange={setDateRange}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Seleccionar período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">Hoy</SelectItem>
+              <SelectItem value="yesterday">Ayer</SelectItem>
+              <SelectItem value="last7days">Últimos 7 días</SelectItem>
+              <SelectItem value="last30days">Últimos 30 días</SelectItem>
+              <SelectItem value="thisMonth">Este mes</SelectItem>
+              <SelectItem value="lastMonth">Mes pasado</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <Button variant="outline">
+            <Download className="mr-2 h-4 w-4" />
+            Exportar
           </Button>
         </div>
+      </div>
 
-        {/* Enhanced KPIs */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Llamadas</CardTitle>
-              <Phone className="h-5 w-5 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{totalCalls}</div>
-              <p className="text-xs text-blue-600 dark:text-blue-400">
-                {completedCalls} completadas ({totalCalls > 0 ? ((completedCalls/totalCalls)*100).toFixed(1) : 0}%)
-              </p>
-            </CardContent>
-          </Card>
+      {/* Summary Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Llamadas</CardTitle>
+            <Phone className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.totalCalls.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              <span className="text-green-600">+{metrics.callsGrowth}%</span> vs período anterior
+            </p>
+          </CardContent>
+        </Card>
 
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tasa Conversión</CardTitle>
-              <Target className="h-5 w-5 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-700 dark:text-green-300">
-                {conversionRate.toFixed(1)}%
-              </div>
-              <p className="text-xs text-green-600 dark:text-green-400">
-                {salesCalls} ventas realizadas
-              </p>
-            </CardContent>
-          </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Duración Promedio</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.avgDuration}</div>
+            <p className="text-xs text-muted-foreground">
+              <span className="text-blue-600">+{metrics.durationGrowth}%</span> vs período anterior
+            </p>
+          </CardContent>
+        </Card>
 
-          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Score Promedio</CardTitle>
-              <Award className="h-5 w-5 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
-                {averageScore.toFixed(1)}
-              </div>
-              <p className="text-xs text-purple-600 dark:text-purple-400">
-                De {completedCalls} evaluaciones
-              </p>
-            </CardContent>
-          </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Puntuación Promedio</CardTitle>
+            <Star className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.avgScore}/10</div>
+            <p className="text-xs text-muted-foreground">
+              <span className="text-green-600">+{metrics.scoreGrowth}%</span> vs período anterior
+            </p>
+          </CardContent>
+        </Card>
 
-          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Duración Media</CardTitle>
-              <Clock className="h-5 w-5 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-                {Math.round(averageDuration / 60)}m
-              </div>
-              <p className="text-xs text-orange-600 dark:text-orange-400">
-                {Math.round(averageDuration)} segundos exactos
-              </p>
-            </CardContent>
-          </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Agentes Activos</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.activeAgents}</div>
+            <p className="text-xs text-muted-foreground">
+              <span className="text-green-600">+{metrics.agentsGrowth}%</span> vs período anterior
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
-          <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900 border-indigo-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Sentimiento</CardTitle>
-              <Activity className="h-5 w-5 text-indigo-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300">
-                {sentimentScore.toFixed(0)}%
-              </div>
-              <p className="text-xs text-indigo-600 dark:text-indigo-400">
-                {positiveCalls} positivas de {totalCalls}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+      <Tabs defaultValue="overview" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="overview">Resumen General</TabsTrigger>
+          <TabsTrigger value="agents">Rendimiento por Agente</TabsTrigger>
+          <TabsTrigger value="trends">Tendencias</TabsTrigger>
+          <TabsTrigger value="quality">Calidad</TabsTrigger>
+        </TabsList>
 
-        {/* Advanced Analytics Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {/* Monthly Trend */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Tendencia Mensual (30 días)
-              </CardTitle>
-              <CardDescription>
-                Evolución diaria de llamadas, ventas y calidad
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={350}>
-                <AreaChart data={callsPerDay}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                  <XAxis dataKey="date" fontSize={12} />
-                  <YAxis yAxisId="left" fontSize={12} />
-                  <YAxis yAxisId="right" orientation="right" fontSize={12} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
-                  <Area yAxisId="left" type="monotone" dataKey="calls" stackId="1" stroke="#3b82f6" fill="#93c5fd" name="Llamadas" />
-                  <Area yAxisId="left" type="monotone" dataKey="sales" stackId="1" stroke="#10b981" fill="#86efac" name="Ventas" />
-                  <Line yAxisId="right" type="monotone" dataKey="avgScore" stroke="#f59e0b" strokeWidth={3} name="Score Promedio" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+        <TabsContent value="overview" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <BarChart3 className="mr-2 h-5 w-5" />
+                  Llamadas por Día
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={callsPerDay}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="calls" fill="#8884d8" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
 
-          {/* Performance Radar */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <PieChart className="mr-2 h-5 w-5" />
+                  Distribución por Tipo
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <RechartsPieChart>
+                    <Pie
+                      data={callsByType}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {callsByType.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </RechartsPieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="agents" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5" />
-                Performance Global
-              </CardTitle>
+              <CardTitle>Rendimiento por Agente</CardTitle>
               <CardDescription>
-                Análisis multidimensional
+                Comparación de métricas de rendimiento entre agentes
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={350}>
-                <RadarChart data={performanceRadar}>
-                  <PolarGrid />
-                  <PolarAngleAxis dataKey="metric" fontSize={12} />
-                  <PolarRadiusAxis angle={90} domain={[0, 100]} fontSize={10} />
-                  <Radar name="Performance" dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.3} strokeWidth={2} />
-                  <Tooltip />
-                </RadarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sentiment and Results Analysis */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Análisis de Sentimientos
-              </CardTitle>
-              <CardDescription>
-                Distribución emocional de las llamadas
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={sentimentData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percentage }) => `${name} ${percentage}%`}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {sentimentData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Distribución de Resultados</CardTitle>
-              <CardDescription>
-                Outcomes de las llamadas realizadas
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={resultData}>
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={agentPerformance}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
+                  <XAxis dataKey="agent" />
                   <YAxis />
                   <Tooltip />
-                  <Bar dataKey="value" fill="#8884d8" radius={[4, 4, 0, 0]}>
-                    {resultData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
+                  <Legend />
+                  <Bar dataKey="calls" fill="#8884d8" name="Llamadas" />
+                  <Bar dataKey="avgScore" fill="#82ca9d" name="Puntuación Promedio" />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
-        </div>
 
-        {/* Weekly Analysis */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Análisis Semanal
-            </CardTitle>
-            <CardDescription>
-              Tendencias semanales de actividad y resultados
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={weeklyData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="week" />
-                <YAxis yAxisId="left" />
-                <YAxis yAxisId="right" orientation="right" />
-                <Tooltip />
-                <Legend />
-                <Bar yAxisId="left" dataKey="calls" fill="#3b82f6" name="Total Llamadas" />
-                <Bar yAxisId="left" dataKey="sales" fill="#10b981" name="Ventas" />
-                <Line yAxisId="right" dataKey="avgDuration" stroke="#f59e0b" name="Duración Promedio (s)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Agent Performance */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Rendimiento Detallado por Agente
-            </CardTitle>
-            <CardDescription>
-              Análisis comparativo de métricas individuales
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={agentData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="name" 
-                  angle={-45}
-                  textAnchor="end"
-                  height={100}
-                  interval={0}
-                  fontSize={12}
-                />
-                <YAxis yAxisId="left" />
-                <YAxis yAxisId="right" orientation="right" />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                <Bar yAxisId="left" dataKey="calls" fill="#3b82f6" name="Llamadas" />
-                <Bar yAxisId="right" dataKey="conversionRate" fill="#10b981" name="Conversión %" />
-                <Bar yAxisId="right" dataKey="avgScore" fill="#f59e0b" name="Score Promedio" />
-                <Bar yAxisId="right" dataKey="sentimentRatio" fill="#8b5cf6" name="Sentimiento Positivo %" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Additional Metrics Cards */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader>
-              <CardTitle>Estado de Llamadas</CardTitle>
+              <CardTitle>Clasificación de Agentes</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                  <span className="font-medium">Completadas</span>
-                  <span className="text-lg font-bold text-blue-600">{completedCalls}</span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-yellow-50 rounded-lg">
-                  <span className="font-medium">Pendientes</span>
-                  <span className="text-lg font-bold text-yellow-600">{pendingCalls}</span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                  <span className="font-medium">Tasa Finalización</span>
-                  <span className="text-lg font-bold text-green-600">
-                    {totalCalls > 0 ? ((completedCalls / totalCalls) * 100).toFixed(1) : 0}%
-                  </span>
-                </div>
+              <div className="space-y-4">
+                {agentPerformance.map((agent, index) => (
+                  <div key={agent.agent} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white font-bold">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium">{agent.agent}</p>
+                        <p className="text-sm text-muted-foreground">{agent.calls} llamadas</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <Badge variant={agent.avgScore >= 8 ? "default" : agent.avgScore >= 6 ? "secondary" : "destructive"}>
+                        {agent.avgScore}/10
+                      </Badge>
+                      <p className="text-sm text-muted-foreground">{agent.avgDuration}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="trends" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Tendencias de Puntuación</CardTitle>
+              <CardDescription>
+                Evolución de las puntuaciones a lo largo del tiempo
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={scoresTrend}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis domain={[0, 10]} />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="avgScore" stroke="#8884d8" strokeWidth={2} name="Puntuación Promedio" />
+                </LineChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Métricas de Calidad</CardTitle>
+              <CardTitle>Volumen de Llamadas vs Calidad</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
-                  <span className="font-medium">Score Máximo</span>
-                  <span className="text-lg font-bold text-purple-600">
-                    {Math.max(...(calls?.map(call => call.feedback?.[0]?.score || 0) || [0]))}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
-                  <span className="font-medium">Evaluaciones</span>
-                  <span className="text-lg font-bold text-indigo-600">
-                    {calls?.filter(call => call.feedback?.[0]?.score > 0).length || 0}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-pink-50 rounded-lg">
-                  <span className="font-medium">Calidad Promedio</span>
-                  <span className="text-lg font-bold text-pink-600">
-                    {averageScore > 7 ? 'Alta' : averageScore > 5 ? 'Media' : 'Baja'}
-                  </span>
-                </div>
-              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={callsVsQuality}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis yAxisId="left" />
+                  <YAxis yAxisId="right" orientation="right" />
+                  <Tooltip />
+                  <Legend />
+                  <Area yAxisId="left" type="monotone" dataKey="calls" stackId="1" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} name="Llamadas" />
+                  <Line yAxisId="right" type="monotone" dataKey="quality" stroke="#82ca9d" strokeWidth={2} name="Calidad %" />
+                </AreaChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="quality" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Excelente</CardTitle>
+                <CardDescription>Puntuación 8-10</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">67%</div>
+                <p className="text-xs text-muted-foreground">+5% vs período anterior</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Bueno</CardTitle>
+                <CardDescription>Puntuación 6-7</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-yellow-600">25%</div>
+                <p className="text-xs text-muted-foreground">-2% vs período anterior</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Mejorable</CardTitle>
+                <CardDescription>Puntuación < 6</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">8%</div>
+                <p className="text-xs text-muted-foreground">-3% vs período anterior</p>
+              </CardContent>
+            </Card>
+          </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>Análisis Temporal</CardTitle>
+              <CardTitle>Distribución de Puntuaciones</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
-                  <span className="font-medium">Tiempo Total</span>
-                  <span className="text-lg font-bold text-orange-600">
-                    {Math.round((calls?.reduce((sum, call) => sum + (call.duration || 0), 0) || 0) / 3600)}h
-                  </span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-cyan-50 rounded-lg">
-                  <span className="font-medium">Llamada Más Larga</span>
-                  <span className="text-lg font-bold text-cyan-600">
-                    {Math.round((Math.max(...(calls?.map(call => call.duration || 0) || [0])) || 0) / 60)}m
-                  </span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-teal-50 rounded-lg">
-                  <span className="font-medium">Eficiencia</span>
-                  <span className="text-lg font-bold text-teal-600">
-                    {averageDuration > 0 ? (salesCalls / (averageDuration / 60)).toFixed(1) : '0'} ventas/min
-                  </span>
-                </div>
-              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={scoreDistribution}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="score" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#8884d8" />
+                </BarChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Recursos Humanos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
-                  <span className="font-medium">Agentes Únicos</span>
-                  <span className="text-lg font-bold text-emerald-600">
-                    {Object.keys(agentPerformance).length}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-lime-50 rounded-lg">
-                  <span className="font-medium">Promedio por Agente</span>
-                  <span className="text-lg font-bold text-lime-600">
-                    {Object.keys(agentPerformance).length > 0 ? 
-                      Math.round(totalCalls / Object.keys(agentPerformance).length) : 0}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-amber-50 rounded-lg">
-                  <span className="font-medium">Top Performer</span>
-                  <span className="text-lg font-bold text-amber-600">
-                    {agentData.length > 0 ? 
-                      agentData.sort((a, b) => b.conversionRate - a.conversionRate)[0].name.split(' ')[0] : 'N/A'}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </Layout>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
