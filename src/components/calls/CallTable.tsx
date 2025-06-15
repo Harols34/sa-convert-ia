@@ -40,9 +40,14 @@ interface CallTableProps {
 }
 
 const formatDuration = (duration: number) => {
-  const minutes = Math.floor(duration / 60);
-  const seconds = duration % 60;
-  return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+  // Si duration es falsy (null, undefined, 0), mostrar 00:00.
+  if (!duration || isNaN(Number(duration))) return "00:00";
+  const totalSeconds = Number(duration);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  return `${minutes.toString().padStart(2, '0')}:${seconds
+    .toString()
+    .padStart(2, '0')}`;
 };
 
 const formatDate = (dateStr: string) => {
