@@ -39,7 +39,8 @@ export function useCallList() {
   const { user, session } = useAuth();
   const { selectedAccountId } = useAccount();
   
-  // Use refs to track current values and prevent unnecessary re-renders
+  // Prevent multiple concurrent requests
+  const isLoadingRef = useRef(false);
   const lastFetchParamsRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -52,9 +53,14 @@ export function useCallList() {
     // Create a unique identifier for this fetch request
     const fetchParams = `${user.id}-${user.role}-${selectedAccountId}`;
     
-    // Skip if we already fetched with the same parameters (unless forced)
-    if (!forceRefresh && lastFetchParamsRef.current === fetchParams) {
-      setLoading(false);
+    // Skip if already loading the same data (unless forced)
+    if (!forceRefresh && (isLoadingRef.current || lastFetchParamsRef.current === fetchParams)) {
+      return;
+    }
+
+    // Prevent concurrent requests
+    if (isLoadingRef.current && !forceRefresh) {
+      console.log("Skipping duplicate call load request");
       return;
     }
 
@@ -65,6 +71,7 @@ export function useCallList() {
 
     // Create new abort controller for this request
     abortControllerRef.current = new AbortController();
+    isLoadingRef.current = true;
 
     try {
       if (forceRefresh) {
@@ -142,6 +149,7 @@ export function useCallList() {
     } finally {
       setLoading(false);
       setIsRefreshing(false);
+      isLoadingRef.current = false;
       abortControllerRef.current = null;
     }
   }, [session, user, selectedAccountId]);
@@ -152,6 +160,7 @@ export function useCallList() {
 
   const handleRefresh = useCallback(() => {
     lastFetchParamsRef.current = ''; // Reset to force refresh
+    isLoadingRef.current = false;
     loadCalls(undefined, true);
   }, [loadCalls]);
 
@@ -166,6 +175,7 @@ export function useCallList() {
 
       toast.success("Llamada eliminada exitosamente");
       lastFetchParamsRef.current = ''; // Reset to force refresh
+      isLoadingRef.current = false;
       loadCalls();
     } catch (err: any) {
       console.error("Error deleting call:", err);
@@ -186,6 +196,7 @@ export function useCallList() {
       setSelectedCalls([]);
       setMultiSelectMode(false);
       lastFetchParamsRef.current = ''; // Reset to force refresh
+      isLoadingRef.current = false;
       loadCalls();
     } catch (err: any) {
       console.error("Error deleting calls:", err);
@@ -209,12 +220,16 @@ export function useCallList() {
     }
   };
 
-  // Only load calls when component mounts or when parameters change significantly
+  // Debounced effect to prevent rapid successive calls
   useEffect(() => {
     if (user && session) {
       console.log("Effect triggered - loading calls with account:", selectedAccountId);
-      // Small delay to prevent rapid successive calls
-      const timeoutId = setTimeout(() => loadCalls(), 100);
+      // Debounce to prevent rapid successive calls
+      const timeoutId = setTimeout(() => {
+        if (!isLoadingRef.current) {
+          loadCalls();
+        }
+      }, 300);
       return () => clearTimeout(timeoutId);
     }
 
@@ -223,11 +238,13 @@ export function useCallList() {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      isLoadingRef.current = false;
     };
   }, [user?.id, selectedAccountId]); // Only depend on essential parameters
 
   const refreshCalls = useCallback(() => {
     lastFetchParamsRef.current = ''; // Reset to force refresh
+    isLoadingRef.current = false;
     loadCalls();
   }, [loadCalls]);
 

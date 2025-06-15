@@ -1,385 +1,282 @@
 
-import React, { useState, useEffect } from "react";
-import { Search, Filter, Calendar, X } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Popover, 
-  PopoverContent, 
-  PopoverTrigger 
-} from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Tipificacion } from "@/lib/types";
-import { supabase } from "@/integrations/supabase/client";
-import { DateRange } from "react-day-picker";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { X, Filter, RotateCcw } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export interface CallFilters {
-  search: string;
-  status: string;
-  result: string;
-  tipificacionId: string;
-  agentId: string;
-  dateRange: DateRange | undefined;
+  status: string[];
+  sentiment: string[];
+  result: string[];
+  agent: string[];
+  dateRange: string;
+  product: string[];
 }
 
-export interface CallListFiltersProps {
-  onFilterChange: (filters: CallFilters) => void;
+interface CallListFiltersProps {
+  filters: CallFilters;
+  onFiltersChange: (filters: CallFilters) => void;
+  agents: { id: string; name: string }[];
 }
 
-const initialFilters: CallFilters = {
-  search: "",
-  status: "all",
-  result: "",
-  tipificacionId: "",
-  agentId: "",
-  dateRange: undefined
-};
+const statusOptions = [
+  { value: "pending", label: "Pendiente" },
+  { value: "transcribing", label: "Transcribiendo" },
+  { value: "analyzing", label: "Analizando" },
+  { value: "complete", label: "Completo" },
+  { value: "error", label: "Error" }
+];
 
-export default function CallListFilters({ onFilterChange }: CallListFiltersProps) {
-  const [filters, setFilters] = useState<CallFilters>(initialFilters);
-  const [showFilters, setShowFilters] = useState(false);
-  const [tipificaciones, setTipificaciones] = useState<Tipificacion[]>([]);
-  const [agents, setAgents] = useState<any[]>([]);
-  const [activeFilterCount, setActiveFilterCount] = useState(0);
-  const [searchInputValue, setSearchInputValue] = useState(""); 
-  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
-  
-  // Load tipificaciones and agents for filters
-  useEffect(() => {
-    const loadFilterData = async () => {
-      try {
-        // Load tipificaciones
-        const { data: tipData, error: tipError } = await supabase
-          .from('tipificaciones')
-          .select('*')
-          .eq('is_active', true);
-          
-        if (!tipError && tipData) {
-          setTipificaciones(tipData.map(tip => ({
-            id: tip.id,
-            name: tip.name,
-            description: tip.description,
-            type: tip.type,
-            isActive: tip.is_active
-          })));
-        }
-        
-        // Load agents
-        const { data: agentData, error: agentError } = await supabase
-          .from('agents')
-          .select('*')
-          .eq('status', 'active');
-          
-        if (!agentError && agentData) {
-          setAgents(agentData);
-        }
-      } catch (error) {
-        console.error("Error loading filter data:", error);
-      }
-    };
-    
-    loadFilterData();
-  }, []);
-  
-  // Count active filters
-  useEffect(() => {
+const sentimentOptions = [
+  { value: "positive", label: "Positivo" },
+  { value: "neutral", label: "Neutral" },
+  { value: "negative", label: "Negativo" }
+];
+
+const resultOptions = [
+  { value: "venta", label: "Venta" },
+  { value: "no venta", label: "No venta" },
+  { value: "", label: "Sin resultado" }
+];
+
+const productOptions = [
+  { value: "fijo", label: "Fijo" },
+  { value: "móvil", label: "Móvil" },
+  { value: "", label: "Sin producto" }
+];
+
+const dateRangeOptions = [
+  { value: "today", label: "Hoy" },
+  { value: "week", label: "Esta semana" },
+  { value: "month", label: "Este mes" },
+  { value: "all", label: "Todos" }
+];
+
+export default function CallListFilters({ filters, onFiltersChange, agents }: CallListFiltersProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Memoize active filters count to prevent unnecessary re-calculations
+  const activeFiltersCount = useMemo(() => {
+    const { status, sentiment, result, agent, dateRange, product } = filters;
     let count = 0;
-    if (filters.status && filters.status !== "all") count++;
-    if (filters.result) count++;
-    if (filters.tipificacionId) count++;
-    if (filters.agentId) count++;
-    if (filters.dateRange) count++;
-    if (filters.search) count++;
-    setActiveFilterCount(count);
+    if (status.length > 0) count++;
+    if (sentiment.length > 0) count++;
+    if (result.length > 0) count++;
+    if (agent.length > 0) count++;
+    if (dateRange && dateRange !== "all") count++;
+    if (product.length > 0) count++;
+    return count;
   }, [filters]);
-  
-  // Apply filters whenever they change
-  useEffect(() => {
-    console.log("Aplicando filtros:", filters);
-    onFilterChange(filters);
-  }, [filters, onFilterChange]);
-  
-  // Optimized search with even shorter debounce (100ms) para mayor rapidez
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    setSearchInputValue(newValue);
-    
-    // Clear previous timeout if exists
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
-    }
-    
-    // Create new timeout with shorter delay (100ms)
-    const newTimeout = setTimeout(() => {
-      console.log("Aplicando búsqueda desde input:", newValue);
-      setFilters(prev => ({ ...prev, search: newValue }));
-    }, 100);
-    
-    setSearchTimeout(newTimeout);
-  };
-  
-  // Immediate search on Enter key
-  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      if (searchTimeout) {
-        clearTimeout(searchTimeout);
-      }
-      console.log("Búsqueda inmediata con tecla Enter:", searchInputValue);
-      setFilters(prev => ({ ...prev, search: searchInputValue }));
-    }
-  };
-  
-  const updateFilter = (key: keyof CallFilters, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-  };
-  
-  const clearFilters = () => {
-    setFilters(initialFilters);
-    setSearchInputValue(""); 
-  };
 
-  // Function to get translated status name
-  const getStatusName = (status: string): string => {
-    switch (status) {
-      case 'pending': return 'Pendiente';
-      case 'transcribing': return 'Transcribiendo';
-      case 'analyzing': return 'Analizando';
-      case 'complete': return 'Completo';
-      case 'error': return 'Error';
-      default: return status;
+  // Optimized filter handlers with useCallback
+  const handleMultiSelectChange = useCallback((filterKey: keyof CallFilters, value: string) => {
+    if (Array.isArray(filters[filterKey])) {
+      const currentValues = filters[filterKey] as string[];
+      const newValues = currentValues.includes(value)
+        ? currentValues.filter(v => v !== value)
+        : [...currentValues, value];
+      
+      onFiltersChange({
+        ...filters,
+        [filterKey]: newValues
+      });
     }
-  };
+  }, [filters, onFiltersChange]);
+
+  const handleDateRangeChange = useCallback((value: string) => {
+    onFiltersChange({
+      ...filters,
+      dateRange: value
+    });
+  }, [filters, onFiltersChange]);
+
+  const clearAllFilters = useCallback(() => {
+    const clearedFilters: CallFilters = {
+      status: [],
+      sentiment: [],
+      result: [],
+      agent: [],
+      dateRange: "all",
+      product: []
+    };
+    onFiltersChange(clearedFilters);
+    console.log("Aplicando filtros:", clearedFilters);
+  }, [onFiltersChange]);
+
+  const removeFilter = useCallback((filterKey: keyof CallFilters, value?: string) => {
+    if (filterKey === "dateRange") {
+      onFiltersChange({
+        ...filters,
+        dateRange: "all"
+      });
+    } else if (Array.isArray(filters[filterKey]) && value) {
+      const currentValues = filters[filterKey] as string[];
+      onFiltersChange({
+        ...filters,
+        [filterKey]: currentValues.filter(v => v !== value)
+      });
+    }
+  }, [filters, onFiltersChange]);
+
+  // Memoize filter options rendering
+  const renderFilterSelect = useCallback((
+    title: string,
+    filterKey: keyof CallFilters,
+    options: { value: string; label: string }[]
+  ) => (
+    <div className="space-y-2">
+      <Label className="text-sm font-medium">{title}</Label>
+      <div className="space-y-1">
+        {options.map(option => (
+          <label key={option.value} className="flex items-center space-x-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={Array.isArray(filters[filterKey]) && (filters[filterKey] as string[]).includes(option.value)}
+              onChange={() => handleMultiSelectChange(filterKey, option.value)}
+              className="rounded border-gray-300"
+            />
+            <span className="text-sm">{option.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  ), [filters, handleMultiSelectChange]);
+
+  // Memoize agent options
+  const agentOptions = useMemo(() => 
+    agents.map(agent => ({ value: agent.id, label: agent.name })),
+    [agents]
+  );
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col md:flex-row gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por título, nombre de agente o código..."
-            value={searchInputValue}
-            onChange={handleSearchChange}
-            onKeyDown={handleSearchKeyDown}
-            className="pl-8"
-          />
-          {searchInputValue && (
-            <button 
-              className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                setSearchInputValue('');
-                setFilters(prev => ({ ...prev, search: '' }));
-              }}
-              aria-label="Limpiar búsqueda"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-        
-        <div className="flex gap-2">
-          <Popover open={showFilters} onOpenChange={setShowFilters}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="flex items-center gap-1">
-                <Filter className="h-4 w-4 mr-1" />
-                Filtros
-                {activeFilterCount > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center">
-                    {activeFilterCount}
-                  </Badge>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-4" align="end">
-              <div className="space-y-4">
-                <h4 className="font-medium">Filtrar llamadas</h4>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Estado</label>
-                  <Select 
-                    value={filters.status} 
-                    onValueChange={(value) => updateFilter('status', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todos los estados" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los estados</SelectItem>
-                      <SelectItem value="pending">Pendiente</SelectItem>
-                      <SelectItem value="transcribing">Transcribiendo</SelectItem>
-                      <SelectItem value="analyzing">Analizando</SelectItem>
-                      <SelectItem value="complete">Completo</SelectItem>
-                      <SelectItem value="error">Error</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Tipificación</label>
-                  <Select 
-                    value={filters.tipificacionId} 
-                    onValueChange={(value) => updateFilter('tipificacionId', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todas las tipificaciones" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all_tipificaciones">Todas las tipificaciones</SelectItem>
-                      {tipificaciones.map(tip => (
-                        <SelectItem key={tip.id} value={tip.id}>
-                          {tip.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Asesor</label>
-                  <Select 
-                    value={filters.agentId} 
-                    onValueChange={(value) => updateFilter('agentId', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todos los asesores" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all_agents">Todos los asesores</SelectItem>
-                      {agents.map(agent => (
-                        <SelectItem key={agent.id} value={agent.id}>
-                          {agent.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Rango de fecha</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal"
-                      >
-                        <Calendar className="mr-2 h-4 w-4" />
-                        {filters.dateRange?.from ? (
-                          filters.dateRange.to ? (
-                            <>
-                              {filters.dateRange.from.toLocaleDateString()} -
-                              {filters.dateRange.to.toLocaleDateString()}
-                            </>
-                          ) : (
-                            filters.dateRange.from.toLocaleDateString()
-                          )
-                        ) : (
-                          <span>Seleccionar rango de fechas</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        initialFocus
-                        mode="range"
-                        defaultMonth={new Date()}
-                        selected={filters.dateRange}
-                        onSelect={(range) => updateFilter('dateRange', range)}
-                        numberOfMonths={2}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                
-                <div className="flex justify-between pt-2">
-                  <Button variant="outline" size="sm" onClick={clearFilters}>
-                    <X className="h-4 w-4 mr-1" />
-                    Limpiar filtros
-                  </Button>
-                  <Button size="sm" onClick={() => setShowFilters(false)}>
-                    Aplicar
-                  </Button>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
-      </div>
-      
-      {/* Active filters display */}
-      {activeFilterCount > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {filters.search && (
-            <Badge variant="secondary" className="flex items-center gap-1">
-              Búsqueda: {filters.search}
+      {/* Active Filters Display */}
+      {activeFiltersCount > 0 && (
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="text-sm text-muted-foreground">Filtros activos:</span>
+          
+          {filters.status.map(status => (
+            <Badge key={`status-${status}`} variant="secondary" className="flex items-center gap-1">
+              Estado: {statusOptions.find(opt => opt.value === status)?.label}
               <X 
-                className="h-3 w-3 ml-1 cursor-pointer" 
-                onClick={() => {
-                  updateFilter('search', '');
-                  setSearchInputValue('');
-                }} 
+                className="h-3 w-3 cursor-pointer" 
+                onClick={() => removeFilter("status", status)}
+              />
+            </Badge>
+          ))}
+          
+          {filters.sentiment.map(sentiment => (
+            <Badge key={`sentiment-${sentiment}`} variant="secondary" className="flex items-center gap-1">
+              Sentimiento: {sentimentOptions.find(opt => opt.value === sentiment)?.label}
+              <X 
+                className="h-3 w-3 cursor-pointer" 
+                onClick={() => removeFilter("sentiment", sentiment)}
+              />
+            </Badge>
+          ))}
+          
+          {filters.result.map(result => (
+            <Badge key={`result-${result}`} variant="secondary" className="flex items-center gap-1">
+              Resultado: {resultOptions.find(opt => opt.value === result)?.label}
+              <X 
+                className="h-3 w-3 cursor-pointer" 
+                onClick={() => removeFilter("result", result)}
+              />
+            </Badge>
+          ))}
+          
+          {filters.product.map(product => (
+            <Badge key={`product-${product}`} variant="secondary" className="flex items-center gap-1">
+              Producto: {productOptions.find(opt => opt.value === product)?.label}
+              <X 
+                className="h-3 w-3 cursor-pointer" 
+                onClick={() => removeFilter("product", product)}
+              />
+            </Badge>
+          ))}
+          
+          {filters.agent.map(agentId => (
+            <Badge key={`agent-${agentId}`} variant="secondary" className="flex items-center gap-1">
+              Agente: {agents.find(agent => agent.id === agentId)?.name || agentId}
+              <X 
+                className="h-3 w-3 cursor-pointer" 
+                onClick={() => removeFilter("agent", agentId)}
+              />
+            </Badge>
+          ))}
+          
+          {filters.dateRange && filters.dateRange !== "all" && (
+            <Badge variant="secondary" className="flex items-center gap-1">
+              Período: {dateRangeOptions.find(opt => opt.value === filters.dateRange)?.label}
+              <X 
+                className="h-3 w-3 cursor-pointer" 
+                onClick={() => removeFilter("dateRange")}
               />
             </Badge>
           )}
           
-          {filters.status && filters.status !== "all" && (
-            <Badge variant="secondary" className="flex items-center gap-1">
-              Estado: {getStatusName(filters.status)}
-              <X 
-                className="h-3 w-3 ml-1 cursor-pointer" 
-                onClick={() => updateFilter('status', 'all')} 
-              />
-            </Badge>
-          )}
-          
-          {filters.tipificacionId && (
-            <Badge variant="secondary" className="flex items-center gap-1">
-              Tipificación: {tipificaciones.find(t => t.id === filters.tipificacionId)?.name || 'Desconocida'}
-              <X 
-                className="h-3 w-3 ml-1 cursor-pointer" 
-                onClick={() => updateFilter('tipificacionId', 'all_tipificaciones')} 
-              />
-            </Badge>
-          )}
-          
-          {filters.agentId && (
-            <Badge variant="secondary" className="flex items-center gap-1">
-              Asesor: {agents.find(a => a.id === filters.agentId)?.name || 'Desconocido'}
-              <X 
-                className="h-3 w-3 ml-1 cursor-pointer" 
-                onClick={() => updateFilter('agentId', 'all_agents')} 
-              />
-            </Badge>
-          )}
-          
-          {filters.dateRange && (
-            <Badge variant="secondary" className="flex items-center gap-1">
-              Fecha: {filters.dateRange.from?.toLocaleDateString()} - {filters.dateRange.to?.toLocaleDateString() || 'actual'}
-              <X 
-                className="h-3 w-3 ml-1 cursor-pointer" 
-                onClick={() => updateFilter('dateRange', undefined)} 
-              />
-            </Badge>
-          )}
-          
-          {activeFilterCount > 1 && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-7 px-2 text-xs"
-              onClick={clearFilters}
-            >
-              Limpiar todos
-            </Button>
-          )}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={clearAllFilters}
+            className="h-6 px-2"
+          >
+            <RotateCcw className="h-3 w-3 mr-1" />
+            Limpiar todo
+          </Button>
         </div>
       )}
+
+      {/* Filter Panel */}
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CollapsibleTrigger asChild>
+          <Button variant="outline" className="w-full justify-between">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              Filtros
+              {activeFiltersCount > 0 && (
+                <Badge variant="secondary" className="ml-2">
+                  {activeFiltersCount}
+                </Badge>
+              )}
+            </div>
+          </Button>
+        </CollapsibleTrigger>
+        
+        <CollapsibleContent>
+          <Card className="mt-2">
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {renderFilterSelect("Estado", "status", statusOptions)}
+                {renderFilterSelect("Sentimiento", "sentiment", sentimentOptions)}
+                {renderFilterSelect("Resultado", "result", resultOptions)}
+                {renderFilterSelect("Producto", "product", productOptions)}
+                {renderFilterSelect("Agente", "agent", agentOptions)}
+                
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Período</Label>
+                  <Select value={filters.dateRange} onValueChange={handleDateRangeChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar período" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {dateRangeOptions.map(option => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }

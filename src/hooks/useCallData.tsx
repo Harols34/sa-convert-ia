@@ -5,15 +5,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { validateCallStatus } from "@/components/calls/detail/CallUtils";
 
-// Cache con TTL más largo para reducir consultas
+// Enhanced cache with better TTL management
 const callCache = new Map<string, {
   data: Call,
   timestamp: number,
   transcriptSegments: any[]
 }>();
 
-// TTL en milisegundos (10 minutos)
-const CACHE_TTL = 10 * 60 * 1000;
+// TTL in milliseconds (15 minutes for better performance)
+const CACHE_TTL = 15 * 60 * 1000;
+
+// Cleanup old cache entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of callCache.entries()) {
+    if (now - value.timestamp > CACHE_TTL) {
+      callCache.delete(key);
+    }
+  }
+}, 5 * 60 * 1000); // Cleanup every 5 minutes
 
 export function useCallData(id: string | undefined) {
   const [call, setCall] = useState<Call | null>(null);
@@ -22,29 +32,42 @@ export function useCallData(id: string | undefined) {
   const [loadError, setLoadError] = useState<string | null>(null);
   
   const isMounted = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    isMounted.current = true;
+    
     if (!id || id === '*' || id === 'undefined' || id === 'null') {
       setIsLoading(false);
       setLoadError("ID de llamada inválido");
       return;
     }
     
+    // Cancel any ongoing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
     const now = Date.now();
     const cachedData = callCache.get(id);
     
-    // Usar cache si está disponible y no ha expirado
+    // Use cache if available and not expired
     if (cachedData && now - cachedData.timestamp < CACHE_TTL) {
       console.log("Using cached call data for ID:", id);
-      setCall(cachedData.data);
-      setTranscriptSegments(cachedData.transcriptSegments);
-      setIsLoading(false);
-      setLoadError(null);
+      if (isMounted.current) {
+        setCall(cachedData.data);
+        setTranscriptSegments(cachedData.transcriptSegments);
+        setIsLoading(false);
+        setLoadError(null);
+      }
       return;
     }
     
     const loadCallData = async () => {
       if (!isMounted.current) return;
+      
+      // Create new abort controller
+      abortControllerRef.current = new AbortController();
       
       setIsLoading(true);
       setLoadError(null);
@@ -52,20 +75,18 @@ export function useCallData(id: string | undefined) {
       try {
         console.log("Loading call data for ID:", id);
         
-        // Timeout para evitar consultas largas
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Call fetch timeout')), 5000)
-        );
-        
-        const queryPromise = supabase
+        // Optimized query with better timeout handling
+        const { data: callData, error: callError } = await supabase
           .from('calls')
           .select('*')
           .eq('id', id)
+          .abortSignal(abortControllerRef.current.signal)
           .single();
           
-        const { data: callData, error: callError } = await Promise.race([queryPromise, timeoutPromise]) as any;
-          
         if (callError) {
+          if (callError.name === 'AbortError') {
+            return;
+          }
           console.error("Error loading call:", callError);
           if (isMounted.current) {
             setLoadError(`Error loading call: ${callError.message}`);
@@ -107,17 +128,15 @@ export function useCallData(id: string | undefined) {
         
         let segments: any[] = [];
 
-        // Parse transcription with improved timestamp handling
+        // Optimized transcription parsing
         if (callData.transcription && typeof callData.transcription === "string") {
           const transcriptionText = callData.transcription.trim();
           
-          // Only try to parse if it looks like timestamped transcription
           if (transcriptionText.includes('[') && transcriptionText.includes(']:')) {
             console.log("Parsing timestamped transcription format");
             segments = parseTimestampedTranscription(transcriptionText);
           } else {
             console.log("Transcription does not appear to be in timestamped format");
-            // Create basic segments from text
             const lines = transcriptionText.split('\n').filter(line => line.trim());
             segments = lines.map((line, index) => ({
               text: line.trim(),
@@ -128,26 +147,19 @@ export function useCallData(id: string | undefined) {
           }
         } else if (Array.isArray(callData.transcription)) {
           segments = callData.transcription.filter(item => item && typeof item === 'object' && item.text);
-        } else {
-          segments = [];
         }
         
-        // Load feedback data
+        // Load feedback data with better error handling
         if (callData.id && isMounted.current) {
           try {
-            const feedbackTimeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Feedback fetch timeout')), 3000)
-            );
-            
-            const feedbackQueryPromise = supabase
+            const { data: feedbackData, error: feedbackError } = await supabase
               .from('feedback')
               .select('*')
               .eq('call_id', callData.id)
+              .abortSignal(abortControllerRef.current.signal)
               .maybeSingle();
-              
-            const { data: feedbackData, error: feedbackError } = await Promise.race([feedbackQueryPromise, feedbackTimeoutPromise]) as any;
             
-            if (feedbackError && feedbackError.code !== 'PGRST116') {
+            if (feedbackError && feedbackError.name !== 'AbortError') {
               console.error("Error loading feedback:", feedbackError);
             }
             
@@ -163,9 +175,6 @@ export function useCallData(id: string | undefined) {
                     behaviorsAnalysis = validateBehaviorsAnalysis(parsed);
                   } else if (Array.isArray(feedbackData.behaviors_analysis)) {
                     behaviorsAnalysis = validateBehaviorsAnalysis(feedbackData.behaviors_analysis);
-                  } else {
-                    console.error("behaviors_analysis is not in expected format:", feedbackData.behaviors_analysis);
-                    behaviorsAnalysis = [];
                   }
                 } catch (e) {
                   console.error("Error parsing behaviors_analysis:", e);
@@ -191,12 +200,13 @@ export function useCallData(id: string | undefined) {
               callObject.feedback = typedFeedback;
             }
           } catch (error) {
-            console.error("Error loading feedback:", error);
-            // Continue without feedback data
+            if (error.name !== 'AbortError') {
+              console.error("Error loading feedback:", error);
+            }
           }
         }
         
-        // Guardar en caché solo si el montaje está activo
+        // Cache data only if mount is still active
         if (isMounted.current) {
           callCache.set(id, {
             data: callObject,
@@ -211,6 +221,9 @@ export function useCallData(id: string | undefined) {
         }
         
       } catch (error) {
+        if (error.name === 'AbortError') {
+          return;
+        }
         console.error("Error loading data:", error);
         if (isMounted.current) {
           setLoadError(error instanceof Error ? error.message : "Unknown error");
@@ -223,10 +236,13 @@ export function useCallData(id: string | undefined) {
     
     return () => {
       isMounted.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
   }, [id]);
 
-  // Improved helper function to parse timestamped text format
+  // Optimized helper function to parse timestamped text format
   function parseTimestampedTranscription(text: string): any[] {
     const lines = text.split('\n').filter(line => line.trim());
     const segments: any[] = [];
@@ -234,12 +250,10 @@ export function useCallData(id: string | undefined) {
     console.log(`Parsing ${lines.length} lines from transcription`);
     
     lines.forEach((line, index) => {
-      // Match format [mm:ss] Speaker: text or [m:ss] Speaker: text
       const timestampMatch = line.match(/^\[(\d+):(\d+)\]\s*(.+?):\s*(.+)$/);
       if (timestampMatch) {
         const [, minutes, seconds, speaker, text] = timestampMatch;
         
-        // Determine speaker type more accurately
         let speakerType = 'agent';
         const speakerLower = speaker.toLowerCase();
         
@@ -255,11 +269,9 @@ export function useCallData(id: string | undefined) {
           text: text.trim(),
           speaker: speakerType,
           start: startTime,
-          end: startTime + 5 // Estimate 5 seconds per segment
+          end: startTime + 5
         });
-      }
-      // Handle silence periods
-      else if (line.includes('Silencio:')) {
+      } else if (line.includes('Silencio:')) {
         const silenceMatch = line.match(/^\[(\d+):(\d+)\]\s*Silencio:\s*(\d+)/);
         if (silenceMatch) {
           const [, minutes, seconds, duration] = silenceMatch;
@@ -272,10 +284,7 @@ export function useCallData(id: string | undefined) {
             end: startTime + parseInt(duration)
           });
         }
-      }
-      // Fallback for any other content lines
-      else if (line.trim() && !line.includes('No hay transcripción disponible')) {
-        // Try to extract speaker from line content
+      } else if (line.trim() && !line.includes('No hay transcripción disponible')) {
         let speakerType = 'agent';
         if (line.toLowerCase().includes('cliente:')) {
           speakerType = 'client';
