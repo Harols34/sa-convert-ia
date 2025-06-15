@@ -2,11 +2,14 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Layout from "@/components/layout/Layout";
 import AccountList from "@/components/accounts/AccountList";
 import AccountForm from "@/components/accounts/AccountForm";
 import UserAccountAssignment from "@/components/accounts/UserAccountAssignment";
-import { ArrowLeft, Building2, Users } from "lucide-react";
+import BulkAccountUpload from "@/components/accounts/BulkAccountUpload";
+import BulkUserAssignment from "@/components/accounts/BulkUserAssignment";
+import { ArrowLeft, Building2, Users, Upload, UserCheck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -90,7 +93,43 @@ export default function AccountsPage() {
                   </Button>
                 </div>
               </div>
-              <AccountList />
+
+              <Tabs defaultValue="list" className="space-y-6">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="list" className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Cuentas
+                  </TabsTrigger>
+                  <TabsTrigger value="bulk-accounts" className="flex items-center gap-2">
+                    <Upload className="h-4 w-4" />
+                    Carga Masiva
+                  </TabsTrigger>
+                  <TabsTrigger value="assignments" className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Asignaciones
+                  </TabsTrigger>
+                  <TabsTrigger value="bulk-assign" className="flex items-center gap-2">
+                    <UserCheck className="h-4 w-4" />
+                    Asign. Múltiple
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="list" className="space-y-6">
+                  <AccountList />
+                </TabsContent>
+
+                <TabsContent value="bulk-accounts" className="space-y-6">
+                  <BulkAccountUpload />
+                </TabsContent>
+
+                <TabsContent value="assignments" className="space-y-6">
+                  <UserAccountAssignment />
+                </TabsContent>
+
+                <TabsContent value="bulk-assign" className="space-y-6">
+                  <BulkUserAssignment />
+                </TabsContent>
+              </Tabs>
             </div>
           }
         />
