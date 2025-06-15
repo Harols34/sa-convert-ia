@@ -1,5 +1,4 @@
 
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MessageSquare, TrendingUp, BarChart3, Users, Clock, Star } from "lucide-react";
 
@@ -49,25 +48,22 @@ const quickQuestions = [
 
 export default function QuickQuestions({ onQuestionSelect, isLoading }: QuickQuestionsProps) {
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-medium text-muted-foreground px-2">Preguntas rápidas</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+    <div className="space-y-2">
+      <h4 className="text-xs font-medium text-muted-foreground px-1">Preguntas sugeridas</h4>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
         {quickQuestions.map((item) => {
           const IconComponent = item.icon;
           return (
             <Card 
               key={item.id}
-              className="hover:bg-accent/50 transition-colors cursor-pointer border-dashed"
+              className="hover:bg-accent/50 transition-colors cursor-pointer border-dashed border-muted-foreground/20 bg-background/50"
               onClick={() => !isLoading && onQuestionSelect(item.question)}
             >
-              <CardContent className="p-3">
-                <div className="flex items-start gap-2">
-                  <IconComponent className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
+              <CardContent className="p-2">
+                <div className="flex items-center gap-1.5">
+                  <IconComponent className="h-3 w-3 text-primary flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-muted-foreground mb-1">
-                      {item.category}
-                    </p>
-                    <p className="text-sm leading-tight break-words">
+                    <p className="text-xs leading-tight break-words line-clamp-2 text-foreground/80">
                       {item.question}
                     </p>
                   </div>

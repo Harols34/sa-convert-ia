@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -204,14 +205,13 @@ export default function ChatInterface() {
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50 rounded-lg mb-3 sm:mb-4 min-h-0">
         {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full min-h-[300px] sm:min-h-[400px]">
-            <div className="text-center px-4 max-w-4xl w-full">
+          <div className="flex items-center justify-center h-full min-h-[200px]">
+            <div className="text-center px-4 max-w-2xl w-full">
               <Bot className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
               <h3 className="text-base sm:text-lg font-medium mb-2">Asistente de ConvertIA</h3>
-              <p className="text-sm sm:text-base text-muted-foreground max-w-md mx-auto leading-relaxed mb-6">
+              <p className="text-sm sm:text-base text-muted-foreground max-w-md mx-auto leading-relaxed">
                 Tengo acceso a los datos de tus llamadas. Pregúntame sobre insights, tendencias y análisis.
               </p>
-              <QuickQuestions onQuestionSelect={handleQuestionSelect} isLoading={isLoading} />
             </div>
           </div>
         ) : (
@@ -255,6 +255,11 @@ export default function ChatInterface() {
         )}
         
         <div ref={messagesEndRef} />
+      </div>
+
+      {/* Quick Questions - Always Visible */}
+      <div className="mb-3 px-2 sm:px-0">
+        <QuickQuestions onQuestionSelect={handleQuestionSelect} isLoading={isLoading} />
       </div>
 
       {/* Input Area */}
