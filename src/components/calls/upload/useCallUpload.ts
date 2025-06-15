@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +13,27 @@ export interface FileItem {
   error?: string;
   info?: string;
 }
+
+// Helper function to get audio duration
+const getAudioDuration = (file: File): Promise<number> => {
+  return new Promise((resolve) => {
+    const audio = document.createElement('audio');
+    audio.preload = 'metadata';
+    
+    audio.onloadedmetadata = () => {
+      window.URL.revokeObjectURL(audio.src);
+      resolve(audio.duration);
+    };
+    
+    audio.onerror = () => {
+      window.URL.revokeObjectURL(audio.src);
+      console.error(`Error loading metadata for file: ${file.name}`);
+      resolve(0); // Return 0 if duration can't be read
+    };
+    
+    audio.src = window.URL.createObjectURL(file);
+  });
+};
 
 // Function to sanitize file names for storage
 const sanitizeFileName = (fileName: string): string => {
@@ -155,10 +175,11 @@ export function useCallUpload() {
             try {
               setFiles(prev => prev.map(f => 
                 f.id === fileItem.id 
-                  ? { ...f, status: "uploading", progress: 20, info: "Subiendo archivo..." }
+                  ? { ...f, status: "uploading", progress: 20, info: "Obteniendo duración..." }
                   : f
               ));
 
+              const duration = await getAudioDuration(fileItem.file);
               const sanitizedName = sanitizeFileName(fileItem.file.name);
               const fileName = `${Date.now()}-${sanitizedName}`;
               
@@ -208,6 +229,7 @@ export function useCallUpload() {
                 .insert({
                   title: sanitizedName.replace(/\.[^/.]+$/, ""),
                   filename: sanitizedName,
+                  duration, // This is the fix
                   agent_name: user.full_name || user.name || user.email || 'Usuario',
                   agent_id: user.id,
                   account_id: selectedAccountId,
